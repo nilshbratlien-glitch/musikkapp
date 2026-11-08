@@ -221,6 +221,8 @@ export function NoteCards() {
   const card = cur.session.card?.split(":") ?? null;
   const rows = worstNotes(cur.stored.stats);
 
+  // Fanebytte avbryter ikke svartimeren. nextCard() nullstiller locked når timeren går ut,
+  // slik at kortet ikke henger hvis man forlater Øv før 420 ms.
   function show(tab: Tab) {
     model.current.tab = tab;
     if (tab === "drill" && !model.current.session.card) {
