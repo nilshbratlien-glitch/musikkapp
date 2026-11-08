@@ -3,7 +3,7 @@ const BASS = "M 1239,8245 C 1397,8138 1515,8057 1591,8001 C 1667,7946 1747,7877 
 
 export function Treble() {
   return (
-    <g fill="#14171b" transform="translate(12,122) scale(0.042)">
+    <g fill="#14171b" transform="translate(12,108) scale(0.042)">
       <path d={TREBLE} />
     </g>
   );
