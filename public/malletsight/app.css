@@ -292,16 +292,24 @@
 }
 
 #malletsight-root {
-  --bg: var(--color-bg);
-  --bg2: var(--color-header);
-  --panel: var(--color-surface);
-  --line: var(--color-line);
-  --text: var(--color-fg);
-  --muted: var(--color-muted);
-  --accent: var(--color-accent);
+  --bg: #12151b;
+  --bg2: #161a22;
+  --panel: #1c222c;
+  --line: #2a3140;
+  --text: #f4f6f8;
+  --muted: #9aa3b0;
+  --accent: #e0b15a;
+  --radius: 1.15rem;
+  --color-bg: var(--bg);
+  --color-header: var(--bg2);
+  --color-surface: var(--panel);
+  --color-line: var(--line);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --radius-card: var(--radius);
   --paper: #f3efe6;
-  --radius: var(--radius-card);
-  font-family: var(--font-sans);
+  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
 }
 
 #malletsight-root .topbar,
@@ -327,10 +335,10 @@
 
 #malletsight-root .settings-btn {
   min-height: 4.5rem;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--color-line);
-  background: var(--color-surface);
-  color: var(--color-fg);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
   font-weight: 600;
   display: flex;
   flex-direction: column;
@@ -344,8 +352,8 @@
 #malletsight-root .settings-btn:active { transform: scale(0.97); }
 
 #malletsight-root .settings-btn.active {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
 }
 
 #malletsight-root .settings-back {
