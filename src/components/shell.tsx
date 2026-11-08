@@ -53,7 +53,7 @@ function useInstall() {
       setMessage("I Safari: trykk Del, deretter Legg til på Hjem-skjerm.");
       return;
     }
-    setMessage("I Chrome: trykk ⋮ øverst til høyre, deretter Installer app.");
+    setMessage("Velg Opprett snarvei i menyen. Chrome kan ikke installere siden, fordi den ligger bak innlogging.");
   }
 
   return { standalone, message, install };
