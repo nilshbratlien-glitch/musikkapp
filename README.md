@@ -6,3 +6,5 @@ Fire plassholdere, mørkt tema og bunnmeny. Hvert verktøy har eget `localStorag
 
 ## Verktøy
 - **Notekort**: Øv notelesing på G- og F-nøkkel. Velg noter, drill med umiddelbar tilbakemelding og statistikk. Svar-timer (420 ms) fortsetter ved fanebytte så kortet ikke henger. Toast forsvinner etter 2,6 s.
+- **Øveplan**: Melodisk øveplan med blokker (2-mallet, 4-mallet, skalaer, SRF, rep), presets, nedtelling og logg. Timer og metronom stoppes når man forlater siden. Lagres i `musikkapp.oveplan`.
+
