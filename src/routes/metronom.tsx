@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SnareSpeed } from "@/components/snare-speed";
+import { Metronom } from "@/components/metronom";
 
 export const Route = createFileRoute("/metronom")({
-  component: SnareSpeed,
+  component: Metronom,
 });

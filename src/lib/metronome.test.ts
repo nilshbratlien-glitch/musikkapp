@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { commitBest, onClick, recordBest, secondsPerNote, type ClickState } from "./metronome.ts";
+import { commitBest, nextPulse, onClick, recordBest, secondsPerNote, type ClickState } from "./metronome.ts";
 
 describe("snare-speed metronome", () => {
   it("steps BPM after the configured number of bars", () => {
@@ -43,5 +43,17 @@ describe("snare-speed metronome", () => {
     assert.equal(commitBest(true, false), "failed");
     assert.equal(commitBest(true, true), "saved");
     assert.equal(commitBest(false, false), "same");
+  });
+
+  it("accents only beat 1 in each meter", () => {
+    for (const meter of ["4/4", "3/4", "2/4", "6/8"] as const) {
+      const first = nextPulse(0, meter);
+      const second = nextPulse(first.beat, meter);
+      assert.equal(first.accent, true);
+      assert.equal(second.accent, false);
+      assert.equal(first.index, 0);
+    }
+    assert.equal(nextPulse(5, "6/8").accent, false);
+    assert.equal(nextPulse(6, "6/8").accent, true);
   });
 });

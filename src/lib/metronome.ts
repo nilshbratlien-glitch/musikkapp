@@ -62,3 +62,20 @@ export function commitBest(updated: boolean, saved: boolean) {
   if (!saved) return "failed" as const;
   return "saved" as const;
 }
+
+export const METERS = ["4/4", "3/4", "2/4", "6/8"] as const;
+
+export type Meter = (typeof METERS)[number];
+
+export function beatsInMeter(meter: Meter) {
+  if (meter === "3/4") return 3;
+  if (meter === "2/4") return 2;
+  if (meter === "6/8") return 6;
+  return 4;
+}
+
+export function nextPulse(beat: number, meter: Meter) {
+  const beats = beatsInMeter(meter);
+  const index = beat % beats;
+  return { accent: index === 0, index, beat: beat + 1 };
+}
