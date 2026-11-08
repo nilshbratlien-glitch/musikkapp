@@ -8,6 +8,8 @@
   --color-fg: #f4f6f8;
   --color-muted: #9aa3b0;
   --color-accent: #e0b15a;
+  --color-ok: #4e9a6b;
+  --color-no: #c0483f;
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --radius-card: 1.15rem;
 }
@@ -69,5 +71,41 @@
   outline: none;
   border-color: var(--color-accent);
   box-shadow: 0 6px 16px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+.staff-card {
+  background: #f3efe6;
+  border-radius: var(--radius-card);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.32);
+}
+
+.answer-row {
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.5rem;
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+}
+
+.answer-key {
+  flex: 1;
+  min-width: 0;
+  min-height: 3.25rem;
+  border-radius: 0.75rem;
+  background: var(--color-accent);
+  color: #2a1206;
+  font-weight: 700;
+  box-shadow: 0 3px 0 #8a6a2e;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.answer-key:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: none;
+}
+
+.answer-key:disabled {
+  opacity: 0.5;
 }
 

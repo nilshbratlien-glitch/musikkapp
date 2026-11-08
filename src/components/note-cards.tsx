@@ -41,6 +41,7 @@ type Model = {
   session: Session;
   toast: string;
   toastBad: boolean;
+  toastTimer: number | null;
   timer: number | null;
   cont: (() => void) | null;
 };
@@ -59,7 +60,7 @@ function selectionOf(draft: Model["draft"]): NoteSelection {
 function StaffCard({ clef, idx, pool }: { clef: Clef; idx: number; pool: string[] }) {
   const y = yOf(clef, idx);
   return (
-    <div className="rounded-card bg-[#f6f2e9] px-1 py-1.5 shadow-[0_8px_26px_rgba(0,0,0,0.4)]">
+    <div className="staff-card px-1 py-1.5">
       <svg viewBox={viewBoxFor(pool)} role="img" aria-label={`Note i ${CLEFS[clef].label}`} className="block h-auto w-full">
         <g stroke="#14171b" strokeWidth={1.6} strokeLinecap="square">
           {[0, 1, 2, 3, 4].map((line) => {
@@ -122,6 +123,7 @@ export function NoteCards() {
     session: freshSession(),
     toast: "",
     toastBad: false,
+    toastTimer: null,
     timer: null,
     cont: null,
   });
@@ -137,17 +139,22 @@ export function NoteCards() {
     cur.cont = null;
   }
 
-  function persist(toast?: string, bad = false) {
+  function flashToast(message: string, bad = false) {
+    const cur = model.current;
+    cur.toast = message;
+    cur.toastBad = bad;
+    if (cur.toastTimer != null) window.clearTimeout(cur.toastTimer);
+    cur.toastTimer = window.setTimeout(() => {
+      model.current.toast = "";
+      model.current.toastTimer = null;
+      redraw();
+    }, 2600);
+  }
+
+  function persist() {
     const cur = model.current;
     cur.stored = { ...cur.stored, sel: selectionOf(cur.draft) };
-    const saved = saveNoteState(cur.stored);
-    if (!saved) {
-      cur.toast = "Fikk ikke lagret. Er lagring blokkert i nettleseren?";
-      cur.toastBad = true;
-    } else if (toast) {
-      cur.toast = toast;
-      cur.toastBad = bad;
-    }
+    if (!saveNoteState(cur.stored)) flashToast("Fikk ikke lagret. Er lagring blokkert i nettleseren?", true);
   }
 
   function nextCard() {
@@ -225,6 +232,7 @@ export function NoteCards() {
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
+      if (model.current.toastTimer != null) window.clearTimeout(model.current.toastTimer);
       clearContinue();
     };
   }, []);
@@ -237,7 +245,6 @@ export function NoteCards() {
   const rows = worstNotes(cur.stored.stats);
 
   function show(tab: Tab) {
-    clearContinue();
     model.current.tab = tab;
     if (tab === "drill" && !model.current.session.card) {
       model.current.session.card = drawCard(poolOf(model.current.stored.sel), model.current.session.prev);
@@ -294,26 +301,24 @@ export function NoteCards() {
             <p
               className={
                 cur.session.kind === "ok"
-                  ? "mt-2 min-h-8 text-center text-lg font-semibold text-[#4e9a6b]"
+                  ? "mt-2 min-h-8 text-center text-lg font-semibold text-ok"
                   : cur.session.kind === "no"
-                    ? "mt-2 min-h-8 text-center text-lg font-semibold text-[#c0483f]"
+                    ? "mt-2 min-h-8 text-center text-lg font-semibold text-no"
                     : "mt-2 min-h-8 text-center text-lg font-semibold"
               }
             >
               {cur.session.feedback || "\u00a0"}
             </p>
-            <div className="flex items-end gap-1">
+            <div className="answer-row">
               {LETTERS.map((letter, index) => (
                 <button
                   key={letter}
                   type="button"
                   disabled={cur.session.locked}
                   onClick={() => answer(index)}
-                  style={{ height: 70 - index * 3 }}
-                  className="relative min-w-0 flex-1 rounded-md bg-accent text-lg font-bold text-[#2a1206] shadow-[0_3px_0_#8a6a2e] active:translate-y-[3px] active:shadow-none disabled:opacity-50"
+                  className="answer-key text-lg"
                 >
                   {letter === "B" && cur.stored.lang === "no" ? "H" : letter}
-                  <span className="absolute bottom-1.5 left-1/2 size-1 -translate-x-1/2 rounded-full bg-black/30" />
                 </button>
               ))}
             </div>
@@ -434,19 +439,21 @@ export function NoteCards() {
                 live.stored = { ...live.stored, sel: selectionOf(live.draft) };
                 const saved = saveNoteState(live.stored);
                 live.session = freshSession();
-                live.toast = !saved
-                  ? "Fikk ikke lagret. Er lagring blokkert i nettleseren?"
-                  : poolOf(live.stored.sel).length
-                    ? "Utvalget er lagret."
-                    : "Ingen noter valgt.";
-                live.toastBad = !saved;
+                flashToast(
+                  !saved
+                    ? "Fikk ikke lagret. Er lagring blokkert i nettleseren?"
+                    : poolOf(live.stored.sel).length
+                      ? "Utvalget er lagret."
+                      : "Ingen noter valgt.",
+                  !saved,
+                );
                 redraw();
               }}
               className="metro-press mt-4 min-h-12 w-full rounded-lg bg-accent font-semibold text-bg"
             >
               Lagre utvalget
             </button>
-            <p className={cur.toastBad ? "mt-2 min-h-5 text-center text-sm text-[#c0483f]" : "mt-2 min-h-5 text-center text-sm text-[#4e9a6b]"}>
+            <p className={cur.toastBad ? "mt-2 min-h-5 text-center text-sm text-no" : "mt-2 min-h-5 text-center text-sm text-ok"}>
               {cur.toast}
             </p>
           </div>
@@ -505,8 +512,10 @@ export function NoteCards() {
                 const live = model.current;
                 live.stored = { ...live.stored, stats: {}, sel: selectionOf(live.draft) };
                 const saved = saveNoteState(live.stored);
-                live.toast = saved ? "Statistikken er nullstilt." : "Fikk ikke lagret. Er lagring blokkert i nettleseren?";
-                live.toastBad = !saved;
+                flashToast(
+                  saved ? "Statistikken er nullstilt." : "Fikk ikke lagret. Er lagring blokkert i nettleseren?",
+                  !saved,
+                );
                 redraw();
               }}
               className="metro-press mt-3 min-h-11 w-full rounded-lg border border-line text-sm text-muted"
