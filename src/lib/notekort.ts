@@ -44,9 +44,9 @@ export const CLEFS: Record<
 };
 
 export const INSTRUMENTS: [string, number, number][] = [
-  ["Klokkespill", 39, 56],
-  ["Xylofon 3,5", 31, 56],
-  ["Xylofon 4", 28, 56],
+  ["Klokkespill", 25, 42],
+  ["Xylofon 3,5", 24, 49],
+  ["Xylofon 4", 21, 49],
   ["Vibrafon 3", 24, 45],
   ["Marimba 4,3", 19, 49],
   ["Marimba 4,5", 17, 49],
@@ -108,8 +108,8 @@ export function viewBoxFor(keys: string[]) {
     if (y < yMin) yMin = y;
     if (y > yMax) yMax = y;
   }
-  const top = Math.min(yMin - 20, 74);
-  const bot = Math.max(yMax + 20, 188);
+  const top = Math.min(yMin - 20, 58);
+  const bot = Math.max(yMax + 20, 198);
   return `0 ${top} 220 ${bot - top}`;
 }
 

@@ -3,6 +3,7 @@ import { afterEach, describe, it } from "node:test";
 import {
   drawCard,
   fullName,
+  INSTRUMENTS,
   ledgerSteps,
   letterName,
   loadNoteState,
@@ -49,7 +50,16 @@ describe("notekort", () => {
     assert.equal(yFor("treble", 30), 155);
     assert.deepEqual(ledgerSteps("treble", 30), []);
     assert.deepEqual(ledgerSteps("treble", 40), [10]);
-    assert.equal(viewBoxFor([]), "0 74 220 114");
+    assert.equal(viewBoxFor([]), "0 58 220 140");
+  });
+
+  it("stores xylophone and glockenspiel in written pitch", () => {
+    const range = (name: string) => INSTRUMENTS.find((item) => item[0] === name)?.slice(1);
+    assert.deepEqual(range("Xylofon 3,5"), [24, 49]);
+    assert.deepEqual(range("Xylofon 4"), [21, 49]);
+    assert.deepEqual(range("Klokkespill"), [25, 42]);
+    assert.equal(fullName(24, "no"), "F3");
+    assert.equal(fullName(49, "no"), "C7");
   });
 
   it("sorts the weakest notes first", () => {

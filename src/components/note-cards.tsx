@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Bass, Treble } from "@/components/staff-clefs";
 import {
   CLEFS,
   INSTRUMENTS,
@@ -88,30 +89,6 @@ function StaffCard({ clef, idx, pool }: { clef: Clef; idx: number; pool: string[
 
 function yOf(clef: Clef, idx: number) {
   return STAFF.bottom - (idx - CLEFS[clef].bottom) * (STAFF.gap / 2);
-}
-
-function Treble() {
-  return (
-    <g fill="none" stroke="#14171b" strokeWidth={3.4} strokeLinecap="round">
-      <path d="M 36 82 C 41 102 43 122 40 141 C 37 160 33 173 23 175 C 15 176 11 169 16 163" />
-      <path d="M 36 82 C 24 90 19 104 22 118 C 30 128 42 130 44 142 C 46 156 34 164 24 158 C 15 153 15 138 30 140" />
-    </g>
-  );
-}
-
-function Bass() {
-  return (
-    <g>
-      <g fill="none" stroke="#14171b" strokeWidth={3.4} strokeLinecap="round">
-        <path d="M 22 113 C 22 103 34 100 40 106 C 48 114 42 132 28 144 C 22 149 16 152 12 154" />
-      </g>
-      <g fill="#14171b">
-        <circle cx={22} cy={113} r={3.4} />
-        <circle cx={48} cy={106} r={2.8} />
-        <circle cx={48} cy={120} r={2.8} />
-      </g>
-    </g>
-  );
 }
 
 export function NoteCards() {
