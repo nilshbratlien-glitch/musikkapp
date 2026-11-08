@@ -1,6 +1,6 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Drum, FileText, Music, Piano } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
 
 const ICONS: Record<ToolId, typeof Music> = {
@@ -10,14 +10,48 @@ const ICONS: Record<ToolId, typeof Music> = {
   notekort: FileText,
 };
 
+type InstallPrompt = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
+function useInstall() {
+  const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
+  const [standalone, setStandalone] = useState(false);
+  const [hint, setHint] = useState(false);
+
+  useEffect(() => {
+    const ios = "standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+    if (ios || window.matchMedia("(display-mode: standalone)").matches) setStandalone(true);
+    const onPrompt = (event: Event) => {
+      event.preventDefault();
+      setPrompt(event as InstallPrompt);
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
+  }, []);
+
+  async function install() {
+    if (!prompt) {
+      setHint(true);
+      return;
+    }
+    await prompt.prompt();
+    setPrompt(null);
+  }
+
+  return { standalone, hint, install };
+}
+
 export function Shell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tool = toolForPath(pathname);
+  const install = useInstall();
 
   useEffect(() => {
     ensureToolNamespaces();
     if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
   }, []);
 
   const sheet = tool.id === "bladlesing";
@@ -25,8 +59,26 @@ export function Shell() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
       <header className="shrink-0 border-b border-line bg-header px-4 py-3">
-        <p className="text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
-        <p className="text-sm text-muted">{tool.label}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
+            <p className="text-sm text-muted">{tool.label}</p>
+          </div>
+          {install.standalone ? null : (
+            <button
+              type="button"
+              onClick={() => void install.install()}
+              className="metro-press mt-0.5 min-h-10 shrink-0 rounded-lg border border-line px-3 text-sm font-semibold"
+            >
+              Installer
+            </button>
+          )}
+        </div>
+        {install.hint ? (
+          <p className="mt-2 text-sm text-muted">
+            Åpne lenken i Chrome, ikke inne i Grok. Der: menyen ⋮ og deretter Installer app. På iPhone: Del, så Legg til på Hjem-skjerm.
+          </p>
+        ) : null}
       </header>
       <main
         className={

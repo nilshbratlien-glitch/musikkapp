@@ -1,4 +1,4 @@
-const CACHE = "musikkapp-shell-v3";
+const CACHE = "musikkapp-shell-v4";
 const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 function isAsset(url) {
@@ -7,17 +7,27 @@ function isAsset(url) {
 }
 
 async function putIfOk(request, response) {
-  if (!response || !response.ok) return;
+  if (!response || !response.ok || response.redirected) return;
   const cache = await caches.open(CACHE);
   await cache.put(request, response.clone());
 }
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.addAll(SHELL))
-      .then(() => self.skipWaiting()),
+    (async () => {
+      const cache = await caches.open(CACHE);
+      await Promise.all(
+        SHELL.map(async (path) => {
+          try {
+            const response = await fetch(path);
+            if (response.ok && !response.redirected) await cache.put(path, response);
+          } catch {
+            /* En feilet fil skal ikke stoppe installasjonen. */
+          }
+        }),
+      );
+      await self.skipWaiting();
+    })(),
   );
 });
 
