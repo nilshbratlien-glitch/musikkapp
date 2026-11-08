@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { onClick, recordBest, secondsPerNote, type ClickState } from "./metronome.ts";
+import { commitBest, onClick, recordBest, secondsPerNote, type ClickState } from "./metronome.ts";
 
 describe("snare-speed metronome", () => {
   it("steps BPM after the configured number of bars", () => {
@@ -37,5 +37,11 @@ describe("snare-speed metronome", () => {
     const higher = recordBest(lower.bests, "singles", 110);
     assert.equal(higher.updated, true);
     assert.equal(higher.bests.singles, 110);
+  });
+
+  it("does not treat a failed save as a new best", () => {
+    assert.equal(commitBest(true, false), "failed");
+    assert.equal(commitBest(true, true), "saved");
+    assert.equal(commitBest(false, false), "same");
   });
 });

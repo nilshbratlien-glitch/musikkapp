@@ -1,5 +1,16 @@
-const CACHE = "musikkapp-shell-v2";
+const CACHE = "musikkapp-shell-v3";
 const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
+
+function isAsset(url) {
+  if (url.pathname === "/sw.js") return false;
+  return url.pathname.endsWith(".js") || url.pathname.endsWith(".css");
+}
+
+async function putIfOk(request, response) {
+  if (!response || !response.ok) return;
+  const cache = await caches.open(CACHE);
+  await cache.put(request, response.clone());
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -28,8 +39,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put("/", copy));
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put("/", copy));
+          }
           return response;
         })
         .catch(() => caches.match("/").then((cached) => cached || fetch(event.request))),
@@ -37,16 +50,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (!SHELL.includes(url.pathname)) return;
+  if (!SHELL.includes(url.pathname) && !isAsset(url)) return;
   event.respondWith(
-    caches.match(event.request).then(
-      (cached) =>
-        cached ||
-        fetch(event.request).then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-          return response;
-        }),
-    ),
+    fetch(event.request)
+      .then((response) => {
+        putIfOk(event.request, response);
+        return response;
+      })
+      .catch(() => caches.match(event.request).then((cached) => cached || fetch(event.request))),
   );
 });

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   RUDIMENTS,
+  commitBest,
   onClick,
   recordBest,
   secondsPerNote,
@@ -42,7 +43,7 @@ function scheduleClick(audio: AudioContext, time: number, isAccent: boolean) {
 
 export function SnareSpeed() {
   const [displayBpm, setDisplayBpm] = useState(120);
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState("Klar");
   const [playing, setPlaying] = useState(false);
   const [active, setActive] = useState(-1);
   const [pattern, setPattern] = useState<readonly string[]>([]);
@@ -101,7 +102,7 @@ export function SnareSpeed() {
       live.next += seconds;
       if (step.stepped) {
         setDisplayBpm(step.state.bpm);
-        setStatus(`Increased to ${step.state.bpm}`);
+        setStatus(`Økt til ${step.state.bpm}`);
       }
     }
     live.timer = window.setTimeout(scheduler, 25);
@@ -116,7 +117,7 @@ export function SnareSpeed() {
     live.beat = 0;
     live.barCount = 0;
     setDisplayBpm(settings.start);
-    setStatus("Playing…");
+    setStatus("Spiller…");
     if (!audioRef.current) audioRef.current = new AudioContext();
     const audio = audioRef.current;
     if (audio.state === "suspended") void audio.resume();
@@ -135,49 +136,58 @@ export function SnareSpeed() {
     if (timer != null) window.clearTimeout(timer);
     stateRef.current.timer = null;
     setPlaying(false);
-    setStatus("Stopped");
+    setStatus("Stoppet");
   }
 
   function markClean() {
     const bpm = stateRef.current.bpmLive;
     const next = recordBest(bests, rudiment, bpm);
-    setBests(next.bests);
+    if (!next.updated) return;
     const store = readToolStore("metronom");
-    writeToolStore("metronom", { ...store, bests: next.bests });
-    if (next.updated) setStatus(`New best: ${bpm}`);
+    const saved = writeToolStore("metronom", { ...store, bests: next.bests });
+    const outcome = commitBest(next.updated, saved);
+    if (outcome === "failed") {
+      setStatus("Kunne ikke lagre");
+      return;
+    }
+    if (outcome !== "saved") return;
+    setBests(next.bests);
+    setStatus(`Ny best: ${bpm}`);
   }
 
   function markBroke() {
-    setStatus("Marked broke");
+    setStatus("Merket brutt");
   }
 
   const best = bests[rudiment];
 
   return (
-    <section className="pb-4">
-      <p className="text-center text-7xl leading-none font-bold tracking-tight tabular-nums">{displayBpm}</p>
-      <p className="mt-2 min-h-5 text-center text-sm text-muted">{status}</p>
-      <div className="mt-4 flex min-h-10 flex-wrap items-center justify-center gap-2">
+    <section className="metro pb-4">
+      <div className="metro-hero rounded-card px-4 py-8">
+        <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums">{displayBpm}</p>
+        <p className="mt-3 min-h-5 text-center text-sm text-muted">{status}</p>
+      </div>
+      <div className="mt-4 flex min-h-12 flex-wrap items-center justify-center gap-2">
         {pattern.map((stick, index) => (
           <span
             key={`${stick}-${index}`}
             className={
               index === active
-                ? "min-w-9 rounded-md bg-accent px-2.5 py-1 text-center text-xl font-semibold text-bg"
-                : "min-w-9 rounded-md bg-header px-2.5 py-1 text-center text-xl font-semibold"
+                ? "metro-badge is-active min-w-12 rounded-lg bg-accent px-3 py-2 text-center text-2xl font-semibold text-bg"
+                : "metro-badge min-w-12 rounded-lg bg-header px-3 py-2 text-center text-2xl font-semibold"
             }
           >
             {stick}
           </span>
         ))}
       </div>
-      <div className="mt-4 grid gap-3">
+      <div className="mt-4 grid gap-3 rounded-card border border-line bg-surface p-4 shadow-[0_12px_28px_rgba(0,0,0,0.28)]">
         <label className="flex items-center justify-between gap-3 text-sm">
           Rudiment
           <select
             value={rudiment}
             onChange={(event) => setRudiment(event.target.value as RudimentId)}
-            className="min-h-11 max-w-[58%] rounded-md border border-line bg-header px-2 text-fg"
+            className="metro-field min-h-11 max-w-[58%] rounded-md border border-line bg-header px-2 text-fg"
           >
             {RUDIMENT_LABELS.map((item) => (
               <option key={item.id} value={item.id}>
@@ -187,48 +197,48 @@ export function SnareSpeed() {
           </select>
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
-          Start BPM
+          Start-BPM
           <input
             type="number"
             min={40}
             max={300}
             value={startBpm}
             onChange={(event) => setStartBpm(Number(event.target.value))}
-            className="min-h-11 w-24 rounded-md border border-line bg-header px-2 text-fg"
+            className="metro-field min-h-11 w-24 rounded-md border border-line bg-header px-2 text-fg"
           />
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
-          Increment
+          Økning
           <input
             type="number"
             min={1}
             max={10}
             value={inc}
             onChange={(event) => setInc(Number(event.target.value))}
-            className="min-h-11 w-24 rounded-md border border-line bg-header px-2 text-fg"
+            className="metro-field min-h-11 w-24 rounded-md border border-line bg-header px-2 text-fg"
           />
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
-          Bars per step
+          Takker per steg
           <input
             type="number"
             min={1}
             max={32}
             value={bars}
             onChange={(event) => setBars(Number(event.target.value))}
-            className="min-h-11 w-24 rounded-md border border-line bg-header px-2 text-fg"
+            className="metro-field min-h-11 w-24 rounded-md border border-line bg-header px-2 text-fg"
           />
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
-          Subdivision
+          Underdeling
           <select
             value={sub}
             onChange={(event) => setSub(Number(event.target.value))}
-            className="min-h-11 max-w-[58%] rounded-md border border-line bg-header px-2 text-fg"
+            className="metro-field min-h-11 max-w-[58%] rounded-md border border-line bg-header px-2 text-fg"
           >
-            <option value={4}>Quarter</option>
-            <option value={8}>Eighth</option>
-            <option value={16}>Sixteenth</option>
+            <option value={4}>Fjerdedel</option>
+            <option value={8}>Åttendel</option>
+            <option value={16}>Sekstendel</option>
           </select>
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -236,7 +246,7 @@ export function SnareSpeed() {
             type="button"
             onClick={start}
             disabled={playing}
-            className="min-h-12 rounded-lg bg-accent font-semibold text-bg disabled:opacity-50"
+            className="metro-press min-h-12 rounded-lg bg-accent font-semibold text-bg disabled:opacity-50"
           >
             Start
           </button>
@@ -244,23 +254,23 @@ export function SnareSpeed() {
             type="button"
             onClick={stop}
             disabled={!playing}
-            className="min-h-12 rounded-lg bg-surface font-medium disabled:opacity-50"
+            className="metro-press min-h-12 rounded-lg bg-header font-medium disabled:opacity-50"
           >
-            Stop
+            Stopp
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={markClean} className="min-h-12 rounded-lg bg-surface font-medium">
-            Mark Clean
+          <button type="button" onClick={markClean} className="metro-press min-h-12 rounded-lg bg-header font-medium">
+            Merk ren
           </button>
-          <button type="button" onClick={markBroke} className="min-h-12 rounded-lg bg-surface font-medium">
-            Mark Broke
+          <button type="button" onClick={markBroke} className="metro-press min-h-12 rounded-lg bg-header font-medium">
+            Merk brutt
           </button>
         </div>
+        <p className="text-center text-sm text-muted">
+          {best ? `Beste (${rudiment}): ${best} BPM` : "Beste: —"}
+        </p>
       </div>
-      <p className="mt-3 text-center text-sm text-muted">
-        {best ? `Best (${rudiment}): ${best} BPM` : "Best: —"}
-      </p>
     </section>
   );
 }

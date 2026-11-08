@@ -56,3 +56,9 @@ export function recordBest(bests: Record<string, number>, rudiment: string, bpm:
   }
   return { bests, updated: false };
 }
+
+export function commitBest(updated: boolean, saved: boolean) {
+  if (!updated) return "same" as const;
+  if (!saved) return "failed" as const;
+  return "saved" as const;
+}

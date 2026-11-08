@@ -37,3 +37,37 @@
     outline-offset: 2px;
   }
 }
+
+.metro-hero {
+  background:
+    radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 68%),
+    var(--color-header);
+}
+
+.metro-badge {
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.metro-badge.is-active {
+  transform: scale(1.08);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+
+.metro-press {
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.metro-press:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.metro-press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.metro-field:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
