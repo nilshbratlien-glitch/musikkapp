@@ -10,11 +10,24 @@
   --color-accent: #e0b15a;
   --color-ok: #4e9a6b;
   --color-no: #c0483f;
+  --color-twomallet: #7ee0d6;
+  --color-fourmallet: #8aa4ff;
+  --color-scales: #9ad27a;
+  --color-srf: #e0b15a;
+  --color-rep: #e89b6d;
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --radius-card: 1.15rem;
 }
 
 @layer base {
+  :root {
+    --color-twomallet: #7ee0d6;
+    --color-fourmallet: #8aa4ff;
+    --color-scales: #9ad27a;
+    --color-srf: var(--color-accent);
+    --color-rep: #e89b6d;
+  }
+
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
@@ -44,6 +57,12 @@
   background:
     radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 68%),
     var(--color-header);
+}
+
+.plan-hero {
+  background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 70%);
+  border-radius: var(--radius-card);
+  padding: 1.5rem 1rem;
 }
 
 .metro-badge {
