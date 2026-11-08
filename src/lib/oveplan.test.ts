@@ -6,6 +6,7 @@ import {
   bumpItem,
   ensureItems,
   fmtClock,
+  countdownSeconds,
   liveItems,
   loadPlanStore,
   nextUndone,
@@ -89,5 +90,13 @@ describe("oveplan", () => {
     assert.equal(loaded.bpm, 96);
     assert.equal(loaded.done[0], "rep");
     assert.equal(loaded.bpmMap.srf, 96);
+  });
+});
+
+describe("plan clock", () => {
+  it("counts down from the deadline and freezes while paused", () => {
+    assert.equal(countdownSeconds(1_000, 11_000, 0, false), 10);
+    assert.equal(countdownSeconds(11_000, 11_000, 4_000, false), 0);
+    assert.equal(countdownSeconds(20_000, 11_000, 4_000, true), 4);
   });
 });

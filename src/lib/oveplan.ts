@@ -58,6 +58,12 @@ export function fmtClock(secs: number) {
   return `${minutes}:${seconds}`;
 }
 
+export function countdownSeconds(now: number, endsAt: number, remainMs: number, paused: boolean) {
+  const ms = paused || !endsAt ? remainMs : endsAt - now;
+  const safe = Math.max(0, ms);
+  return safe <= 0 ? 0 : Math.ceil(safe / 1000);
+}
+
 export function clampBpm(value: number) {
   return Math.max(40, Math.min(220, Math.round(value)));
 }

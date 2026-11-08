@@ -1,6 +1,8 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Drum, FileText, Music, Piano } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { blockName, fmtClock } from "@/lib/oveplan";
+import { ensurePlanClock, getPlanClock, getPlanClockVersion, subscribePlanClock, togglePlanClock } from "@/lib/plan-clock";
 import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
 
 const ICONS: Record<ToolId, typeof Music> = {
@@ -59,6 +61,26 @@ function useInstall() {
   return { standalone, message, install };
 }
 
+function PlanHeaderTimer() {
+  useSyncExternalStore(subscribePlanClock, getPlanClockVersion, getPlanClockVersion);
+  const clock = getPlanClock();
+  if (!clock.activeId) return null;
+  const paused = clock.blockPaused || clock.timer == null;
+  return (
+    <button
+      type="button"
+      onClick={togglePlanClock}
+      className={
+        paused
+          ? "metro-press min-h-10 max-w-28 truncate rounded-lg border border-line px-2 text-sm font-semibold text-muted tabular-nums"
+          : "metro-press min-h-10 max-w-28 truncate rounded-lg border border-accent px-2 text-sm font-semibold text-accent tabular-nums"
+      }
+    >
+      {blockName(clock.activeId)} {fmtClock(clock.blockLeft)}
+    </button>
+  );
+}
+
 export function Shell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tool = toolForPath(pathname);
@@ -66,6 +88,7 @@ export function Shell() {
 
   useEffect(() => {
     ensureToolNamespaces();
+    ensurePlanClock();
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
   }, []);
@@ -76,19 +99,22 @@ export function Shell() {
     <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
       <header className="shrink-0 border-b border-line bg-header px-4 py-3">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
-            <p className="text-sm text-muted">{tool.label}</p>
+          <div className="min-w-0">
+            <p className="truncate text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
+            <p className="truncate text-sm text-muted">{tool.label}</p>
           </div>
-          {install.standalone ? null : (
-            <button
-              type="button"
-              onClick={() => void install.install()}
-              className="metro-press mt-0.5 min-h-10 shrink-0 rounded-lg border border-line px-3 text-sm font-semibold"
-            >
-              Installer
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            <PlanHeaderTimer />
+            {install.standalone ? null : (
+              <button
+                type="button"
+                onClick={() => void install.install()}
+                className="metro-press min-h-10 shrink-0 rounded-lg border border-line px-3 text-sm font-semibold"
+              >
+                Installer
+              </button>
+            )}
+          </div>
         </div>
         {install.message ? <p className="mt-2 text-sm text-muted">{install.message}</p> : null}
       </header>
