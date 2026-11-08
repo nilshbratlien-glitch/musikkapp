@@ -13,11 +13,20 @@ import {
   playingSum,
   savePlanStore,
   todayStamp,
+  type BlockId,
   type PlanItem,
   type PlanLog,
   type PlanPreset,
   type PlanStore,
 } from "@/lib/oveplan";
+
+const KIND: Record<BlockId, string> = {
+  twomallet: "var(--color-twomallet)",
+  fourmallet: "var(--color-fourmallet)",
+  scales: "var(--color-scales)",
+  srf: "var(--color-accent)",
+  rep: "var(--color-rep)",
+};
 
 type Clock = {
   store: PlanStore;
@@ -450,7 +459,7 @@ export function Oveplan() {
   return (
     <section className="pb-4">
       {playing ? (
-        <div className="plan-hero text-center">
+        <div className="plan-hero py-6 text-center">
           <p className="text-2xl font-semibold tracking-tight">{cur.activeId ? blockName(cur.activeId) : ""}</p>
           <button
             type="button"
@@ -590,7 +599,7 @@ export function Oveplan() {
                       ? "grid grid-cols-[28px_1fr_auto_auto] items-center gap-2.5 rounded-card border border-accent bg-accent/10 py-3 pr-3 pl-3.5"
                       : "grid grid-cols-[28px_1fr_auto_auto] items-center gap-2.5 rounded-card border border-line bg-surface py-3 pr-3 pl-3.5"
                   }
-                  style={{ boxShadow: `inset 3px 0 0 var(--color-${item.id})`, opacity: dim && cur.activeId !== item.id ? 0.4 : 1 }}
+                  style={{ boxShadow: `inset 3px 0 0 ${KIND[item.id]}`, opacity: dim && cur.activeId !== item.id ? 0.4 : 1 }}
                 >
                   <input
                     type="checkbox"
@@ -612,7 +621,7 @@ export function Oveplan() {
                   <span className="flex gap-1">
                     <button type="button" disabled={!item.on || item.skipped || item.mins <= 1} onClick={() => changeMins(item.id, -1)} className="metro-press size-10 rounded-xl border border-line disabled:opacity-30">−</button>
                     <button type="button" onClick={() => changeMins(item.id, 1)} className="metro-press size-10 rounded-xl border border-line">+</button>
-                    <button type="button" disabled={!item.on || item.skipped} onClick={() => skip(item.id)} className="min-h-10 rounded-xl border border-line px-2 text-sm disabled:opacity-30">Hopp</button>
+                    <button type="button" disabled={!item.on || item.skipped} onClick={() => skip(item.id)} className="metro-press min-h-10 rounded-xl border border-line px-2 text-sm disabled:opacity-30">Hopp</button>
                   </span>
                 </li>
               );
@@ -688,8 +697,8 @@ export function Oveplan() {
       <div className="mt-3 grid gap-2 rounded-card border border-line bg-surface p-4">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="min-w-12 text-xl font-bold tabular-nums">{cur.store.bpm}</span>
-          <button type="button" onClick={() => setBpm(cur.store.bpm - 2)} className="min-h-10 rounded-lg border border-line px-3">−</button>
-          <button type="button" onClick={() => setBpm(cur.store.bpm + 2)} className="min-h-10 rounded-lg border border-line px-3">+</button>
+          <button type="button" onClick={() => setBpm(cur.store.bpm - 2)} className="metro-press min-h-10 rounded-lg border border-line px-3">−</button>
+          <button type="button" onClick={() => setBpm(cur.store.bpm + 2)} className="metro-press min-h-10 rounded-lg border border-line px-3">+</button>
           <button
             type="button"
             onClick={() => {
