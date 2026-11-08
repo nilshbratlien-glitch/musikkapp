@@ -1,0 +1,93 @@
+import assert from "node:assert/strict";
+import { afterEach, describe, it } from "node:test";
+import {
+  applyPreset,
+  bpmFromTaps,
+  bumpItem,
+  ensureItems,
+  fmtClock,
+  liveItems,
+  loadPlanStore,
+  nextUndone,
+  playingSum,
+  rollSession,
+  savePlanStore,
+  type PlanItem,
+} from "./oveplan.ts";
+
+const base = (): PlanItem[] => ensureItems([]);
+
+describe("oveplan", () => {
+  const previous = globalThis.localStorage;
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, "localStorage", { value: previous, configurable: true });
+  });
+
+  it("starts from the default blocks and sums only live ones", () => {
+    const items = base();
+    assert.equal(items.length, 5);
+    assert.equal(playingSum(items), 12 + 8 + 8 + 12 + 15);
+    const off = items.map((item) => (item.id === "scales" ? { ...item, on: false } : item));
+    assert.equal(liveItems(off).some((item) => item.id === "scales"), false);
+  });
+
+  it("bumps minutes inside 1–90 and finds the next undone block", () => {
+    const items = base();
+    const first = items[0]!;
+    assert.equal(bumpItem(first, -1)?.mins, 11);
+    assert.equal(bumpItem({ ...first, mins: 1 }, -1), null);
+    assert.equal(bumpItem({ ...first, mins: 90 }, 1), null);
+    assert.equal(nextUndone(items, ["twomallet"], "fourmallet")?.id, "scales");
+    assert.equal(fmtClock(65), "1:05");
+    assert.equal(bpmFromTaps([0, 500, 1000]), 120);
+  });
+
+  it("applies a preset and rolls the day", () => {
+    const next = applyPreset({
+      id: "p",
+      name: "Kort",
+      blocks: [{ id: "srf", mins: 5 }],
+    });
+    assert.equal(next.find((item) => item.id === "srf")?.on, true);
+    assert.equal(next.find((item) => item.id === "rep")?.on, false);
+    const rolled = rollSession(
+      { items: next.map((item) => ({ ...item, skipped: true })), done: ["srf"], log: [], presets: [], sessionDate: "2020-01-01", bpmMap: {}, bpm: 80, beats: 4, sub: 1 },
+      "2026-11-08",
+    );
+    assert.equal(rolled.rolled, true);
+    assert.deepEqual(rolled.done, []);
+    assert.equal(rolled.items.every((item) => !item.skipped), true);
+  });
+
+  it("round-trips the oveplan namespace", () => {
+    const data = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => data.get(key) ?? null,
+        setItem: (key: string, value: string) => data.set(key, value),
+      },
+    });
+    const items = base();
+    assert.equal(
+      savePlanStore({
+        items,
+        done: ["rep"],
+        log: [],
+        presets: [],
+        sessionDate: "2026-11-08",
+        bpmMap: { srf: 96 },
+        bpm: 96,
+        beats: 4,
+        sub: 1,
+      }),
+      true,
+    );
+    assert.equal(data.has("musikkapp.oveplan"), true);
+    const loaded = loadPlanStore();
+    assert.equal(loaded.bpm, 96);
+    assert.equal(loaded.done[0], "rep");
+    assert.equal(loaded.bpmMap.srf, 96);
+  });
+});
