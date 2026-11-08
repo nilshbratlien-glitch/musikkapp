@@ -699,10 +699,22 @@
     }
   }
 
+  function showSettings(name) {
+    const grid = $("#settingsGrid");
+    if (grid) grid.hidden = !!name;
+    $all("[data-settings-panel]").forEach((panel) => {
+      panel.hidden = panel.getAttribute("data-settings-panel") !== name;
+    });
+    $all(".settings-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.getAttribute("data-settings") === name);
+    });
+  }
+
   function openSettings(open) {
     $("#drawer").classList.toggle("open", open);
     $("#scrim").classList.toggle("open", open);
     document.body.classList.toggle("drawer-open", open);
+    if (open) showSettings("");
   }
 
   function wire() {
@@ -782,6 +794,12 @@
     $("#btnSettings").addEventListener("click", () => openSettings(true));
     $("#btnCloseSettings").addEventListener("click", () => openSettings(false));
     $("#scrim").addEventListener("click", () => openSettings(false));
+    $all(".settings-btn").forEach((btn) => {
+      btn.addEventListener("click", () => showSettings(btn.getAttribute("data-settings")));
+    });
+    $all("[data-settings-back]").forEach((btn) => {
+      btn.addEventListener("click", () => showSettings(""));
+    });
     function generateFresh() {
       openSettings(false);
       requestAnimationFrame(() => requestAnimationFrame(generate));

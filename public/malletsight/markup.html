@@ -48,8 +48,17 @@
       <button class="btn" id="btnCloseSettings">Close</button>
     </header>
     <div class="drawer-body">
-      <details class="section" open>
-        <summary>Instrument</summary>
+      <div class="settings-grid" id="settingsGrid">
+        <button type="button" class="settings-btn" data-settings="instrument">Instrument</button>
+        <button type="button" class="settings-btn" data-settings="rytme">Rytme</button>
+        <button type="button" class="settings-btn" data-settings="register">Register</button>
+        <button type="button" class="settings-btn" data-settings="toneart">Toneart</button>
+        <button type="button" class="settings-btn" data-settings="mer">Mer</button>
+      </div>
+
+      <div class="settings-panel" data-settings-panel="instrument" hidden>
+        <button type="button" class="settings-back" data-settings-back>Tilbake</button>
+        <h3 class="settings-title">Instrument</h3>
         <div class="row"><label>Keyboard</label><select id="instrument"></select></div>
         <div class="row"><label>Mallets</label>
           <select id="mallets">
@@ -76,63 +85,11 @@
           </div>
         </div>
         <div class="row"><label>Staff</label><select id="clef"></select></div>
-      </details>
+      </div>
 
-      <details class="section" open>
-        <summary>Piece</summary>
-        <div class="chips key-presets level-row" id="difficulty">
-          <button type="button" class="chip" data-level="1">1</button>
-          <button type="button" class="chip" data-level="2">2</button>
-          <button type="button" class="chip" data-level="3">3</button>
-          <button type="button" class="chip" data-level="4">4</button>
-          <button type="button" class="chip" data-level="5">5</button>
-          <button type="button" class="chip" data-level="6">6</button>
-          <button type="button" class="chip" data-level="7">7</button>
-          <button type="button" class="chip" data-level="8">8</button>
-          <button type="button" class="chip" data-level="9">9</button>
-          <button type="button" class="chip" data-level="10">10</button>
-        </div>
-        <p class="hint" id="levelHint">Levels 1–10. Each step adds a little: rhythms, rests, leaps, then ties, syncopation, accidentals, and dynamics.</p>
-        <div class="row">
-          <label>Keys</label>
-          <span id="keyModeHint" class="hint"></span>
-        </div>
-        <div class="chips key-presets">
-          <button type="button" class="chip" id="keysAll">All</button>
-          <button type="button" class="chip" id="keysMajor">Majors</button>
-          <button type="button" class="chip" id="keysMinor">Minors</button>
-        </div>
-        <p class="hint">Major</p>
-        <div class="chips" id="keysMajorChips"></div>
-        <p class="hint">Minor</p>
-        <div class="chips" id="keysMinorChips"></div>
-        <p class="hint" id="keyPickHint">One key stays fixed. Two or more walk the circle of fifths, fewest accidentals first, then repeat.</p>
-        <div class="row"><label>Meter</label><select id="time"></select></div>
-        <div class="row"><label>Measures</label>
-          <select id="measures">
-            <option>4</option><option>8</option><option>12</option><option>16</option>
-          </select>
-        </div>
-        <div class="row"><label>Tempo <span id="tempoVal">80</span></label></div>
-        <input type="range" id="tempo" min="40" max="160" />
-      </details>
-
-      <details class="section">
-        <summary>Pitch</summary>
-        <div class="row"><label>Low <span id="rangeLowLbl">C4</span></label></div>
-        <input type="range" id="rangeLow" min="36" max="108" />
-        <div class="row"><label>High <span id="rangeHighLbl">C6</span></label></div>
-        <input type="range" id="rangeHigh" min="36" max="108" />
-        <p class="hint" id="rangeHint">Slider scale is written C2–C8. Each instrument is clamped to its real written range.</p>
-        <div class="row"><label>Max leap</label><select id="maxLeap"></select></div>
-        <label class="toggle"><span>Accidentals</span><input type="checkbox" id="accidentals" /></label>
-        <p class="hint">Chromatic neighbors outside the key. The next note steps back to the scale. Minor leading tones are always written.</p>
-        <label class="toggle"><span>Start on tonic</span><input type="checkbox" id="startTonic" /></label>
-        <label class="toggle"><span>End on tonic</span><input type="checkbox" id="endTonic" /></label>
-      </details>
-
-      <details class="section" open>
-        <summary>Rhythm</summary>
+      <div class="settings-panel" data-settings-panel="rytme" hidden>
+        <button type="button" class="settings-back" data-settings-back>Tilbake</button>
+        <h3 class="settings-title">Rytme</h3>
         <div class="chips key-presets" id="rhythmPresets">
           <button type="button" class="chip" data-rhythm-preset="all">All</button>
           <button type="button" class="chip" data-rhythm-preset="long">Long</button>
@@ -155,10 +112,66 @@
         <label class="toggle"><span>Syncopation</span><input type="checkbox" id="syncopation" /></label>
         <p class="hint">Pushes one note off the beat so it holds across the next pulse. The rest of the bar keeps the rhythms you picked.</p>
         <label class="toggle"><span>Ties</span><input type="checkbox" id="ties" /></label>
-      </details>
+      </div>
 
-      <details class="section">
-        <summary>Markings</summary>
+      <div class="settings-panel" data-settings-panel="register" hidden>
+        <button type="button" class="settings-back" data-settings-back>Tilbake</button>
+        <h3 class="settings-title">Register</h3>
+        <div class="row"><label>Low <span id="rangeLowLbl">C4</span></label></div>
+        <input type="range" id="rangeLow" min="36" max="108" />
+        <div class="row"><label>High <span id="rangeHighLbl">C6</span></label></div>
+        <input type="range" id="rangeHigh" min="36" max="108" />
+        <p class="hint" id="rangeHint">Slider scale is written C2–C8. Each instrument is clamped to its real written range.</p>
+        <div class="row"><label>Max leap</label><select id="maxLeap"></select></div>
+      </div>
+
+      <div class="settings-panel" data-settings-panel="toneart" hidden>
+        <button type="button" class="settings-back" data-settings-back>Tilbake</button>
+        <h3 class="settings-title">Toneart</h3>
+        <div class="row">
+          <label>Keys</label>
+          <span id="keyModeHint" class="hint"></span>
+        </div>
+        <div class="chips key-presets">
+          <button type="button" class="chip" id="keysAll">All</button>
+          <button type="button" class="chip" id="keysMajor">Majors</button>
+          <button type="button" class="chip" id="keysMinor">Minors</button>
+        </div>
+        <p class="hint">Major</p>
+        <div class="chips" id="keysMajorChips"></div>
+        <p class="hint">Minor</p>
+        <div class="chips" id="keysMinorChips"></div>
+        <p class="hint" id="keyPickHint">One key stays fixed. Two or more walk the circle of fifths, fewest accidentals first, then repeat.</p>
+        <label class="toggle"><span>Accidentals</span><input type="checkbox" id="accidentals" /></label>
+        <p class="hint">Chromatic neighbors outside the key. The next note steps back to the scale. Minor leading tones are always written.</p>
+        <label class="toggle"><span>Start on tonic</span><input type="checkbox" id="startTonic" /></label>
+        <label class="toggle"><span>End on tonic</span><input type="checkbox" id="endTonic" /></label>
+      </div>
+
+      <div class="settings-panel" data-settings-panel="mer" hidden>
+        <button type="button" class="settings-back" data-settings-back>Tilbake</button>
+        <h3 class="settings-title">Mer</h3>
+        <div class="chips key-presets level-row" id="difficulty">
+          <button type="button" class="chip" data-level="1">1</button>
+          <button type="button" class="chip" data-level="2">2</button>
+          <button type="button" class="chip" data-level="3">3</button>
+          <button type="button" class="chip" data-level="4">4</button>
+          <button type="button" class="chip" data-level="5">5</button>
+          <button type="button" class="chip" data-level="6">6</button>
+          <button type="button" class="chip" data-level="7">7</button>
+          <button type="button" class="chip" data-level="8">8</button>
+          <button type="button" class="chip" data-level="9">9</button>
+          <button type="button" class="chip" data-level="10">10</button>
+        </div>
+        <p class="hint" id="levelHint">Levels 1–10. Each step adds a little: rhythms, rests, leaps, then ties, syncopation, accidentals, and dynamics.</p>
+        <div class="row"><label>Meter</label><select id="time"></select></div>
+        <div class="row"><label>Measures</label>
+          <select id="measures">
+            <option>4</option><option>8</option><option>12</option><option>16</option>
+          </select>
+        </div>
+        <div class="row"><label>Tempo <span id="tempoVal">80</span></label></div>
+        <input type="range" id="tempo" min="40" max="160" />
         <label class="toggle"><span>Accents</span><input type="checkbox" id="accents" /></label>
         <label class="toggle"><span>Staccato</span><input type="checkbox" id="staccato" /></label>
         <label class="toggle"><span>Dynamics</span><input type="checkbox" id="dynamics" /></label>
@@ -169,7 +182,6 @@
             <option value="always">Often</option>
           </select>
         </div>
-        <p class="hint">Three slashes through the stem, the usual mallet roll. Long notes are halves and longer. Often includes quarters.</p>
         <div class="row"><label>Note names</label>
           <select id="annotate">
             <option value="off">Off</option>
@@ -177,31 +189,27 @@
           </select>
         </div>
         <label class="toggle"><span>Show mallet numbers</span><input type="checkbox" id="showSticking" /></label>
-      </details>
-
-      <details class="section multi-only">
-        <summary>4-mallet blocks</summary>
-        <div class="row"><label>Voicing</label>
-          <select id="voicing">
-            <option value="closed">Closed</option>
-            <option value="open">Open (5ths in the left hand)</option>
-          </select>
+        <div class="multi-only">
+          <h3 class="settings-title">4-mallet</h3>
+          <div class="row"><label>Voicing</label>
+            <select id="voicing">
+              <option value="closed">Closed</option>
+              <option value="open">Open (5ths in the left hand)</option>
+            </select>
+          </div>
+          <div class="row"><label>Notes per chord</label>
+            <select id="blockSize">
+              <option value="mix">Mix 3 and 4</option>
+              <option value="3">3 notes</option>
+              <option value="4">4 notes</option>
+            </select>
+          </div>
+          <div class="row"><label>Max interval in one hand <span id="handSpanLbl">12</span></label></div>
+          <input type="range" id="handSpanMax" min="5" max="16" />
+          <div class="row"><label>Max grip shift <span id="gripShiftLbl">7</span></label></div>
+          <input type="range" id="gripShift" min="3" max="12" />
         </div>
-        <div class="row"><label>Notes per chord</label>
-          <select id="blockSize">
-            <option value="mix">Mix 3 and 4</option>
-            <option value="3">3 notes</option>
-            <option value="4">4 notes</option>
-          </select>
-        </div>
-        <div class="row"><label>Max interval in one hand <span id="handSpanLbl">12</span></label></div>
-        <input type="range" id="handSpanMax" min="5" max="16" />
-        <div class="row"><label>Max grip shift <span id="gripShiftLbl">7</span></label></div>
-        <input type="range" id="gripShift" min="3" max="12" />
-        <p class="hint">Closed I–IV–V–vi voicings. Left hand takes the bottom two notes, right hand the top two. 1–4 numbers are optional above.</p>
-      </details>
-
-      <p class="hint" style="text-align:center;margin-top:14px">Mallet Sight Reader v1.4</p>
+      </div>
     </div>
     <footer class="drawer-footer">
       <button class="btn primary" id="btnApply">Generate with these settings</button>
