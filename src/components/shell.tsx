@@ -18,7 +18,7 @@ type InstallPrompt = Event & {
 function useInstall() {
   const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
   const [standalone, setStandalone] = useState(false);
-  const [hint, setHint] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     const ios = "standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
@@ -32,15 +32,31 @@ function useInstall() {
   }, []);
 
   async function install() {
-    if (!prompt) {
-      setHint(true);
+    if (prompt) {
+      await prompt.prompt();
+      setPrompt(null);
       return;
     }
-    await prompt.prompt();
-    setPrompt(null);
+    const ua = navigator.userAgent;
+    if (window.top !== window.self) {
+      setMessage("Forhåndsvisningen kan ikke installeres. Publiser, og åpne den lenken i Chrome.");
+      return;
+    }
+    const android = /Android/i.test(ua);
+    const chrome = /Chrome\/\d+/.test(ua) && !/;\s*wv\)|SamsungBrowser|EdgA|OPR/.test(ua);
+    if (android && !chrome) {
+      const bare = location.href.replace(/^https?:\/\//, "");
+      location.href = `intent://${bare}#Intent;scheme=https;package=com.android.chrome;end`;
+      return;
+    }
+    if (/iPhone|iPad/.test(ua)) {
+      setMessage("I Safari: trykk Del, deretter Legg til på Hjem-skjerm.");
+      return;
+    }
+    setMessage("I Chrome: trykk ⋮ øverst til høyre, deretter Installer app.");
   }
 
-  return { standalone, hint, install };
+  return { standalone, message, install };
 }
 
 export function Shell() {
@@ -74,11 +90,7 @@ export function Shell() {
             </button>
           )}
         </div>
-        {install.hint ? (
-          <p className="mt-2 text-sm text-muted">
-            Åpne lenken i Chrome, ikke inne i Grok. Der: menyen ⋮ og deretter Installer app. På iPhone: Del, så Legg til på Hjem-skjerm.
-          </p>
-        ) : null}
+        {install.message ? <p className="mt-2 text-sm text-muted">{install.message}</p> : null}
       </header>
       <main
         className={
