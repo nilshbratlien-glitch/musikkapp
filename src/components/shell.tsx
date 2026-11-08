@@ -1,7 +1,7 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Drum, FileText, Music, Piano } from "lucide-react";
 import { useEffect } from "react";
-import { TOOLS, ensureToolNamespaces, type ToolId } from "@/lib/tools";
+import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
 
 const ICONS: Record<ToolId, typeof Music> = {
   bladlesing: Music,
@@ -10,13 +10,9 @@ const ICONS: Record<ToolId, typeof Music> = {
   notekort: FileText,
 };
 
-function currentTool(pathname: string) {
-  return TOOLS.find((tool) => tool.to === pathname) ?? TOOLS[0];
-}
-
 export function Shell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const tool = currentTool(pathname);
+  const tool = toolForPath(pathname);
 
   useEffect(() => {
     ensureToolNamespaces();

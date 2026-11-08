@@ -31,10 +31,23 @@ export function toolNamespace(id: ToolId) {
   return `musikkapp.${id}`;
 }
 
-export function readToolStore(id: ToolId): Record<string, unknown> {
-  if (typeof window === "undefined") return {};
+export function toolForPath(pathname: string) {
+  return TOOLS.find((tool) => tool.to === pathname) ?? TOOLS[0];
+}
+
+function browserStorage(): Storage | null {
   try {
-    const raw = localStorage.getItem(toolNamespace(id));
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function readToolStore(id: ToolId): Record<string, unknown> {
+  const storage = browserStorage();
+  if (!storage) return {};
+  try {
+    const raw = storage.getItem(toolNamespace(id));
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     return parsed && typeof parsed === "object" && !Array.isArray(parsed)
@@ -45,15 +58,22 @@ export function readToolStore(id: ToolId): Record<string, unknown> {
   }
 }
 
-export function writeToolStore(id: ToolId, value: Record<string, unknown>) {
-  localStorage.setItem(toolNamespace(id), JSON.stringify(value));
+export function writeToolStore(id: ToolId, value: Record<string, unknown>): boolean {
+  const storage = browserStorage();
+  if (!storage) return false;
+  try {
+    storage.setItem(toolNamespace(id), JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-/** Ensures each tool has its own key, without touching existing data. */
 export function ensureToolNamespaces() {
-  if (typeof window === "undefined") return;
+  const storage = browserStorage();
+  if (!storage) return;
   for (const tool of TOOLS) {
-    if (localStorage.getItem(toolNamespace(tool.id)) == null) {
+    if (storage.getItem(toolNamespace(tool.id)) == null) {
       writeToolStore(tool.id, {});
     }
   }
