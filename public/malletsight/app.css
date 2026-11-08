@@ -290,3 +290,31 @@
   #malletsight-root .brand span { display: none; }
   #malletsight-root .btn.wide-hide { padding: 0 10px; }
 }
+
+#malletsight-root {
+  --bg: var(--color-bg);
+  --bg2: var(--color-header);
+  --panel: var(--color-surface);
+  --line: var(--color-line);
+  --text: var(--color-fg);
+  --muted: var(--color-muted);
+  --accent: var(--color-accent);
+  --paper: #f3efe6;
+  --radius: var(--radius-card);
+  font-family: var(--font-sans);
+}
+
+#malletsight-root .topbar,
+#malletsight-root .bottombar {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0.75rem;
+}
+
+#malletsight-root .brand { display: none; }
+
+#malletsight-root .paper {
+  border-radius: var(--radius-card);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.32);
+}
+
