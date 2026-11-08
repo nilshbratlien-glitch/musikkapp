@@ -79,3 +79,19 @@ export function nextPulse(beat: number, meter: Meter) {
   const index = beat % beats;
   return { accent: index === 0, index, beat: beat + 1 };
 }
+
+export const SUBDIVISIONS = [1, 2, 3, 4] as const;
+
+export type Subdivision = (typeof SUBDIVISIONS)[number];
+
+export function nextClick(tick: number, meter: Meter, subdivision: Subdivision) {
+  const clicks = beatsInMeter(meter) * subdivision;
+  const index = tick % clicks;
+  const subIndex = index % subdivision;
+  return {
+    accent: index === 0,
+    downbeat: subIndex === 0,
+    beatIndex: Math.floor(index / subdivision),
+    tick: tick + 1,
+  };
+}

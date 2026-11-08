@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { METERS, beatsInMeter, nextPulse, type Meter } from "@/lib/metronome";
+import { METERS, SUBDIVISIONS, beatsInMeter, nextClick, type Meter, type Subdivision } from "@/lib/metronome";
 import { readToolStore, writeToolStore } from "@/lib/tools";
 
-function scheduleClick(audio: AudioContext, time: number, accent: boolean) {
+function scheduleClick(audio: AudioContext, time: number, kind: "accent" | "beat" | "sub") {
   const osc = audio.createOscillator();
   const gain = audio.createGain();
   osc.connect(gain);
   gain.connect(audio.destination);
-  osc.frequency.value = accent ? 1200 : 800;
-  gain.gain.setValueAtTime(accent ? 0.35 : 0.2, time);
+  osc.frequency.value = kind === "accent" ? 1200 : kind === "beat" ? 800 : 640;
+  gain.gain.setValueAtTime(kind === "accent" ? 0.35 : kind === "beat" ? 0.2 : 0.09, time);
   gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
   osc.start(time);
   osc.stop(time + 0.05);
@@ -18,13 +18,26 @@ function savedMeter(value: unknown): Meter {
   return METERS.includes(value as Meter) ? (value as Meter) : "4/4";
 }
 
+function savedSubdivision(value: unknown): Subdivision {
+  return SUBDIVISIONS.includes(value as Subdivision) ? (value as Subdivision) : 1;
+}
+
+const SUB_LABELS: Record<Subdivision, string> = {
+  1: "Slag",
+  2: "2",
+  3: "Triol",
+  4: "4",
+};
+
 export function PlainMetronome() {
   const [bpm, setBpm] = useState(80);
   const [meter, setMeter] = useState<Meter>("4/4");
+  const [subdivision, setSubdivision] = useState<Subdivision>(1);
   const [playing, setPlaying] = useState(false);
   const [pulse, setPulse] = useState(-1);
   const bpmRef = useRef(80);
   const meterRef = useRef<Meter>("4/4");
+  const subRef = useRef<Subdivision>(1);
   const beatRef = useRef(0);
   const nextRef = useRef(0);
   const timerRef = useRef<number | null>(null);
@@ -33,31 +46,39 @@ export function PlainMetronome() {
 
   bpmRef.current = bpm;
   meterRef.current = meter;
+  subRef.current = subdivision;
 
   useEffect(() => {
     const store = readToolStore("metronom");
     if (typeof store.bpm === "number" && store.bpm >= 40 && store.bpm <= 240) setBpm(store.bpm);
     setMeter(savedMeter(store.meter));
+    setSubdivision(savedSubdivision(store.subdiv));
     return () => {
       playingRef.current = false;
       if (timerRef.current != null) window.clearTimeout(timerRef.current);
     };
   }, []);
 
-  function remember(nextBpm: number, nextMeter: Meter) {
+  function remember() {
     const store = readToolStore("metronom");
-    writeToolStore("metronom", { ...store, bpm: nextBpm, meter: nextMeter });
+    writeToolStore("metronom", {
+      ...store,
+      bpm: bpmRef.current,
+      meter: meterRef.current,
+      subdiv: subRef.current,
+    });
   }
 
   function scheduler() {
     const audio = audioRef.current;
     if (!audio || !playingRef.current) return;
-    const seconds = 60 / bpmRef.current;
+    const seconds = 60 / bpmRef.current / subRef.current;
     while (nextRef.current < audio.currentTime + 0.1) {
-      const step = nextPulse(beatRef.current, meterRef.current);
-      scheduleClick(audio, nextRef.current, step.accent);
-      setPulse(step.index);
-      beatRef.current = step.beat;
+      const step = nextClick(beatRef.current, meterRef.current, subRef.current);
+      const kind = step.accent ? "accent" : step.downbeat ? "beat" : "sub";
+      scheduleClick(audio, nextRef.current, kind);
+      setPulse(step.beatIndex);
+      beatRef.current = step.tick;
       nextRef.current += seconds;
     }
     timerRef.current = window.setTimeout(scheduler, 25);
@@ -87,14 +108,24 @@ export function PlainMetronome() {
   function changeBpm(next: number) {
     const value = Math.min(240, Math.max(40, next));
     setBpm(value);
-    remember(value, meterRef.current);
+    bpmRef.current = value;
+    remember();
   }
 
   function changeMeter(next: Meter) {
     setMeter(next);
+    meterRef.current = next;
     beatRef.current = 0;
     setPulse(playingRef.current ? 0 : -1);
-    remember(bpmRef.current, next);
+    remember();
+  }
+
+  function changeSubdivision(next: Subdivision) {
+    setSubdivision(next);
+    subRef.current = next;
+    beatRef.current = 0;
+    setPulse(playingRef.current ? 0 : -1);
+    remember();
   }
 
   const beats = beatsInMeter(meter);
@@ -131,6 +162,23 @@ export function PlainMetronome() {
               }
             >
               {item}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-muted">Underdeling</p>
+        <div className="grid grid-cols-4 gap-1.5">
+          {SUBDIVISIONS.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => changeSubdivision(item)}
+              className={
+                item === subdivision
+                  ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold"
+                  : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted"
+              }
+            >
+              {SUB_LABELS[item]}
             </button>
           ))}
         </div>
