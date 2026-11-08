@@ -1,0 +1,292 @@
+#malletsight-root, #malletsight-root * { box-sizing: border-box; }
+#malletsight-root { height: 100%; min-height: 0; }
+#malletsight-root {
+  --bg: #14171c;
+  --bg2: #1c2129;
+  --panel: #232a34;
+  --line: #323b48;
+  --text: #eef1f5;
+  --muted: #9aa6b4;
+  --accent: #e0b15a;
+  --accent-dim: #8a6b2d;
+  --paper: #f4efe4;
+  --ink: #1a1a1a;
+  --ok: #6fbf73;
+  --danger: #d16a6a;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --radius: 14px;
+  --tap: 44px;
+}
+
+#malletsight-root { box-sizing: border-box; }
+#malletsight-root { overflow-x: hidden; }
+#malletsight-root { height: 100%; }
+#malletsight-root { -webkit-text-size-adjust: 100%; }
+#malletsight-root {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+}
+
+#malletsight-root .app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+
+#malletsight-root .topbar, #malletsight-root .bottombar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg2);
+  border-color: var(--line);
+  z-index: 5;
+}
+#malletsight-root .topbar { border-bottom: 1px solid var(--line); }
+#malletsight-root .bottombar { border-top: 1px solid var(--line); justify-content: space-between; }
+
+#malletsight-root .brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  min-width: 0;
+}
+#malletsight-root .brand strong { font-size: 15px; letter-spacing: 0.02em; }
+#malletsight-root .brand span { font-size: 11px; color: var(--muted); }
+
+#malletsight-root .spacer { flex: 1; }
+
+#malletsight-root button, #malletsight-root select, #malletsight-root input[type="range"] {
+  font: inherit;
+  color: var(--text);
+}
+#malletsight-root .btn {
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#malletsight-root .btn:active { transform: scale(0.98); }
+#malletsight-root .btn.primary {
+  background: var(--accent);
+  color: #1b1408;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+#malletsight-root .btn.on {
+  background: #3a4a2f;
+  border-color: var(--ok);
+  color: #d7f0d4;
+}
+#malletsight-root .icon-btn { min-width: var(--tap); padding: 0; font-size: 18px; }
+
+#malletsight-root .stage {
+  position: relative;
+  overflow: auto;
+  background:
+    radial-gradient(1200px 400px at 50% -10%, #2a3340 0%, transparent 50%),
+    var(--bg);
+  padding: 12px;
+}
+#malletsight-root .paper {
+  background: var(--paper);
+  color: var(--ink);
+  min-height: calc(100% - 8px);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 8px 8px 24px;
+}
+#malletsight-root .score-meta {
+  font-size: 12px;
+  color: #5c564c;
+  padding: 8px 12px 0;
+  letter-spacing: 0.02em;
+}
+#malletsight-root .score-inner { width: 100%; overflow-x: auto; }
+#malletsight-root .score-inner svg { display: block; max-width: 100%; height: auto; }
+#malletsight-root .beat-hot, #malletsight-root .beat-hot * {
+  fill: #d6452e !important;
+  stroke: #d6452e !important;
+}
+#malletsight-root .beat-cursor { pointer-events: none; }
+#malletsight-root .abc-wrap .abcjs-title { font-size: 14px !important; fill: #5c564c !important; }
+#malletsight-root .error { color: #8a2020; padding: 24px; }
+#malletsight-root #emptyHint { color: #6d675c; padding: 48px 20px; text-align: center; }
+
+#malletsight-root .scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 20;
+}
+#malletsight-root .scrim.open { opacity: 1; pointer-events: auto; }
+
+#malletsight-root .drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(440px, 100%);
+  height: 100%;
+  background: var(--bg2);
+  border-left: 1px solid var(--line);
+  transform: translateX(105%);
+  transition: transform 0.22s ease;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+}
+#malletsight-root .drawer.open { transform: translateX(0); }
+
+#malletsight-root .drawer header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+#malletsight-root .drawer header h2 { margin: 0; font-size: 18px; }
+#malletsight-root .drawer-body {
+  overflow: auto;
+  padding: 16px 16px 24px;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+#malletsight-root .drawer-footer {
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+#malletsight-root .drawer-footer .btn {
+  width: 100%;
+  min-height: 52px;
+  font-size: 16px;
+}
+
+#malletsight-root .section {
+  margin: 0 0 24px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+#malletsight-root .section summary {
+  margin: 0 0 12px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#malletsight-root .section summary::-webkit-details-marker { display: none; }
+#malletsight-root .section summary::before {
+  content: "▸";
+  font-size: 14px;
+  transition: transform 0.15s;
+}
+#malletsight-root .section[open] summary::before { transform: rotate(90deg); }
+#malletsight-root .section summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+#malletsight-root button:focus-visible, #malletsight-root select:focus-visible, #malletsight-root .chip:focus-visible, #malletsight-root input[type="range"]:focus-visible, #malletsight-root .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+
+#malletsight-root .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+  min-height: 36px;
+}
+#malletsight-root .row label { color: var(--muted); font-size: 14px; }
+#malletsight-root .row select, #malletsight-root .grow {
+  flex: 1;
+  min-width: 0;
+}
+#malletsight-root select, #malletsight-root .field {
+  min-height: 40px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 10px;
+  width: 100%;
+}
+#malletsight-root .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+#malletsight-root .chip {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+#malletsight-root .chip.on {
+  background: #3d3420;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+#malletsight-root .key-presets { margin: 0 0 12px; }
+#malletsight-root .key-presets .chip { min-height: 48px; font-size: 14px; }
+#malletsight-root .level-row .chip { min-width: 48px; padding: 0; text-align: center; }
+#malletsight-root #keyModeHint { text-align: right; }
+
+#malletsight-root .toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+#malletsight-root .toggle input { width: 20px; height: 20px; }
+
+#malletsight-root input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+#malletsight-root .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+#malletsight-root .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+#malletsight-root .bottombar .cluster { display: flex; gap: 8px; align-items: center; }
+#malletsight-root .bottombar .cluster.wrap { flex-wrap: wrap; }
+#malletsight-root .tempo-pad {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #1a1e24;
+}
+#malletsight-root .metro-ui { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 52px; }
+#malletsight-root .tempo-read { color: var(--text, #e8eaed); font-variant-numeric: tabular-nums; font-size: 16px; font-weight: 700; }
+#malletsight-root .beat-lamps { display: flex; gap: 6px; height: 10px; align-items: center; }
+#malletsight-root .beat-lamps span {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #3a414c; box-shadow: inset 0 0 0 1px #555d68;
+}
+#malletsight-root .beat-lamps span.on { background: #e8c15a; box-shadow: 0 0 8px #e8c15a; }
+#malletsight-root .beat-lamps span.down { background: #f3ead2; box-shadow: 0 0 10px #f3ead2; }
+
+@media (max-width: 720px) {
+  #malletsight-root .brand span { display: none; }
+  #malletsight-root .btn.wide-hide { padding: 0 10px; }
+}

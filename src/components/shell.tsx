@@ -20,14 +20,22 @@ export function Shell() {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
 
+  const sheet = tool.id === "bladlesing";
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
       <header className="shrink-0 border-b border-line bg-header px-4 py-3">
         <p className="text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
         <p className="text-sm text-muted">{tool.label}</p>
       </header>
-      <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pt-4">
-        <div className="mx-auto w-full max-w-xl">
+      <main
+        className={
+          sheet
+            ? "min-h-0 flex-1 overflow-hidden"
+            : "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pt-4"
+        }
+      >
+        <div className={sheet ? "h-full min-h-0" : "mx-auto w-full max-w-xl"}>
           <Outlet />
         </div>
       </main>
