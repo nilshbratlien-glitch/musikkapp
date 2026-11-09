@@ -446,6 +446,32 @@ describe("layout", () => {
         assert.deepEqual(overflow, [0, 0], `${path} overflows`);
       }
 
+      await tab("/");
+      await page.waitForSelector("#score svg");
+      const lines = await page.locator("#btnGenerate").evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+      });
+      assert.equal(lines, 1, "«Ny etyde» stays on one line");
+      await page.locator("#btnSettings").click();
+      for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) {
+        await page.locator(`[data-settings="${panel}"]`).click();
+        const drawer = await page.locator("#drawer").evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          const wide = [...el.querySelectorAll("*")].filter((c) => {
+            const r = c.getBoundingClientRect();
+            return r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5);
+          });
+          return { scroll: el.scrollWidth - el.clientWidth, wide: wide.map((c) => c.id || c.className || c.tagName) };
+        });
+        assert.deepEqual(drawer, { scroll: 0, wide: [] }, `the ${panel} panel overflows`);
+        assert.deepEqual(await overflowOf(), [0, 0], `Bladlesing with the ${panel} panel open overflows`);
+        await shot(`bladlesing-drawer-${panel}-${width}x${height}`);
+        await page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`).click();
+      }
+      await page.locator("#btnCloseSettings").click();
+
       await open("/oveplan", plan(["twomallet"]));
       await page.getByRole("button", { name: "Start", exact: true }).click();
       await page.waitForFunction(() => location.pathname === "/metronom");
@@ -460,6 +486,19 @@ describe("layout", () => {
       await header().click();
       await page.locator("#pulseNote").waitFor({ state: "visible" });
       assert.equal(await scoreTop(), before, "the status line does not push the score down");
+      const note = await page.locator("#pulseNote").evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const next = document.querySelector("#practiceLine").getBoundingClientRect();
+        const score = document.querySelector("#score").getBoundingClientRect();
+        return {
+          size: parseFloat(getComputedStyle(el).fontSize),
+          clipped: el.scrollWidth > el.clientWidth,
+          clear: r.bottom <= (next.height ? next.top : score.top) + 0.5,
+        };
+      });
+      assert.ok(note.size >= 13, `the status line is at least 13px, got ${note.size}`);
+      assert.equal(note.clipped, false, "the status line fits on one line");
+      assert.equal(note.clear, true, "the status line does not overlap the meta line or the score");
       assert.equal(
         await page.locator("#pulseNote").evaluate((el) => getComputedStyle(el).color),
         "rgb(126, 224, 214)",
