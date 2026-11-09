@@ -126,3 +126,22 @@
   opacity: 0.5;
 }
 
+/* "Øveplan styrer" chip on Metronom, tinted with the active block's colour (--block). */
+.plan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--block, var(--color-accent));
+  border: 1px solid color-mix(in srgb, var(--block, var(--color-accent)) 45%, transparent);
+  background: color-mix(in srgb, var(--block, var(--color-accent)) 12%, transparent);
+}
+
+.plan-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}

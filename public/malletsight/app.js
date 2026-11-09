@@ -1,3 +1,4 @@
+/* global Theory, AudioEngine, ScoreRenderer -- set by the sibling MalletSight scripts */
 (function () {
   const T = Theory;
   const STORAGE = "musikkapp.bladlesing";
@@ -6,6 +7,7 @@
   let wired = false;
   let onResize = null;
   let onKey = null;
+  let offPulse = null;
 
   const DEFAULTS = {
     instrumentId: "mar50",
@@ -72,7 +74,7 @@
         const legacy = localStorage.getItem(LEGACY);
         if (legacy) {
           parsed = JSON.parse(legacy);
-          try { localStorage.setItem(STORAGE, JSON.stringify(parsed)); } catch (err) {}
+          try { localStorage.setItem(STORAGE, JSON.stringify(parsed)); } catch (err) { /* best effort */ }
         }
       }
       if (parsed) {
@@ -86,12 +88,12 @@
         }
         return merged;
       }
-    } catch (e) {}
+    } catch (e) { /* best effort */ }
     return Object.assign({}, DEFAULTS);
   }
 
   function saveSettings() {
-    try { localStorage.setItem(STORAGE, JSON.stringify(settings)); } catch (e) {}
+    try { localStorage.setItem(STORAGE, JSON.stringify(settings)); } catch (e) { /* best effort */ }
   }
 
   function $(sel) {
@@ -893,6 +895,24 @@
       }
     });
 
+    // Another tool took the shared pulse: show Metronome and Play as off.
+    AudioEngine.onHalt(() => {
+      resetPlayButton();
+      $("#btnMetro").classList.remove("on");
+      lightBeat(-1, metroSpec().beats);
+      ScoreRenderer.clearBeat();
+    });
+
+    // While Øveplan owns the pulse, Metronome and Play show that they gave way.
+    const syncYield = () => {
+      const yielded = window.MusikkPulse.getState().owner === "oveplan";
+      $("#btnMetro").classList.toggle("yielded", yielded);
+      $("#btnPlay").classList.toggle("yielded", yielded);
+      $("#pulseNote").hidden = !yielded;
+    };
+    offPulse = window.MusikkPulse.subscribe(syncYield);
+    syncYield();
+
     if ($("#btnSubdiv")) {
       $("#btnSubdiv").addEventListener("click", () => {
         metroSubdiv = metroSubdiv === 1 ? 2 : metroSubdiv === 2 ? 4 : 1;
@@ -987,12 +1007,15 @@
   function unmount() {
     try {
       if (window.AudioEngine) {
+        AudioEngine.onHalt(null);
         AudioEngine.stopPlayback();
         AudioEngine.stopMetronome();
       }
-    } catch (e) {}
+    } catch (e) { /* best effort */ }
     if (onResize) window.removeEventListener("resize", onResize);
     if (onKey) document.removeEventListener("keydown", onKey);
+    if (offPulse) offPulse();
+    offPulse = null;
     onResize = null;
     onKey = null;
     wired = false;

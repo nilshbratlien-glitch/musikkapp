@@ -15,6 +15,9 @@ export default tseslint.config(
       ".nitro/**",
       "node_modules/**",
       "src/routeTree.gen.ts",
+      // Vendored, prebuilt browser scripts (abcjs and the MalletSight app).
+      "public/malletsight/**",
+      "**/abcjs.js",
     ],
   },
   js.configs.recommended,

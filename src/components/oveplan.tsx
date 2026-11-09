@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
   applyPreset,
   blockName,
@@ -8,13 +8,12 @@ import {
   liveItems,
   playingSum,
   savePlanStore,
-  todayStamp,
+  BLOCK_COLOR,
   type PlanItem,
   type PlanPreset,
 } from "@/lib/oveplan";
 import {
   beginBlock,
-  bindPlanMetro,
   clearClock,
   endCurrent,
   ensurePlanClock,
@@ -22,89 +21,26 @@ import {
   getPlanClock,
   getPlanClockVersion,
   pauseBlock,
+  resetPlan,
   setPlanBpm,
+  setPlanMeter,
   subscribePlanClock,
   syncLeft,
   syncWake,
   togglePlanClock,
+  togglePlanMetro,
   touchPlanClock,
 } from "@/lib/plan-clock";
-
-const KIND: Record<BlockId, string> = {
-  twomallet: "var(--color-twomallet)",
-  fourmallet: "var(--color-fourmallet)",
-  srf: "var(--color-accent)",
-  rep: "var(--color-rep)",
-};
 
 type Clock = ReturnType<typeof getPlanClock>;
 
 export function Oveplan() {
   const clock = { get current(): Clock { return getPlanClock(); } };
-  const audioRef = useRef<AudioContext | null>(null);
-  const api = useRef({ metro: () => {} });
   useSyncExternalStore(subscribePlanClock, getPlanClockVersion, getPlanClockVersion);
   const redraw = () => touchPlanClock();
 
   function persist() {
     savePlanStore(clock.current.store);
-  }
-
-  function audio() {
-    const Context = window.AudioContext;
-    if (!Context) return null;
-    if (!audioRef.current) audioRef.current = new Context();
-    if (audioRef.current.state === "suspended") void audioRef.current.resume();
-    return audioRef.current;
-  }
-
-  function metroStop() {
-    const cur = clock.current;
-    cur.metroRunning = false;
-    if (cur.metroTimer != null) window.clearTimeout(cur.metroTimer);
-    cur.metroTimer = null;
-    syncWake();
-    redraw();
-  }
-
-  function clickAt(time: number, accent: boolean) {
-    const ctx = audioRef.current;
-    if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "square";
-    osc.frequency.value = accent ? 1320 : 880;
-    gain.gain.setValueAtTime(accent ? 0.22 : 0.12, time);
-    gain.gain.exponentialRampToValueAtTime(0.0008, time + 0.04);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(time);
-    osc.stop(time + 0.05);
-  }
-
-  function metroLoop() {
-    const cur = clock.current;
-    const ctx = audioRef.current;
-    if (!cur.metroRunning || !ctx) return;
-    while (cur.metroNext < ctx.currentTime + 0.12) {
-      clickAt(cur.metroNext, cur.metroCount % (cur.store.beats * cur.store.sub) === 0);
-      cur.metroNext += 60 / cur.store.bpm / cur.store.sub;
-      cur.metroCount += 1;
-    }
-    cur.metroTimer = window.setTimeout(() => api.current.metro(), 25);
-  }
-  api.current.metro = metroLoop;
-
-  function metroStart() {
-    const ctx = audio();
-    if (!ctx) return;
-    const cur = clock.current;
-    cur.metroRunning = true;
-    cur.metroCount = 0;
-    cur.metroNext = ctx.currentTime + 0.05;
-    syncWake();
-    metroLoop();
-    redraw();
   }
 
   function findItem(id: string) {
@@ -140,17 +76,7 @@ export function Oveplan() {
 
   useEffect(() => {
     ensurePlanClock();
-    bindPlanMetro({
-      stop: () => metroStop(),
-      start: () => metroStart(),
-    });
     touchPlanClock();
-    return () => {
-      bindPlanMetro({ stop: () => {}, start: () => {} });
-      metroStop();
-      void audioRef.current?.close();
-      audioRef.current = null;
-    };
   }, []);
 
 
@@ -267,21 +193,7 @@ export function Oveplan() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                cur.store.done = [];
-                cur.activeId = null;
-                cur.forceSetup = false;
-                cur.metroHeld = false;
-                if (cur.metroRunning) metroStop();
-                cur.store.items = cur.store.items.map((item) => ({ ...item, skipped: false }));
-                clearClock();
-                cur.startLabel = "Start";
-                cur.live = "Klar";
-                cur.store.sessionDate = todayStamp();
-                persist();
-                syncWake();
-                redraw();
-              }}
+              onClick={resetPlan}
               className="metro-press min-h-11 rounded-full border border-line px-3 text-sm font-semibold"
             >
               Nullstill
@@ -301,7 +213,7 @@ export function Oveplan() {
                       ? "grid grid-cols-[28px_1fr_auto_auto] items-center gap-2.5 rounded-card border border-accent bg-accent/10 py-3 pr-3 pl-3.5"
                       : "grid grid-cols-[28px_1fr_auto_auto] items-center gap-2.5 rounded-card border border-line bg-surface py-3 pr-3 pl-3.5"
                   }
-                  style={{ boxShadow: `inset 3px 0 0 ${KIND[item.id]}`, opacity: dim && cur.activeId !== item.id ? 0.4 : 1 }}
+                  style={{ boxShadow: `inset 3px 0 0 ${BLOCK_COLOR[item.id]}`, opacity: dim && cur.activeId !== item.id ? 0.4 : 1 }}
                 >
                   <input
                     type="checkbox"
@@ -417,12 +329,7 @@ export function Oveplan() {
           <select
             aria-label="Takter"
             value={cur.store.beats}
-            onChange={(event) => {
-              cur.store.beats = Number(event.target.value) || 4;
-              cur.metroCount = 0;
-              persist();
-              redraw();
-            }}
+            onChange={(event) => setPlanMeter(Number(event.target.value) || 4, cur.store.sub)}
             className="metro-field min-h-10 rounded-lg border border-line bg-header px-2"
           >
             {[2, 3, 4, 5, 6, 7].map((beat) => (
@@ -432,12 +339,7 @@ export function Oveplan() {
           <select
             aria-label="Underdeling"
             value={cur.store.sub}
-            onChange={(event) => {
-              cur.store.sub = Number(event.target.value) || 1;
-              cur.metroCount = 0;
-              persist();
-              redraw();
-            }}
+            onChange={(event) => setPlanMeter(cur.store.beats, Number(event.target.value) || 1)}
             className="metro-field min-h-10 rounded-lg border border-line bg-header px-2"
           >
             <option value={1}>Fjerdedel</option>
@@ -446,7 +348,7 @@ export function Oveplan() {
           </select>
           <button
             type="button"
-            onClick={() => (cur.metroRunning ? metroStop() : metroStart())}
+            onClick={togglePlanMetro}
             className={cur.metroRunning ? "min-h-10 rounded-lg bg-accent px-3 font-semibold text-bg" : "min-h-10 rounded-lg border border-line px-3"}
           >
             {cur.metroRunning ? "Stopp" : "Spill"}

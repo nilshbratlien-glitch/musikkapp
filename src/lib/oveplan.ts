@@ -40,6 +40,29 @@ export const DEFAULT_MINS: Record<BlockId, number> = {
   rep: 15,
 };
 
+/** The tool a block opens when it starts: 2- and 4-mallet practise with the metronome, SRF is sight-reading. */
+const BLOCK_TOOLS: Partial<Record<BlockId, string>> = {
+  twomallet: "/metronom",
+  fourmallet: "/metronom",
+  srf: "/",
+};
+
+export function blockTool(id: BlockId) {
+  return BLOCK_TOOLS[id] ?? null;
+}
+
+/** Each block's colour token; the plan list, the header pill and the Metronom chip share it. */
+export const BLOCK_COLOR: Record<BlockId, string> = {
+  twomallet: "var(--color-twomallet)",
+  fourmallet: "var(--color-fourmallet)",
+  srf: "var(--color-accent)",
+  rep: "var(--color-rep)",
+};
+
+export function playsMetronome(id: string | null) {
+  return id === "twomallet" || id === "fourmallet";
+}
+
 export function blockName(id: string) {
   return BLOCKS.find((block) => block.id === id)?.name ?? id;
 }

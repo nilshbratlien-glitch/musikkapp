@@ -1,34 +1,21 @@
-/* Web Audio metronome + etude playback. Lookahead scheduler, no setInterval drift. */
+/* Etude playback for Bladlesing. Clicks, timing and the AudioContext come from the
+   app's shared pulse core (window.MusikkPulse), so only one sound source ever runs. */
 (function (global) {
-  let ctx = null;
+  const Pulse = global.MusikkPulse;
   let metroOn = false;
   let playing = false;
-  let timerId = null;
-  let nextNoteTime = 0;
-  let beat = 0;
-  let subBeat = 0;
+  let playOwned = false;
+  let selfStop = false;
+  let onHalt = null;
   let tempo = 80;
   let beatsPerBar = 4;
   let subdiv = 1;
   let onBeat = null;
-  let playEvents = null;
-  let playIndex = 0;
-  let playNextTime = 0;
   let onPlayDone = null;
   let playToken = 0;
-  let playOwnsClick = false;
-  let clickList = [];
-  let cueList = [];
-  let playEnd = 0;
-  let clicksEnabled = true;
-
-  const LOOKAHEAD = 0.025;
-  const SCHEDULE_AHEAD = 0.12;
 
   function ac() {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === "suspended") ctx.resume();
-    return ctx;
+    return Pulse.audio();
   }
 
   function noiseBuffer(c, seconds) {
@@ -39,61 +26,10 @@
     return buf;
   }
 
-  let clickBus = null;
-
-  function clickOut() {
-    const c = ac();
-    if (!clickBus) {
-      clickBus = c.createGain();
-      clickBus.gain.value = clicksEnabled ? 1 : 0;
-      clickBus.connect(c.destination);
-    }
-    return clickBus;
-  }
-
-  function silenceClicks() {
-    if (!clickBus) return;
-    try {
-      clickBus.gain.setValueAtTime(0, ac().currentTime);
-      clickBus.disconnect();
-    } catch (e) {}
-    clickBus = null;
-  }
-
   let clickBuf = null;
   function getClickBuf(c) {
     if (!clickBuf) clickBuf = noiseBuffer(c, 0.04);
     return clickBuf;
-  }
-
-  function scheduleClick(time, accent, sub) {
-    const c = ac();
-    const src = c.createBufferSource();
-    src.buffer = getClickBuf(c);
-    const filter = c.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.Q.value = accent ? 4 : 2.2;
-    filter.frequency.value = accent ? 2200 : sub ? 700 : 1100;
-    const g = c.createGain();
-    const peak = accent ? 0.42 : sub ? 0.08 : 0.22;
-    g.gain.setValueAtTime(peak, time);
-    g.gain.exponentialRampToValueAtTime(0.0008, time + (accent ? 0.06 : 0.035));
-    src.connect(filter);
-    filter.connect(g);
-    g.connect(clickOut());
-    src.start(time);
-    src.stop(time + 0.07);
-
-    const osc = c.createOscillator();
-    const og = c.createGain();
-    osc.type = "square";
-    osc.frequency.value = accent ? 1600 : sub ? 650 : 1000;
-    og.gain.setValueAtTime(accent ? 0.12 : sub ? 0.03 : 0.06, time);
-    og.gain.exponentialRampToValueAtTime(0.0008, time + 0.025);
-    osc.connect(og);
-    og.connect(clickOut());
-    osc.start(time);
-    osc.stop(time + 0.03);
   }
 
   function midiToFreq(m) {
@@ -171,15 +107,19 @@
   };
 
   let master = null;
+  let masterBus = null;
   let playBus = null;
   let liveNodes = [];
 
   function out() {
     const c = ac();
-    if (!master) {
+    const bus = Pulse.output();
+    if (!master || masterBus !== bus) {
       master = c.createGain();
       master.gain.value = 0.7;
-      master.connect(c.destination);
+      master.connect(bus);
+      masterBus = bus;
+      playBus = null;
     }
     return master;
   }
@@ -200,21 +140,21 @@
       node.onended = function () {
         liveNodes = liveNodes.filter((n) => n !== node);
       };
-    } catch (e) {}
+    } catch (e) { /* best effort */ }
   }
 
   function cutScoreAudio() {
-    const c = ctx || ac();
+    const c = ac();
     const now = c.currentTime;
     liveNodes.forEach((n) => {
-      try { n.stop(now); } catch (e) {}
+      try { n.stop(now); } catch (e) { /* best effort */ }
     });
     liveNodes = [];
     if (playBus) {
       try {
         playBus.gain.cancelScheduledValues(now);
         playBus.gain.setValueAtTime(0, now);
-      } catch (e) {}
+      } catch (e) { /* best effort */ }
       playBus = c.createGain();
       playBus.gain.value = 0.85;
       playBus.connect(out());
@@ -304,115 +244,52 @@
     return (global.Theory && global.Theory.TICKS && global.Theory.TICKS.quarter) || 24;
   }
 
-  function secondsPerPulse() {
-    return 60 / (tempo * subdiv);
-  }
-
-  function scheduler() {
-    if (!ctx) return;
-    const now = ctx.currentTime;
-    if (playOwnsClick) {
-      while (clickList.length && clickList[0].time < now + SCHEDULE_AHEAD) {
-        const tick = clickList.shift();
-        if (clicksEnabled) scheduleClick(tick.time, tick.accent, tick.sub);
-      }
-      while (cueList.length && cueList[0].time <= now + 0.02) {
-        const cue = cueList.shift();
-        if (cue.token === playToken && playing) cue.fn();
-      }
-      if (!clickList.length && !cueList.length && now > playEnd) {
-        playing = false;
-        playOwnsClick = false;
-        const cb = onPlayDone;
-        onPlayDone = null;
-        stopClockIfIdle();
-        if (cb) cb();
-      }
-      return;
-    }
-    while (metroOn && nextNoteTime < now + SCHEDULE_AHEAD) {
-      const isDown = subBeat === 0;
-      const accent = isDown && beat === 0;
-      scheduleClick(nextNoteTime, accent, !isDown);
-      if (isDown && onBeat) {
-        const captured = beat;
-        const wait = Math.max(0, (nextNoteTime - now) * 1000);
-        setTimeout(() => {
-          if (metroOn && onBeat) onBeat(captured, beatsPerBar, true);
-        }, wait);
-      }
-      nextNoteTime += secondsPerPulse();
-      subBeat = (subBeat + 1) % subdiv;
-      if (subBeat === 0) beat = (beat + 1) % beatsPerBar;
-    }
-
-    while (playing && playEvents && playIndex < playEvents.length && playNextTime < now + SCHEDULE_AHEAD) {
-      const ev = playEvents[playIndex++];
-      const dur = (ev.dur.ticks / quarterTicks()) * (60 / tempo);
-      if (!ev.rest && ev.pitches && ev.pitches.length) {
-        const prev = playIndex > 1 ? playEvents[playIndex - 2] : null;
-        ev.pitches.forEach((p) => {
-          if (isTiedInto(prev, p)) return;
-          let hold = ev.dur.ticks;
-          let i = playIndex - 1;
-          while (i < playEvents.length - 1 && playEvents[i].tie) {
-            const nxt = playEvents[i + 1];
-            if (nxt.rest || !nxt.pitches || nxt.pitches.indexOf(p) < 0) break;
-            hold += nxt.dur.ticks;
-            i++;
-          }
-          scheduleNote(playNextTime, p, (hold / quarterTicks()) * (60 / tempo));
-        });
-      }
-      playNextTime += dur;
-    }
-    if (playing && playEvents && playIndex >= playEvents.length && playNextTime < now) {
-      playing = false;
-      if (onPlayDone) onPlayDone();
-    }
-  }
-
-  function startClock() {
-    if (timerId) return;
-    ac();
-    timerId = setInterval(scheduler, LOOKAHEAD * 1000);
-  }
-
-  function stopClockIfIdle() {
-    if (!metroOn && !playing && timerId) {
-      clearInterval(timerId);
-      timerId = null;
-    }
-  }
-
   function startMetronome(bpm, beats, opts) {
     opts = opts || {};
-    ac();
     tempo = bpm || 80;
     beatsPerBar = Math.max(1, beats || 4);
     subdiv = opts.subdiv === 2 ? 2 : opts.subdiv === 4 ? 4 : 1;
     onBeat = opts.onBeat || null;
-    beat = 0;
-    subBeat = 0;
+    selfStop = true;
+    Pulse.start({
+      owner: "bladlesing",
+      bpm: tempo,
+      beats: beatsPerBar,
+      sub: subdiv,
+      onClick: (click) => {
+        if (!click.downbeat || !onBeat) return;
+        const wait = Math.max(0, (click.time - ac().currentTime) * 1000);
+        setTimeout(() => {
+          if (metroOn && onBeat) onBeat(click.beatIndex, beatsPerBar, true);
+        }, wait);
+      },
+      onStop: () => {
+        const was = metroOn;
+        metroOn = false;
+        if (was && !selfStop && onHalt) onHalt();
+      },
+    });
+    selfStop = false;
     metroOn = true;
-    nextNoteTime = ctx.currentTime + 0.05;
-    startClock();
     if (onBeat) onBeat(0, beatsPerBar, false);
   }
 
   function stopMetronome() {
+    selfStop = true;
+    if (metroOn) Pulse.stop("bladlesing");
+    selfStop = false;
     metroOn = false;
     onBeat = null;
-    stopClockIfIdle();
   }
 
   function setTempo(bpm) {
     tempo = Math.max(30, Math.min(240, bpm || tempo));
+    if (metroOn) Pulse.setBpm(tempo);
   }
 
   function setSubdiv(n) {
     subdiv = n === 2 || n === 4 ? n : 1;
-    subBeat = 0;
+    if (metroOn) Pulse.setMeter(beatsPerBar, subdiv);
   }
 
   let playEndTimer = null;
@@ -428,7 +305,6 @@
     const countIn = Math.max(0, opts.countIn | 0);
     const onCue = opts.onCue || null;
     onPlayDone = opts.done || null;
-    clicksEnabled = true;
     const instId = (score && score.settingsSnapshot && score.settingsSnapshot.instrument) || "mar50";
     const qTicks = quarterTicks();
     const qSec = 60 / quarterBpm;
@@ -457,6 +333,42 @@
       const t0 = c.currentTime + 0.07;
       const countBeats = countIn * beats;
       const musicAt = t0 + countBeats * beatSec;
+      const steps = subdiv === 2 || subdiv === 4 ? subdiv : 1;
+      const total = countBeats + musicClicks;
+      Pulse.setClicks(true);
+      Pulse.start({
+        owner: "bladlesing",
+        bpm: 60 / beatSec,
+        beats: beats,
+        sub: steps,
+        at: t0,
+        count: total * steps,
+        onClick: (click) => {
+          if (!click.downbeat || !onCue) return;
+          const i = Math.floor(click.tick / steps);
+          const inCount = i < countBeats;
+          const cue = {
+            phase: inCount ? "countin" : "play",
+            beat: inCount ? i % beats : i - countBeats,
+            beats: beats,
+            musicBeats: musicClicks,
+          };
+          const wait = Math.max(0, (click.time - c.currentTime) * 1000);
+          setTimeout(() => {
+            if (token === playToken && playing) onCue(cue);
+          }, wait);
+        },
+        onStop: () => {
+          if (token !== playToken) return;
+          playToken++;
+          playing = false;
+          playOwned = false;
+          onPlayDone = null;
+          clearPlayEnd();
+          if (onHalt) onHalt();
+        },
+      });
+      playOwned = true;
       items.forEach((item, idx) => {
         const ev = item.ev;
         const when = musicAt + (item.tick / qTicks) * qSec;
@@ -465,39 +377,22 @@
           ev.pitches.forEach((p) => {
             if (isTiedInto(prev, p)) return;
             const dur = Math.max(0.05, (heldTicks(items, idx, p) / qTicks) * qSec);
-            try { scheduleNote(when, p, dur, instId, !!ev.roll); } catch (err) {}
+            try { scheduleNote(when, p, dur, instId, !!ev.roll); } catch (err) { /* best effort */ }
           });
         }
       });
-      clickList = [];
-      cueList = [];
-      const steps = subdiv === 2 || subdiv === 4 ? subdiv : 1;
-      const total = countBeats + musicClicks;
-      for (let i = 0; i < total; i++) {
-        const time = t0 + i * beatSec;
-        const inCount = i < countBeats;
-        const beat = inCount ? i % beats : (i - countBeats) % beats;
-        scheduleClick(time, beat === 0, false);
-        for (let s = 1; s < steps; s++) scheduleClick(time + (beatSec * s) / steps, false, true);
-        cueList.push({
-          time: time,
-          token: token,
-          fn: () => {
-            if (onCue) {
-              onCue({
-                phase: inCount ? "countin" : "play",
-                beat: inCount ? beat : i - countBeats,
-                beats: beats,
-                musicBeats: musicClicks,
-              });
-            }
-          },
-        });
-      }
-      playEnd = musicAt + musicSec + 0.08;
+      const playEnd = musicAt + musicSec + 0.08;
       playing = true;
-      playOwnsClick = true;
-      startClock();
+      playEndTimer = setTimeout(() => {
+        if (token !== playToken) return;
+        playToken++;
+        playing = false;
+        playOwned = false;
+        const cb = onPlayDone;
+        onPlayDone = null;
+        Pulse.stop("bladlesing");
+        if (cb) cb();
+      }, Math.max(0, (playEnd - c.currentTime) * 1000));
     };
 
     const go = () => {
@@ -508,8 +403,14 @@
   }
 
   function setClicks(on) {
-    clicksEnabled = !!on;
-    if (clickBus) clickBus.gain.setValueAtTime(clicksEnabled ? 1 : 0, ac().currentTime);
+    Pulse.setClicks(!!on);
+  }
+
+  function clearPlayEnd() {
+    if (playEndTimer) {
+      clearTimeout(playEndTimer);
+      playEndTimer = null;
+    }
   }
 
   function playScore(score, bpm, done) {
@@ -519,19 +420,11 @@
   function stopPlayback() {
     playToken++;
     playing = false;
-    playOwnsClick = false;
-    clickList = [];
-    cueList = [];
-    playEvents = null;
-    playIndex = 0;
-    if (playEndTimer) {
-      clearTimeout(playEndTimer);
-      playEndTimer = null;
-    }
+    clearPlayEnd();
     onPlayDone = null;
-    silenceClicks();
+    if (playOwned) Pulse.stop("bladlesing");
+    playOwned = false;
     cutScoreAudio();
-    stopClockIfIdle();
   }
 
   function isPlaying() {
@@ -552,6 +445,7 @@
     stopPlayback,
     isPlaying,
     isMetro,
+    onHalt: (fn) => { onHalt = fn || null; },
     ac,
   };
 })(window);

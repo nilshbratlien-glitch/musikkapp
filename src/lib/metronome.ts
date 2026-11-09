@@ -80,18 +80,28 @@ export function nextPulse(beat: number, meter: Meter) {
   return { accent: index === 0, index, beat: beat + 1 };
 }
 
+/** The meter chip for a beat count, or null when no chip has that many beats (5, 7). */
+export function meterForBeats(beats: number): Meter | null {
+  return METERS.find((meter) => beatsInMeter(meter) === beats) ?? null;
+}
+
 export const SUBDIVISIONS = [1, 2, 3, 4] as const;
 
 export type Subdivision = (typeof SUBDIVISIONS)[number];
 
-export function nextClick(tick: number, meter: Meter, subdivision: Subdivision) {
-  const clicks = beatsInMeter(meter) * subdivision;
+/** One click in a bar of `beats` beats with `sub` clicks per beat. */
+export function clickStep(tick: number, beats: number, sub: number) {
+  const clicks = beats * sub;
   const index = tick % clicks;
-  const subIndex = index % subdivision;
+  const subIndex = index % sub;
   return {
     accent: index === 0,
     downbeat: subIndex === 0,
-    beatIndex: Math.floor(index / subdivision),
+    beatIndex: Math.floor(index / sub),
     tick: tick + 1,
   };
+}
+
+export function nextClick(tick: number, meter: Meter, subdivision: Subdivision) {
+  return clickStep(tick, beatsInMeter(meter), subdivision);
 }
