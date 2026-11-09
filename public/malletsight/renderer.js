@@ -245,13 +245,13 @@
   function scoreToAbc(score, options) {
     const inst = T.INSTRUMENTS.find((i) => i.id === score.settingsSnapshot.instrument);
     const off = inst && inst.writtenOff ? inst.writtenOff : 0;
-    const trans = off === -12 ? " · sounds 8va" : off === -24 ? " · sounds 15ma" : "";
+    const trans = off === -12 ? " · klinger 8va" : off === -24 ? " · klinger 15ma" : "";
     const title =
-      (inst ? inst.name : "Mallets") +
+      (inst ? inst.name : "Køller") +
       trans +
       " · " +
       score.settingsSnapshot.mallets +
-      " mallets · " +
+      " køller · " +
       score.key.name;
     let clef = staffClef(score);
     if (inst && inst.defaultClef === "treble") clef = "treble";
@@ -331,7 +331,7 @@
     container.appendChild(wrap);
 
     if (typeof ABCJS === "undefined") {
-      wrap.innerHTML = '<p class="error">Notation engine missing (abcjs).</p>';
+      wrap.innerHTML = '<p class="error">Notemotoren mangler (abcjs).</p>';
       return;
     }
 
@@ -362,7 +362,7 @@
       console.error(err);
       const p = document.createElement("p");
       p.className = "error";
-      p.textContent = "Could not render this etude. " + String(err.message || err);
+      p.textContent = "Kunne ikke tegne denne etyden. " + String(err.message || err);
       wrap.appendChild(p);
       return null;
     }

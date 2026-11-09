@@ -65,7 +65,7 @@ test("impossible selections fail clearly instead of inserting unselected filler"
     { rhythms: ["qd"], rests: ["qd"], timeId: "4/4" },
     { rhythms: [], rests: [], timeId: "4/4" },
   ]) {
-    assert.throws(() => load(1).Generator.generate(settings(overrides)), /Selected note and rest values cannot fill this meter/);
+    assert.throws(() => load(1).Generator.generate(settings(overrides)), /Valgte note- og pauseverdier kan ikke fylle denne taktarten/);
   }
 });
 

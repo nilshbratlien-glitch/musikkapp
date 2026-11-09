@@ -91,13 +91,24 @@
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
   color: var(--muted);
 }
+/* In the stage's reserved 20px top padding, so showing it never moves the score. */
 #malletsight-root .pulse-note {
-  margin: 0 0 8px;
+  position: absolute;
+  top: 2px;
+  left: 12px;
+  right: 12px;
+  margin: 0;
   font-size: 13px;
-  color: var(--accent);
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--block, var(--accent));
   text-align: center;
+  pointer-events: none;
 }
 #malletsight-root .pulse-note[hidden] { display: none; }
+#malletsight-root #btnGenerate { white-space: nowrap; }
 #malletsight-root .icon-btn { min-width: var(--tap); padding: 0; font-size: 18px; }
 
 #malletsight-root .stage {
@@ -106,7 +117,7 @@
   background:
     radial-gradient(1200px 400px at 50% -10%, #2a3340 0%, transparent 50%),
     var(--bg);
-  padding: 12px;
+  padding: 20px 12px 12px;
 }
 #malletsight-root .paper {
   background: var(--paper);

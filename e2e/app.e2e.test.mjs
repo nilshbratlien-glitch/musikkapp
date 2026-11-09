@@ -336,7 +336,7 @@ describe("Bladlesing buttons follow the shared pulse", () => {
     await header().click();
     await page.waitForFunction(() => window.MusikkPulse?.getState().owner === "oveplan");
     await page.waitForTimeout(200);
-    assert.equal(await page.locator("#btnPlay").innerText(), "Play", "play-along shows as stopped");
+    assert.equal(await page.locator("#btnPlay").innerText(), "Spill", "play-along shows as stopped");
     assert.equal(await page.locator("#btnPlay").evaluate((el) => el.classList.contains("on")), false);
     assert.equal(await metroOn(), false);
     assert.equal(await liveContexts(), 1);
@@ -345,6 +345,34 @@ describe("Bladlesing buttons follow the shared pulse", () => {
     assert.equal(await owner(), "bladlesing");
     assert.equal(await page.locator(".yielded").count(), 0, "taking the pulse back clears .yielded");
     assert.equal(await page.locator("#pulseNote").isVisible(), false);
+    await noReload();
+  });
+});
+
+describe("Bladlesing during a SRF block", () => {
+  it("Play resumes the paused block; Stopp and leaving the tab never pause it", async () => {
+    await open("/oveplan", plan(["srf"]));
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForSelector("#score svg");
+    await header().click();
+    const paused = await headerSeconds();
+    await page.waitForTimeout(1200);
+    assert.equal(await headerSeconds(), paused, "paused from the header");
+
+    await page.locator("#btnPlay").click();
+    await page.waitForTimeout(1500);
+    assert.equal(await header().getAttribute("aria-pressed"), "false", "Play resumed the SRF block");
+    const resumed = await headerSeconds();
+    assert.ok(resumed < paused && resumed >= paused - 2, `same time left, then counting: ${paused} -> ${resumed}`);
+
+    await page.locator("#btnPlay").click();
+    await page.waitForTimeout(1200);
+    assert.ok((await headerSeconds()) < resumed, "Stopp in Bladlesing keeps the plan running");
+    await tab("/metronom");
+    await tab("/");
+    await page.waitForTimeout(1200);
+    assert.equal(await header().getAttribute("aria-pressed"), "false", "leaving the tab keeps it running");
     await noReload();
   });
 });
@@ -371,6 +399,7 @@ describe("Metronom during a 2-mallet block", () => {
     await page.waitForTimeout(1500);
     assert.equal(await headerSeconds(), paused, "Stopp paused the plan timer");
     assert.equal(await header().getAttribute("aria-pressed"), "true");
+    assert.match(await header().getAttribute("aria-label"), /^Fortsett 2-mallet, \d+:\d\d igjen$/, "paused, the label offers Fortsett");
     assert.equal((await recentClicks(800)).length, 0, "and the clicks");
     assert.match(await main.innerText(), /\b100\b/, "paused, Metronom still shows the block BPM");
     assert.equal(await pressed("3/4"), "true", "and the block meter");
@@ -383,6 +412,7 @@ describe("Metronom during a 2-mallet block", () => {
     const clicks = await recentClicks(2200);
     assert.ok(Math.abs(minGap(clicks) - 0.6) < 0.02, `one 100 BPM stream, got gap ${minGap(clicks)}`);
     assert.ok((await headerSeconds()) < paused, "the plan timer runs again");
+    assert.match(await header().getAttribute("aria-label"), /^Pause 2-mallet, /, "running, the label offers Pause again");
     assert.deepEqual(await page.evaluate(() => window.__owners), [null, "oveplan"], "Metronom never owned the pulse");
 
     await page.getByRole("button", { name: "4/4", exact: true }).click();
@@ -416,6 +446,32 @@ describe("layout", () => {
         assert.deepEqual(overflow, [0, 0], `${path} overflows`);
       }
 
+      await tab("/");
+      await page.waitForSelector("#score svg");
+      const lines = await page.locator("#btnGenerate").evaluate((el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+      });
+      assert.equal(lines, 1, "«Ny etyde» stays on one line");
+      await page.locator("#btnSettings").click();
+      for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) {
+        await page.locator(`[data-settings="${panel}"]`).click();
+        const drawer = await page.locator("#drawer").evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          const wide = [...el.querySelectorAll("*")].filter((c) => {
+            const r = c.getBoundingClientRect();
+            return r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5);
+          });
+          return { scroll: el.scrollWidth - el.clientWidth, wide: wide.map((c) => c.id || c.className || c.tagName) };
+        });
+        assert.deepEqual(drawer, { scroll: 0, wide: [] }, `the ${panel} panel overflows`);
+        assert.deepEqual(await overflowOf(), [0, 0], `Bladlesing with the ${panel} panel open overflows`);
+        await shot(`bladlesing-drawer-${panel}-${width}x${height}`);
+        await page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`).click();
+      }
+      await page.locator("#btnCloseSettings").click();
+
       await open("/oveplan", plan(["twomallet"]));
       await page.getByRole("button", { name: "Start", exact: true }).click();
       await page.waitForFunction(() => location.pathname === "/metronom");
@@ -425,10 +481,107 @@ describe("layout", () => {
       await header().click();
       await tab("/");
       await page.waitForSelector("#score svg");
+      const scoreTop = () => page.locator("#score").evaluate((el) => el.getBoundingClientRect().top);
+      const before = await scoreTop();
       await header().click();
       await page.locator("#pulseNote").waitFor({ state: "visible" });
+      assert.equal(await scoreTop(), before, "the status line does not push the score down");
+      const note = await page.locator("#pulseNote").evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const next = document.querySelector("#practiceLine").getBoundingClientRect();
+        const score = document.querySelector("#score").getBoundingClientRect();
+        return {
+          size: parseFloat(getComputedStyle(el).fontSize),
+          clipped: el.scrollWidth > el.clientWidth,
+          clear: r.bottom <= (next.height ? next.top : score.top) + 0.5,
+        };
+      });
+      assert.ok(note.size >= 13, `the status line is at least 13px, got ${note.size}`);
+      assert.equal(note.clipped, false, "the status line fits on one line");
+      assert.equal(note.clear, true, "the status line does not overlap the meta line or the score");
+      assert.equal(
+        await page.locator("#pulseNote").evaluate((el) => getComputedStyle(el).color),
+        "rgb(126, 224, 214)",
+        "the status line uses the 2-mallet colour",
+      );
       assert.deepEqual(await overflowOf(), [0, 0], "Bladlesing with the status line overflows");
       await shot(`bladlesing-yielded-${width}x${height}`);
     });
   }
+});
+
+/** English words that used to be labels in Bladlesing; none may be left in the drawer, the meta line or the title. */
+const ENGLISH =
+  /\b(keyboard|mallets?|texture|chords?|double|stops?|second|below|above|either|staff|treble|grand|all|long|simple|dotted|triplets?|short|whole|half|quarter|eighth|sixteenth|16th|32nd|allow|rests?|density|syncopation|ties|low|high|max|leap|keys?|majors?|minors?|accidentals|tonic|meter|measures|accents|dynamics|rolls|off|often|names|show|voicing|closed|open|notes?|generate|settings|level|custom|random|melody|single|only|fixed|next|sounds|the|and|with|glockenspiel|xylophone|vibraphone|octave|[2-9](nd|rd|th))\b/i;
+
+async function bladlesingTexts() {
+  return page.evaluate(() => {
+    const score = document.querySelector("#score svg");
+    return {
+      drawer: document.querySelector("#drawer").textContent.replace(/\s+/g, " "),
+      meta: document.querySelector("#practiceLine").textContent,
+      title: score ? score.querySelector("text")?.textContent ?? "" : "",
+    };
+  });
+}
+
+describe("Bladlesing in Norwegian", () => {
+  it("the drawer, the meta line and the sheet title have no English labels left, with 2, 3 and 4 mallets", async () => {
+    await open("/");
+    await page.waitForSelector("#score svg");
+    for (const mallets of ["2", "3", "4"]) {
+      await page.locator("#btnSettings").click();
+      await page.locator('[data-settings="instrument"]').click();
+      await page.locator("#mallets").selectOption(mallets);
+      await page.locator("#btnApply").click();
+      await page.waitForFunction(
+        (n) => document.querySelector("#score svg text")?.textContent.includes(` ${n} `),
+        mallets,
+      );
+      const texts = await bladlesingTexts();
+      for (const [where, text] of Object.entries(texts)) {
+        assert.doesNotMatch(text, ENGLISH, `${where} with ${mallets} mallets: ${text.match(ENGLISH)?.[0]} in «${text.slice(0, 200)}»`);
+      }
+      const key = texts.meta.match(/^Egendefinert · ([A-Ha-h](?:is|es|s)?-(?:dur|moll)) · 4\/4 · Marimba 5\.0$/)?.[1];
+      assert.ok(key, `Norwegian meta line, got «${texts.meta}»`);
+      assert.equal(texts.title, `Marimba 5.0 · ${mallets} køller · ${key}`);
+    }
+  });
+
+  it("settings saved by the old English version still load, with the same ids and values", async () => {
+    await open("/");
+    const old = {
+      instrumentId: "xylo",
+      mallets: 2,
+      texture: "melody",
+      clef: "treble",
+      keyId: "Bb",
+      keyIds: ["Bb"],
+      timeId: "3/4",
+      measures: 4,
+      rhythms: ["q", "8", "q."],
+      rolls: "long",
+      annotate: "names",
+    };
+    await page.evaluate((value) => {
+      localStorage.removeItem("musikkapp.bladlesing");
+      localStorage.setItem("mallet-sr-settings-v3", JSON.stringify(value));
+    }, old);
+    await page.reload();
+    await page.waitForSelector("#score svg");
+    const selected = (id) =>
+      page.locator(id).evaluate((el) => ({ value: el.value, text: el.selectedOptions[0]?.textContent }));
+    assert.deepEqual(await selected("#instrument"), { value: "xylo", text: "Xylofon" });
+    assert.deepEqual(await selected("#texture"), { value: "melody", text: "Bare én linje" });
+    assert.deepEqual(await selected("#clef"), { value: "treble", text: "Diskant" });
+    assert.deepEqual(await selected("#time"), { value: "3/4", text: "3/4" });
+    assert.deepEqual(await selected("#rolls"), { value: "long", text: "Lange toner" });
+    assert.deepEqual(await selected("#annotate"), { value: "names", text: "Tonenavn" });
+    assert.equal(await page.locator("#measures").inputValue(), "4");
+    const { meta, title } = await bladlesingTexts();
+    assert.equal(meta, "Egendefinert · B-dur · 3/4 · Xylofon");
+    assert.match(title, /^Xylofon · klinger 8va · 2 køller · B-dur$/);
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("musikkapp.bladlesing")));
+    for (const key of Object.keys(old)) assert.deepEqual(saved[key], old[key], `saved ${key} keeps its old value`);
+  });
 });

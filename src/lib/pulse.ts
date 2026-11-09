@@ -32,6 +32,8 @@ export type PulseState = {
 
 const LOOKAHEAD_MS = 25;
 const AHEAD_S = 0.1;
+/** A click this late means the clock jumped (background tab, sleep), not a slow loop. */
+const LATE_S = 0.05;
 
 let ctx: AudioContext | null = null;
 let bus: GainNode | null = null;
@@ -119,6 +121,14 @@ function loop() {
   const live = run;
   const c = ctx;
   if (!live || !c) return;
+  const late = c.currentTime - live.next;
+  if (late > LATE_S) {
+    // Skip the clicks the jump swallowed instead of playing them in one burst. Ticks count
+    // on by the skipped clicks, so the bar position (and the accent) stays where time puts it.
+    const missed = Math.ceil(late / (60 / state.bpm / state.sub));
+    live.tick += missed;
+    live.next += missed * (60 / state.bpm / state.sub);
+  }
   while (live.next < c.currentTime + AHEAD_S) {
     if (live.count != null && live.tick >= live.count) return;
     const step = clickStep(live.tick, state.beats, state.sub);
@@ -201,7 +211,28 @@ export function chime() {
   tone(783.99, begin + 0.18, 0.42, 0.26);
 }
 
-export const MusikkPulse = { start, stop, setBpm, setMeter, setClicks, chime, subscribe, getState, audio, output };
+/**
+ * Back in view: browsers suspend (or on iOS interrupt) audio while a page is hidden
+ * or in the back/forward cache. Resume it if someone still owns the pulse.
+ * Hiding the page (visibilitychange to hidden, pagehide) deliberately stops
+ * nothing, so Øveplan keeps running; its countdown is computed from a timestamp.
+ */
+export function wake() {
+  if (!ctx || !state.running) return false;
+  const now = ctx.state as string;
+  if (now !== "suspended" && now !== "interrupted") return false;
+  void ctx.resume().catch(() => {});
+  return true;
+}
+
+if (typeof document !== "undefined" && typeof window !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") wake();
+  });
+  window.addEventListener("pageshow", () => wake());
+}
+
+export const MusikkPulse = { start, stop, setBpm, setMeter, setClicks, chime, subscribe, getState, audio, output, wake };
 
 declare global {
   interface Window {

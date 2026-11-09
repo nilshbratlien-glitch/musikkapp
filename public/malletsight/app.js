@@ -134,11 +134,11 @@
     $("#rangeHighLbl").textContent = midiLabel(whi);
     if ($("#rangeHint") && inst) {
       $("#rangeHint").textContent =
-        "Written " +
+        "Skrevet " +
         midiLabel(inst.low + off) +
         "–" +
         midiLabel(inst.high + off) +
-        " on this instrument. Slider scale is C2–C8.";
+        " på dette instrumentet. Skalaen går fra C2 til C8.";
     }
   }
 
@@ -202,16 +202,16 @@
   }
 
   const LEVELS = [
-    { rhythms: ["h", "q"], rests: ["q"], maxLeap: 2, rhythmDensity: 1, measures: 4, allowRests: false, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Half and quarter notes. Steps only." },
-    { rhythms: ["h", "q"], rests: ["h", "q"], maxLeap: 3, rhythmDensity: 1, measures: 4, allowRests: true, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Rests, and skips of a 3rd." },
-    { rhythms: ["h", "q", "8"], rests: ["q", "8"], maxLeap: 3, rhythmDensity: 2, measures: 4, allowRests: true, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Eighth notes enter. Leaps stay small." },
-    { rhythms: ["hd", "h", "q", "8"], rests: ["h", "q", "8"], maxLeap: 4, rhythmDensity: 2, measures: 8, allowRests: true, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Dotted halves. Leaps of a 4th." },
-    { rhythms: ["h", "q", "qd", "8"], rests: ["q", "8"], maxLeap: 5, rhythmDensity: 3, measures: 8, allowRests: true, syncopation: false, ties: true, accidentals: false, dynamics: false, hint: "Dotted quarters and ties. Leaps of a 5th." },
-    { rhythms: ["q", "qd", "8", "8d", "16"], rests: ["q", "8"], maxLeap: 5, rhythmDensity: 3, measures: 8, allowRests: true, syncopation: false, ties: true, accidentals: false, dynamics: false, hint: "Sixteenths and dotted eighths." },
-    { rhythms: ["q", "qd", "8", "8d", "16"], rests: ["q", "8", "16"], maxLeap: 6, rhythmDensity: 4, measures: 8, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Syncopation, accidentals, and dynamics. Leaps of a 6th." },
-    { rhythms: ["q", "qd", "8", "16", "8t"], rests: ["q", "8"], maxLeap: 6, rhythmDensity: 4, measures: 12, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Eighth-note triplets." },
-    { rhythms: ["q", "qd", "8", "8d", "16", "16d", "8t"], rests: ["q", "8", "16"], maxLeap: 8, rhythmDensity: 5, measures: 12, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Dotted sixteenths and octave leaps." },
-    { rhythms: ["q", "qd", "qdd", "8", "8d", "16", "16d", "32", "8t", "16t"], rests: ["q", "8", "16"], maxLeap: 8, rhythmDensity: 5, measures: 12, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "32nds and sixteenth triplets. Full mix." },
+    { rhythms: ["h", "q"], rests: ["q"], maxLeap: 2, rhythmDensity: 1, measures: 4, allowRests: false, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Halvnoter og fjerdedeler. Bare trinn." },
+    { rhythms: ["h", "q"], rests: ["h", "q"], maxLeap: 3, rhythmDensity: 1, measures: 4, allowRests: true, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Pauser, og sprang på en ters." },
+    { rhythms: ["h", "q", "8"], rests: ["q", "8"], maxLeap: 3, rhythmDensity: 2, measures: 4, allowRests: true, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Åttendeler kommer inn. Sprangene er små." },
+    { rhythms: ["hd", "h", "q", "8"], rests: ["h", "q", "8"], maxLeap: 4, rhythmDensity: 2, measures: 8, allowRests: true, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Punkterte halvnoter. Sprang på en kvart." },
+    { rhythms: ["h", "q", "qd", "8"], rests: ["q", "8"], maxLeap: 5, rhythmDensity: 3, measures: 8, allowRests: true, syncopation: false, ties: true, accidentals: false, dynamics: false, hint: "Punkterte fjerdedeler og overbindinger. Sprang på en kvint." },
+    { rhythms: ["q", "qd", "8", "8d", "16"], rests: ["q", "8"], maxLeap: 5, rhythmDensity: 3, measures: 8, allowRests: true, syncopation: false, ties: true, accidentals: false, dynamics: false, hint: "Sekstendeler og punkterte åttendeler." },
+    { rhythms: ["q", "qd", "8", "8d", "16"], rests: ["q", "8", "16"], maxLeap: 6, rhythmDensity: 4, measures: 8, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Synkoper, forsetningstegn og dynamikk. Sprang på en sekst." },
+    { rhythms: ["q", "qd", "8", "16", "8t"], rests: ["q", "8"], maxLeap: 6, rhythmDensity: 4, measures: 12, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Åttendelstrioler." },
+    { rhythms: ["q", "qd", "8", "8d", "16", "16d", "8t"], rests: ["q", "8", "16"], maxLeap: 8, rhythmDensity: 5, measures: 12, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Punkterte sekstendeler og oktavsprang." },
+    { rhythms: ["q", "qd", "qdd", "8", "8d", "16", "16d", "32", "8t", "16t"], rests: ["q", "8", "16"], maxLeap: 8, rhythmDensity: 5, measures: 12, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Trettitodeler og sekstendelstrioler. Full miks." },
   ];
 
   function sameIds(a, b) {
@@ -244,8 +244,8 @@
     const hint = $("#levelHint");
     if (hint) {
       hint.textContent = idx >= 0
-        ? "Level " + (idx + 1) + ". " + LEVELS[idx].hint
-        : "Custom mix. Choose 1–10 to set rhythms, rests, leaps, and markings.";
+        ? "Nivå " + (idx + 1) + ". " + LEVELS[idx].hint
+        : "Egendefinert miks. Velg 1–10 for å stille inn rytmer, pauser, sprang og markeringer.";
     }
     const read = $("#levelRead");
     if (read) read.textContent = idx >= 0 ? String(idx + 1) : "–";
@@ -324,11 +324,11 @@
     const box = $("#stopIntervals");
     if (!box) return;
     const opts = [
-      { id: "3", name: "3rd" },
-      { id: "4", name: "4th" },
-      { id: "5", name: "5th" },
-      { id: "6", name: "6th" },
-      { id: "8", name: "Octave" },
+      { id: "3", name: "Ters" },
+      { id: "4", name: "Kvart" },
+      { id: "5", name: "Kvint" },
+      { id: "6", name: "Sekst" },
+      { id: "8", name: "Oktav" },
     ];
     if (!settings.stopIntervals) settings.stopIntervals = ["3", "4", "5", "6", "8"];
     box.innerHTML = "";
@@ -350,8 +350,9 @@
     });
   }
 
+  /** Short Norwegian key name for a chip: "Fiss-dur" → "Fiss", "h-moll" → "h". */
   function keyChipLabel(key) {
-    return key.id.replace("#", "♯").replace("b", "♭");
+    return key.name.split("-")[0];
   }
 
   let keyStep = 0;
@@ -377,10 +378,10 @@
   function keyModeText() {
     const ordered = selectedKeysInCircle();
     if (ordered.length <= 1) {
-      return (ordered[0] ? ordered[0].name : "One key") + " · fixed";
+      return (ordered[0] ? ordered[0].name : "Én toneart") + " · fast";
     }
     const next = ordered[keyStep % ordered.length];
-    return "Next · " + next.name;
+    return "Neste · " + next.name;
   }
 
   function syncLegacyKeyId() {
@@ -439,23 +440,23 @@
   function textureOptions() {
     if (settings.mallets === 2) {
       return [
-        { id: "mixed", name: "Melody with double stops" },
-        { id: "melody", name: "Single line only" },
-        { id: "doublestops", name: "Mostly double stops" },
+        { id: "mixed", name: "Melodi med dobbeltgrep" },
+        { id: "melody", name: "Bare én linje" },
+        { id: "doublestops", name: "Mest dobbeltgrep" },
       ];
     }
     if (settings.mallets === 3) {
       return [
-        { id: "mixed", name: "Melody with chords" },
-        { id: "melody", name: "Single line only" },
-        { id: "block", name: "3-note blocks only" },
+        { id: "mixed", name: "Melodi med akkorder" },
+        { id: "melody", name: "Bare én linje" },
+        { id: "block", name: "Bare blokker med tre toner" },
       ];
     }
     return [
-      { id: "mixed", name: "Melody with chords" },
-      { id: "melody", name: "Single line only" },
-      { id: "block", name: "Block chords only" },
-      { id: "chorale", name: "Chorale / long chords" },
+      { id: "mixed", name: "Melodi med akkorder" },
+      { id: "melody", name: "Bare én linje" },
+      { id: "block", name: "Bare blokkakkorder" },
+      { id: "chorale", name: "Koral / lange akkorder" },
     ];
   }
 
@@ -470,7 +471,7 @@
     buildKeyToggles();
     fillSelect(
       $("#time"),
-      [{ id: "random", name: "Random meter" }].concat(T.TIMES),
+      [{ id: "random", name: "Tilfeldig taktart" }].concat(T.TIMES),
       settings.timeId,
       (t) => t.name || t.id
     );
@@ -479,9 +480,9 @@
       $("#clef"),
       [
         { id: "auto", name: "Auto" },
-        { id: "treble", name: "Treble" },
+        { id: "treble", name: "Diskant" },
         { id: "bass", name: "Bass" },
-        { id: "grand", name: "Grand staff" },
+        { id: "grand", name: "Dobbelt system" },
       ],
       settings.clef
     );
@@ -565,12 +566,12 @@
     const ds = $("#doubleStopRow");
     if (ds) ds.hidden = !twoStop;
     if ($("#chordChanceTitle")) {
-      $("#chordChanceTitle").textContent = settings.mallets === 2 ? "Double stops in the line" : "Chords in the line";
+      $("#chordChanceTitle").textContent = settings.mallets === 2 ? "Dobbeltgrep i linjen" : "Akkorder i linjen";
     }
     if ($("#chordChanceHint")) {
       $("#chordChanceHint").textContent = settings.mallets === 2
-        ? "Same rhythm. The extra note is a chosen interval from the melody."
-        : "Melody continues; chords appear on some of the longer notes.";
+        ? "Samme rytme. Den ekstra tonen er et valgt intervall fra melodien."
+        : "Melodien fortsetter, og akkorder kommer på noen av de lengre tonene.";
     }
     const inst = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
     const lockTreble = inst && inst.defaultClef === "treble";
@@ -641,7 +642,7 @@
     const btn = $("#btnPlay");
     if (!btn) return;
     btn.classList.remove("on");
-    btn.textContent = "Play";
+    btn.textContent = "Spill";
   }
 
   function haltPlay() {
@@ -673,10 +674,10 @@
       const idx = levelIndex();
       const inst = T.INSTRUMENTS.find((i) => i.id === currentScore.settingsSnapshot.instrument);
       line.textContent = [
-        idx >= 0 ? "Level " + (idx + 1) : "Custom",
+        idx >= 0 ? "Nivå " + (idx + 1) : "Egendefinert",
         currentScore.key && currentScore.key.name,
         currentScore.time && currentScore.time.id,
-        inst ? inst.name : "Mallets",
+        inst ? inst.name : "Køller",
       ].filter(Boolean).join(" · ");
     }
   }
@@ -695,7 +696,7 @@
     } catch (err) {
       console.error(err);
       $("#score").innerHTML =
-        '<p class="error">Could not render this etude. Try fewer measures, simpler rhythms, or a wider range.<br><small>' +
+        '<p class="error">Kunne ikke tegne denne etyden. Prøv færre takter, enklere rytmer eller et større register.<br><small>' +
         String(err.message || err) +
         "</small></p>";
     }
@@ -909,6 +910,8 @@
       $("#btnMetro").classList.toggle("yielded", yielded);
       $("#btnPlay").classList.toggle("yielded", yielded);
       $("#pulseNote").hidden = !yielded;
+      const color = window.MusikkPlan && window.MusikkPlan.activeBlockColor();
+      if (color) $("#pulseNote").style.setProperty("--block", color);
     };
     offPulse = window.MusikkPulse.subscribe(syncYield);
     syncYield();
@@ -932,6 +935,8 @@
       }
       if (!currentScore) generate();
       if (!currentScore) return;
+      // Play carries on a paused SRF block in Øveplan; nothing in Bladlesing pauses it.
+      if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
       metroBeforePlay = AudioEngine.isMetro();
       AudioEngine.stopMetronome();
       AudioEngine.setClicks(true);
@@ -956,7 +961,7 @@
             $("#btnPlay").textContent = String(q.beat + 1);
             ScoreRenderer.showBeat(beatMap, 0);
           } else {
-            $("#btnPlay").textContent = "Stop";
+            $("#btnPlay").textContent = "Stopp";
             ScoreRenderer.showBeat(beatMap, q.beat);
           }
         },

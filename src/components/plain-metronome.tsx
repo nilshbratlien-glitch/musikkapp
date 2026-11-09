@@ -193,7 +193,10 @@ export function PlainMetronome() {
           <button type="button" onClick={start} disabled={playing} className="metro-press min-h-12 rounded-lg bg-accent font-semibold text-bg disabled:bg-header disabled:text-muted">
             Start
           </button>
-          <button type="button" onClick={stop} disabled={!(pulse.owner === "metronom" || (owns && planMalletBlock()))} className="metro-press min-h-12 rounded-lg bg-header font-medium disabled:opacity-50">
+          <button type="button" onClick={stop} disabled={!(pulse.owner === "metronom" || (owns && planMalletBlock()))}
+            style={plan ? ({ "--block": BLOCK_COLOR[block] } as CSSProperties) : undefined}
+            className="metro-press min-h-12 rounded-lg border border-[var(--block,var(--color-accent))] bg-header font-semibold disabled:border-transparent disabled:bg-header disabled:text-muted"
+          >
             Stopp
           </button>
         </div>

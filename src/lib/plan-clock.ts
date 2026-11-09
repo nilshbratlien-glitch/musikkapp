@@ -15,6 +15,7 @@ import {
   blockTool,
   playsMetronome,
   type BlockId,
+  BLOCK_COLOR,
 } from "./oveplan.ts";
 import { chime, getState as pulseState, type PulseStart, setBpm as pulseBpm, setMeter as pulseMeter, start as pulseStart, stop as pulseStop, subscribe as subscribePulse } from "./pulse.ts";
 
@@ -462,6 +463,34 @@ export function stopFromMetronom() {
   if (planMalletBlock() && planClockRunning()) pauseBlock();
   else pulseStop("metronom");
 }
+
+/**
+ * Bladlesing's Play: a paused SRF block carries on with the time it had left.
+ * This is the only way Bladlesing touches the plan; nothing there pauses it.
+ */
+export function resumeFromBladlesing() {
+  const id = clock.activeId;
+  if (id !== "srf" || !clock.blockPaused || clock.store.done.includes(id)) return false;
+  // Play brings its own clicks; a held plan metronome would only be replaced by them.
+  clock.metroHeld = false;
+  resumeBlock();
+  return !clock.blockPaused;
+}
+
+/** The active block's colour token, so Bladlesing's status line matches the header pill. */
+export function activeBlockColor() {
+  return clock.activeId ? BLOCK_COLOR[clock.activeId as BlockId] : null;
+}
+
+export const MusikkPlan = { resumeFromBladlesing, activeBlockColor };
+
+declare global {
+  interface Window {
+    MusikkPlan?: typeof MusikkPlan;
+  }
+}
+
+if (typeof window !== "undefined") window.MusikkPlan = MusikkPlan;
 
 export function planClockRunning() {
   return !!clock.activeId && clock.timer != null && !clock.blockPaused;

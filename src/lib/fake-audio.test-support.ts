@@ -48,13 +48,34 @@ class FakeContext {
   createOscillator() {
     return new FakeOsc();
   }
+  resumes = 0;
   resume() {
+    this.resumes++;
+    this.state = "running";
     return Promise.resolve();
   }
 }
 const g = globalThis as Record<string, unknown>;
 g.AudioContext = FakeContext;
 g.window = globalThis;
+
+// A page that can be hidden and shown: document visibility plus window page events.
+class FakeDocument extends EventTarget {
+  visibilityState: "visible" | "hidden" = "visible";
+}
+export const fakeDocument = new FakeDocument();
+g.document = fakeDocument;
+const pageEvents = new EventTarget();
+g.addEventListener = pageEvents.addEventListener.bind(pageEvents);
+g.removeEventListener = pageEvents.removeEventListener.bind(pageEvents);
+g.dispatchEvent = pageEvents.dispatchEvent.bind(pageEvents);
+
+/** Hide or show the page the way a browser does: visibilitychange, then pagehide or pageshow. */
+export function setPageVisible(visible: boolean) {
+  fakeDocument.visibilityState = visible ? "visible" : "hidden";
+  fakeDocument.dispatchEvent(new Event("visibilitychange"));
+  pageEvents.dispatchEvent(new Event(visible ? "pageshow" : "pagehide"));
+}
 
 
 /** True while a source still has a connected path to the context's speakers. */
