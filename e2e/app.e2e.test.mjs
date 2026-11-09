@@ -3,9 +3,13 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { after, before, beforeEach, describe, it } from "node:test";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { chromium } from "playwright";
 
 const BASE = process.env.E2E_URL || "http://127.0.0.1:8081";
+// Optional: save review screenshots here (not used in CI).
+const SHOTS = process.env.E2E_SHOTS || "";
 let server = null;
 let browser;
 let page;
@@ -116,6 +120,29 @@ function minGap(times) {
 
 async function liveContexts() {
   return page.evaluate(() => window.__probe.contexts.filter((c) => c.state !== "closed").length);
+}
+
+async function shot(name) {
+  if (!SHOTS) return;
+  mkdirSync(SHOTS, { recursive: true });
+  await page.screenshot({ path: join(SHOTS, `${name}.png`) });
+}
+
+const pulseState = () => page.evaluate(() => window.MusikkPulse?.getState() ?? null);
+
+async function pressed(name) {
+  return page.getByRole("button", { name, exact: true }).getAttribute("aria-pressed");
+}
+
+/** Every pulse owner seen since the call, in order. */
+async function traceOwners() {
+  await page.evaluate(() => {
+    window.__owners = [];
+    window.MusikkPulse.subscribe(() => {
+      const owner = window.MusikkPulse.getState().owner;
+      if (window.__owners.at(-1) !== owner) window.__owners.push(owner);
+    });
+  });
 }
 
 async function countdownIntervals() {
@@ -298,6 +325,10 @@ describe("Bladlesing buttons follow the shared pulse", () => {
     await page.waitForFunction(() => window.MusikkPulse?.getState().owner === "oveplan");
     assert.equal(new URL(page.url()).pathname, "/");
     assert.equal(await metroOn(), false, "#btnMetro is off once the plan owns the pulse");
+    assert.equal(await page.locator("#btnMetro.yielded").count(), 1, "#btnMetro shows it gave way");
+    assert.equal(await page.locator("#btnPlay.yielded").count(), 1, "Play shows it gave way");
+    assert.equal(await page.locator("#pulseNote").innerText(), "Øveplan styrer metronomen");
+    assert.ok(await page.locator("#pulseNote").isVisible(), "the status line is visible");
 
     await header().click();
     await page.locator("#btnPlay").click();
@@ -309,9 +340,63 @@ describe("Bladlesing buttons follow the shared pulse", () => {
     assert.equal(await page.locator("#btnPlay").evaluate((el) => el.classList.contains("on")), false);
     assert.equal(await metroOn(), false);
     assert.equal(await liveContexts(), 1);
+
+    await page.locator("#btnMetro").click();
+    assert.equal(await owner(), "bladlesing");
+    assert.equal(await page.locator(".yielded").count(), 0, "taking the pulse back clears .yielded");
+    assert.equal(await page.locator("#pulseNote").isVisible(), false);
     await noReload();
   });
 });
+
+describe("Metronom during a 2-mallet block", () => {
+  it("Stopp pauses the block, Start resumes it at the block's tempo, and the chips show the block's meter", async () => {
+    await open("/oveplan", plan(["twomallet"]));
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/metronom");
+    await page.locator(".plan-chip").waitFor();
+    await traceOwners();
+    const main = page.locator("main");
+    assert.match(await main.innerText(), /Øveplan · 3 slag/);
+    assert.equal(await pressed("3/4"), "true", "the 3-beat chip is selected");
+    assert.equal(await pressed("4/4"), "false", "never 3 slag and 4/4 at once");
+    assert.equal(await page.locator('main [aria-pressed="true"]').count(), 2, "one meter and one subdivision chip");
+    assert.equal(await pressed("Slag"), "true");
+    assert.match(await header().getAttribute("aria-label"), /^Pause 2-mallet, \d+:\d\d igjen$/);
+    assert.equal(await header().getAttribute("aria-pressed"), "false");
+
+    await page.getByRole("button", { name: "Stopp", exact: true }).click();
+    const paused = await headerSeconds();
+    assert.equal((await pulseState()).owner, null);
+    await page.waitForTimeout(1500);
+    assert.equal(await headerSeconds(), paused, "Stopp paused the plan timer");
+    assert.equal(await header().getAttribute("aria-pressed"), "true");
+    assert.equal((await recentClicks(800)).length, 0, "and the clicks");
+    assert.match(await main.innerText(), /\b100\b/, "paused, Metronom still shows the block BPM");
+    assert.equal(await pressed("3/4"), "true", "and the block meter");
+    await shot("metronom-paused-block");
+
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    const state = await pulseState();
+    assert.equal(state.owner, "oveplan", "Start resumes the block instead of taking the pulse");
+    assert.equal(state.bpm, 100, "at the block BPM, not 80");
+    const clicks = await recentClicks(2200);
+    assert.ok(Math.abs(minGap(clicks) - 0.6) < 0.02, `one 100 BPM stream, got gap ${minGap(clicks)}`);
+    assert.ok((await headerSeconds()) < paused, "the plan timer runs again");
+    assert.deepEqual(await page.evaluate(() => window.__owners), [null, "oveplan"], "Metronom never owned the pulse");
+
+    await page.getByRole("button", { name: "4/4", exact: true }).click();
+    assert.equal((await pulseState()).beats, 4);
+    assert.match(await main.innerText(), /Øveplan · 4 slag/);
+    assert.equal(await pressed("4/4"), "true");
+    assert.equal(await pressed("3/4"), "false");
+    await shot("metronom-block-running");
+    await noReload();
+  });
+});
+
+const overflowOf = () =>
+  page.evaluate(() => [document.documentElement, document.querySelector("main")].map((el) => el.scrollWidth - el.clientWidth));
 
 describe("layout", () => {
   for (const [width, height] of [
@@ -330,6 +415,20 @@ describe("layout", () => {
         );
         assert.deepEqual(overflow, [0, 0], `${path} overflows`);
       }
+
+      await open("/oveplan", plan(["twomallet"]));
+      await page.getByRole("button", { name: "Start", exact: true }).click();
+      await page.waitForFunction(() => location.pathname === "/metronom");
+      await page.locator(".plan-chip").waitFor();
+      assert.deepEqual(await overflowOf(), [0, 0], "/metronom with the plan chip overflows");
+      await shot(`metronom-chip-${width}x${height}`);
+      await header().click();
+      await tab("/");
+      await page.waitForSelector("#score svg");
+      await header().click();
+      await page.locator("#pulseNote").waitFor({ state: "visible" });
+      assert.deepEqual(await overflowOf(), [0, 0], "Bladlesing with the status line overflows");
+      await shot(`bladlesing-yielded-${width}x${height}`);
     });
   }
 });
