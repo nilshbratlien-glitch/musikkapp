@@ -893,6 +893,14 @@
       }
     });
 
+    // Another tool took the shared pulse: show Metronome and Play as off.
+    AudioEngine.onHalt(() => {
+      resetPlayButton();
+      $("#btnMetro").classList.remove("on");
+      lightBeat(-1, metroSpec().beats);
+      ScoreRenderer.clearBeat();
+    });
+
     if ($("#btnSubdiv")) {
       $("#btnSubdiv").addEventListener("click", () => {
         metroSubdiv = metroSubdiv === 1 ? 2 : metroSubdiv === 2 ? 4 : 1;
@@ -987,6 +995,7 @@
   function unmount() {
     try {
       if (window.AudioEngine) {
+        AudioEngine.onHalt(null);
         AudioEngine.stopPlayback();
         AudioEngine.stopMetronome();
       }

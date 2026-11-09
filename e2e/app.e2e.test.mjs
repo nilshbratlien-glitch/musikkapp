@@ -266,6 +266,53 @@ describe("one sound source", () => {
   });
 });
 
+describe("Bladlesing buttons follow the shared pulse", () => {
+  const owner = () => page.evaluate(() => window.MusikkPulse?.getState().owner ?? null);
+  const metroOn = () => page.locator("#btnMetro").evaluate((el) => el.classList.contains("on"));
+
+  it("Metronom tab and back: the metronome button is off", async () => {
+    await open("/");
+    await page.waitForSelector("#score svg");
+    await page.locator("#btnMetro").click();
+    assert.equal(await metroOn(), true);
+    await tab("/metronom");
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    assert.equal(await owner(), "metronom");
+    await tab("/");
+    await page.waitForSelector("#score svg");
+    assert.equal(await metroOn(), false, "#btnMetro is not active after returning");
+    assert.equal(await owner(), null);
+  });
+
+  it("a plan block taking the pulse turns metronome and play-along off", async () => {
+    await open("/oveplan", plan(["twomallet"]));
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/metronom");
+    await header().click();
+    await tab("/");
+    await page.waitForSelector("#score svg");
+
+    await page.locator("#btnMetro").click();
+    assert.equal(await owner(), "bladlesing");
+    await header().click();
+    await page.waitForFunction(() => window.MusikkPulse?.getState().owner === "oveplan");
+    assert.equal(new URL(page.url()).pathname, "/");
+    assert.equal(await metroOn(), false, "#btnMetro is off once the plan owns the pulse");
+
+    await header().click();
+    await page.locator("#btnPlay").click();
+    await page.waitForFunction(() => window.MusikkPulse?.getState().owner === "bladlesing");
+    await header().click();
+    await page.waitForFunction(() => window.MusikkPulse?.getState().owner === "oveplan");
+    await page.waitForTimeout(200);
+    assert.equal(await page.locator("#btnPlay").innerText(), "Play", "play-along shows as stopped");
+    assert.equal(await page.locator("#btnPlay").evaluate((el) => el.classList.contains("on")), false);
+    assert.equal(await metroOn(), false);
+    assert.equal(await liveContexts(), 1);
+    await noReload();
+  });
+});
+
 describe("layout", () => {
   for (const [width, height] of [
     [768, 1024],

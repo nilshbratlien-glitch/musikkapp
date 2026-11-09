@@ -5,6 +5,8 @@
   let metroOn = false;
   let playing = false;
   let playOwned = false;
+  let selfStop = false;
+  let onHalt = null;
   let tempo = 80;
   let beatsPerBar = 4;
   let subdiv = 1;
@@ -248,6 +250,7 @@
     beatsPerBar = Math.max(1, beats || 4);
     subdiv = opts.subdiv === 2 ? 2 : opts.subdiv === 4 ? 4 : 1;
     onBeat = opts.onBeat || null;
+    selfStop = true;
     Pulse.start({
       owner: "bladlesing",
       bpm: tempo,
@@ -261,15 +264,20 @@
         }, wait);
       },
       onStop: () => {
+        const was = metroOn;
         metroOn = false;
+        if (was && !selfStop && onHalt) onHalt();
       },
     });
+    selfStop = false;
     metroOn = true;
     if (onBeat) onBeat(0, beatsPerBar, false);
   }
 
   function stopMetronome() {
+    selfStop = true;
     if (metroOn) Pulse.stop("bladlesing");
+    selfStop = false;
     metroOn = false;
     onBeat = null;
   }
@@ -357,6 +365,7 @@
           playOwned = false;
           onPlayDone = null;
           clearPlayEnd();
+          if (onHalt) onHalt();
         },
       });
       playOwned = true;
@@ -436,6 +445,7 @@
     stopPlayback,
     isPlaying,
     isMetro,
+    onHalt: (fn) => { onHalt = fn || null; },
     ac,
   };
 })(window);
