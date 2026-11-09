@@ -1,7 +1,7 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Drum, FileText, Music, Piano } from "lucide-react";
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { blockName, fmtClock } from "@/lib/oveplan";
+import { Drum, FileText, Music, Pause, Piano, Play } from "lucide-react";
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { BLOCK_COLOR, blockName, fmtClock, type BlockId } from "@/lib/oveplan";
 import { bindPlanNavigate, ensurePlanClock, getPlanClock, getPlanClockVersion, subscribePlanClock, togglePlanClock } from "@/lib/plan-clock";
 import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
 
@@ -66,18 +66,23 @@ function PlanHeaderTimer() {
   const clock = getPlanClock();
   if (!clock.activeId) return null;
   const paused = clock.blockPaused || clock.timer == null;
+  const name = blockName(clock.activeId);
+  const Icon = paused ? Play : Pause;
   return (
     <button
       type="button"
       onClick={togglePlanClock}
+      aria-label={`Pause ${name}, ${fmtClock(clock.blockLeft)} igjen`}
+      aria-pressed={paused}
+      style={{ "--block": BLOCK_COLOR[clock.activeId as BlockId] ?? "var(--color-accent)" } as CSSProperties}
       className={
         paused
           ? "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-line px-2 text-sm font-semibold text-muted"
-          : "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-accent bg-accent/10 px-2 text-sm font-semibold text-accent"
+          : "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-[var(--block)] bg-[color-mix(in_srgb,var(--block)_10%,transparent)] px-2 text-sm font-semibold text-[var(--block)]"
       }
     >
-      {paused ? null : <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-accent" aria-hidden="true" />}
-      <span className="min-w-0 truncate">{blockName(clock.activeId)}</span>
+      <Icon className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden="true" />
+      <span className="min-w-0 truncate">{name}</span>
       <span className="shrink-0 tabular-nums">{fmtClock(clock.blockLeft)}</span>
     </button>
   );
