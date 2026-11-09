@@ -463,6 +463,29 @@ export function stopFromMetronom() {
   else pulseStop("metronom");
 }
 
+/**
+ * Bladlesing's Play: a paused SRF block carries on with the time it had left.
+ * This is the only way Bladlesing touches the plan; nothing there pauses it.
+ */
+export function resumeFromBladlesing() {
+  const id = clock.activeId;
+  if (id !== "srf" || !clock.blockPaused || clock.store.done.includes(id)) return false;
+  // Play brings its own clicks; a held plan metronome would only be replaced by them.
+  clock.metroHeld = false;
+  resumeBlock();
+  return !clock.blockPaused;
+}
+
+export const MusikkPlan = { resumeFromBladlesing };
+
+declare global {
+  interface Window {
+    MusikkPlan?: typeof MusikkPlan;
+  }
+}
+
+if (typeof window !== "undefined") window.MusikkPlan = MusikkPlan;
+
 export function planClockRunning() {
   return !!clock.activeId && clock.timer != null && !clock.blockPaused;
 }

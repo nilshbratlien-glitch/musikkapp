@@ -133,6 +133,70 @@ describe("plan clock on the pulse core", () => {
     });
   });
 
+  describe("Bladlesing and a SRF block", () => {
+    const play = () => window.MusikkPlan!.resumeFromBladlesing();
+    const snapshot = () => {
+      const clock = planClock.getPlanClock();
+      return { activeId: clock.activeId, paused: clock.blockPaused, remain: clock.blockRemainMs, timer: clock.timer != null };
+    };
+    // What Bladlesing does to the shared pulse: metronome, play-along to the end, Stopp, leaving the tab.
+    const bladlesingSounds = () => {
+      pulse.start({ owner: "bladlesing", bpm: 80 });
+      pulse.stop("bladlesing");
+      pulse.start({ owner: "bladlesing", bpm: 80, count: 4 });
+      mock.timers.tick(3000);
+      pulse.stop("bladlesing");
+    };
+
+    beforeEach(() => planClock.ensurePlanClock());
+
+    it("Play resumes a paused SRF block with the time it had left", () => {
+      planClock.beginBlock(item("srf"));
+      mock.timers.tick(10_000);
+      planClock.pauseBlock();
+      const left = planClock.getPlanClock().blockLeft;
+      mock.timers.tick(60_000);
+      assert.equal(play(), true);
+      const clock = planClock.getPlanClock();
+      assert.equal(clock.blockPaused, false, "the plan timer runs again");
+      assert.equal(clock.blockLeft, left, "with the same time left");
+      mock.timers.tick(5000);
+      assert.equal(planClock.getPlanClock().blockLeft, left - 5, "and counts down from the new end time");
+    });
+
+    it("Play on a paused SRF block does not start the plan's held metronome", () => {
+      planClock.beginBlock(item("srf"));
+      planClock.togglePlanMetro();
+      planClock.pauseBlock();
+      assert.equal(planClock.getPlanClock().metroHeld, true);
+      play();
+      assert.equal(pulse.getState().owner, null, "Play brings its own clicks");
+    });
+
+    it("nothing Bladlesing does with sound pauses a running SRF block", () => {
+      planClock.beginBlock(item("srf"));
+      const left = planClock.getPlanClock().blockLeft;
+      bladlesingSounds();
+      assert.equal(planClock.getPlanClock().blockPaused, false, "Stopp, play-along ending and leaving the tab keep the timer running");
+      assert.equal(planClock.getPlanClock().blockLeft, left - 3);
+      assert.equal(play(), false, "Play on a running block changes nothing");
+      assert.equal(planClock.getPlanClock().blockPaused, false);
+    });
+
+    it("Play without a plan, or in another block, leaves the plan alone", () => {
+      assert.equal(play(), false);
+      assert.deepEqual(snapshot(), { activeId: null, paused: false, remain: 0, timer: false });
+      for (const id of ["twomallet", "rep"] as const) {
+        planClock.beginBlock(item(id), true);
+        planClock.pauseBlock();
+        const before = snapshot();
+        assert.equal(play(), false, `${id}: no resume`);
+        bladlesingSounds();
+        assert.deepEqual(snapshot(), before, `${id}: still paused with the same time`);
+      }
+    });
+  });
+
   it("opens the block's tool through the bound navigation", () => {
     planClock.ensurePlanClock();
     const went: string[] = [];

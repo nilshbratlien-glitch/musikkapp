@@ -349,6 +349,34 @@ describe("Bladlesing buttons follow the shared pulse", () => {
   });
 });
 
+describe("Bladlesing during a SRF block", () => {
+  it("Play resumes the paused block; Stopp and leaving the tab never pause it", async () => {
+    await open("/oveplan", plan(["srf"]));
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForSelector("#score svg");
+    await header().click();
+    const paused = await headerSeconds();
+    await page.waitForTimeout(1200);
+    assert.equal(await headerSeconds(), paused, "paused from the header");
+
+    await page.locator("#btnPlay").click();
+    await page.waitForTimeout(1500);
+    assert.equal(await header().getAttribute("aria-pressed"), "false", "Play resumed the SRF block");
+    const resumed = await headerSeconds();
+    assert.ok(resumed < paused && resumed >= paused - 2, `same time left, then counting: ${paused} -> ${resumed}`);
+
+    await page.locator("#btnPlay").click();
+    await page.waitForTimeout(1200);
+    assert.ok((await headerSeconds()) < resumed, "Stopp in Bladlesing keeps the plan running");
+    await tab("/metronom");
+    await tab("/");
+    await page.waitForTimeout(1200);
+    assert.equal(await header().getAttribute("aria-pressed"), "false", "leaving the tab keeps it running");
+    await noReload();
+  });
+});
+
 describe("Metronom during a 2-mallet block", () => {
   it("Stopp pauses the block, Start resumes it at the block's tempo, and the chips show the block's meter", async () => {
     await open("/oveplan", plan(["twomallet"]));

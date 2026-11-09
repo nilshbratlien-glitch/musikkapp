@@ -932,6 +932,8 @@
       }
       if (!currentScore) generate();
       if (!currentScore) return;
+      // Play carries on a paused SRF block in Øveplan; nothing in Bladlesing pauses it.
+      if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
       metroBeforePlay = AudioEngine.isMetro();
       AudioEngine.stopMetronome();
       AudioEngine.setClicks(true);
