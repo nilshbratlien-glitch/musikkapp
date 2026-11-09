@@ -4,8 +4,8 @@ export const BLOCKS = [
   { id: "twomallet", name: "2-mallet" },
   { id: "fourmallet", name: "4-mallet" },
   { id: "scales", name: "Skalaer" },
-  { id: "srf", name: "SRF" },
-  { id: "rep", name: "Rep" },
+  { id: "srf", name: "Bladlesing" },
+  { id: "rep", name: "Repertoar" },
 ] as const;
 
 export type BlockId = (typeof BLOCKS)[number]["id"];
