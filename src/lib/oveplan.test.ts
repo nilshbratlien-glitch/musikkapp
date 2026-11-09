@@ -13,6 +13,7 @@ import {
   playingSum,
   rollSession,
   savePlanStore,
+  todayStamp,
   type PlanItem,
 } from "./oveplan.ts";
 
@@ -77,7 +78,7 @@ describe("oveplan", () => {
         done: ["rep"],
         log: [],
         presets: [],
-        sessionDate: "2026-11-08",
+        sessionDate: todayStamp(),
         bpmMap: { srf: 96 },
         bpm: 96,
         beats: 4,
