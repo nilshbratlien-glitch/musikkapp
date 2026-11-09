@@ -399,6 +399,7 @@ describe("Metronom during a 2-mallet block", () => {
     await page.waitForTimeout(1500);
     assert.equal(await headerSeconds(), paused, "Stopp paused the plan timer");
     assert.equal(await header().getAttribute("aria-pressed"), "true");
+    assert.match(await header().getAttribute("aria-label"), /^Fortsett 2-mallet, \d+:\d\d igjen$/, "paused, the label offers Fortsett");
     assert.equal((await recentClicks(800)).length, 0, "and the clicks");
     assert.match(await main.innerText(), /\b100\b/, "paused, Metronom still shows the block BPM");
     assert.equal(await pressed("3/4"), "true", "and the block meter");
@@ -411,6 +412,7 @@ describe("Metronom during a 2-mallet block", () => {
     const clicks = await recentClicks(2200);
     assert.ok(Math.abs(minGap(clicks) - 0.6) < 0.02, `one 100 BPM stream, got gap ${minGap(clicks)}`);
     assert.ok((await headerSeconds()) < paused, "the plan timer runs again");
+    assert.match(await header().getAttribute("aria-label"), /^Pause 2-mallet, /, "running, the label offers Pause again");
     assert.deepEqual(await page.evaluate(() => window.__owners), [null, "oveplan"], "Metronom never owned the pulse");
 
     await page.getByRole("button", { name: "4/4", exact: true }).click();

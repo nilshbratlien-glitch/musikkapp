@@ -72,7 +72,7 @@ function PlanHeaderTimer() {
     <button
       type="button"
       onClick={togglePlanClock}
-      aria-label={`Pause ${name}, ${fmtClock(clock.blockLeft)} igjen`}
+      aria-label={`${paused ? "Fortsett" : "Pause"} ${name}, ${fmtClock(clock.blockLeft)} igjen`}
       aria-pressed={paused}
       style={{ "--block": BLOCK_COLOR[clock.activeId as BlockId] ?? "var(--color-accent)" } as CSSProperties}
       className={
