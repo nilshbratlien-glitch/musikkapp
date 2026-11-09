@@ -140,21 +140,21 @@
       node.onended = function () {
         liveNodes = liveNodes.filter((n) => n !== node);
       };
-    } catch (e) {}
+    } catch (e) { /* best effort */ }
   }
 
   function cutScoreAudio() {
     const c = ac();
     const now = c.currentTime;
     liveNodes.forEach((n) => {
-      try { n.stop(now); } catch (e) {}
+      try { n.stop(now); } catch (e) { /* best effort */ }
     });
     liveNodes = [];
     if (playBus) {
       try {
         playBus.gain.cancelScheduledValues(now);
         playBus.gain.setValueAtTime(0, now);
-      } catch (e) {}
+      } catch (e) { /* best effort */ }
       playBus = c.createGain();
       playBus.gain.value = 0.85;
       playBus.connect(out());
@@ -377,7 +377,7 @@
           ev.pitches.forEach((p) => {
             if (isTiedInto(prev, p)) return;
             const dur = Math.max(0.05, (heldTicks(items, idx, p) / qTicks) * qSec);
-            try { scheduleNote(when, p, dur, instId, !!ev.roll); } catch (err) {}
+            try { scheduleNote(when, p, dur, instId, !!ev.roll); } catch (err) { /* best effort */ }
           });
         }
       });

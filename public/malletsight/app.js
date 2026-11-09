@@ -1,3 +1,4 @@
+/* global Theory, AudioEngine, ScoreRenderer -- set by the sibling MalletSight scripts */
 (function () {
   const T = Theory;
   const STORAGE = "musikkapp.bladlesing";
@@ -72,7 +73,7 @@
         const legacy = localStorage.getItem(LEGACY);
         if (legacy) {
           parsed = JSON.parse(legacy);
-          try { localStorage.setItem(STORAGE, JSON.stringify(parsed)); } catch (err) {}
+          try { localStorage.setItem(STORAGE, JSON.stringify(parsed)); } catch (err) { /* best effort */ }
         }
       }
       if (parsed) {
@@ -86,12 +87,12 @@
         }
         return merged;
       }
-    } catch (e) {}
+    } catch (e) { /* best effort */ }
     return Object.assign({}, DEFAULTS);
   }
 
   function saveSettings() {
-    try { localStorage.setItem(STORAGE, JSON.stringify(settings)); } catch (e) {}
+    try { localStorage.setItem(STORAGE, JSON.stringify(settings)); } catch (e) { /* best effort */ }
   }
 
   function $(sel) {
@@ -999,7 +1000,7 @@
         AudioEngine.stopPlayback();
         AudioEngine.stopMetronome();
       }
-    } catch (e) {}
+    } catch (e) { /* best effort */ }
     if (onResize) window.removeEventListener("resize", onResize);
     if (onKey) document.removeEventListener("keydown", onKey);
     onResize = null;
