@@ -469,12 +469,25 @@ export function stopFromMetronom() {
  * This is the only way Bladlesing touches the plan; nothing there pauses it.
  */
 export function resumeFromBladlesing() {
+  const result = resumeAttempt();
+  lastResume = { at: Date.now(), result, activeId: clock.activeId, paused: clock.blockPaused, timer: clock.timer != null };
+  touchPlanClock();
+  return result;
+}
+
+function resumeAttempt() {
   const id = clock.activeId;
   if (id !== "srf" || !clock.blockPaused || clock.store.done.includes(id)) return false;
   // Play brings its own clicks; a held plan metronome would only be replaced by them.
   clock.metroHeld = false;
   resumeBlock();
   return !clock.blockPaused;
+}
+
+/** The last Bladlesing Play call, state after it; read by the ?debug=1 panel. */
+let lastResume: { at: number; result: boolean; activeId: string | null; paused: boolean; timer: boolean } | null = null;
+export function getLastResume() {
+  return lastResume;
 }
 
 /** The active block's colour token, so Bladlesing's status line matches the header pill. */

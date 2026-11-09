@@ -1,4 +1,6 @@
-import { readdirSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite";
@@ -11,6 +13,30 @@ import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
+
+/**
+ * Build identity. `assets` is a hash of public/malletsight/*: Bladlesing's files have fixed names
+ * (no hash in the file name like the CSS bundle), so their URLs carry `?v=<assets>` and change
+ * exactly when the files do. `commit` is only for the ?debug=1 panel.
+ */
+function buildInfo() {
+  const dir = join(process.cwd(), "public/malletsight");
+  const hash = createHash("sha1");
+  try {
+    for (const name of readdirSync(dir).filter((f) => /\.(js|css|html)$/.test(f)).sort()) hash.update(name).update(readFileSync(join(dir, name)));
+  } catch {
+    hash.update("none");
+  }
+  let commit = process.env.GIT_COMMIT ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "";
+  if (!commit) {
+    try {
+      commit = execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    } catch {
+      commit = "unknown";
+    }
+  }
+  return { commit: commit.slice(0, 7), assets: hash.digest("hex").slice(0, 10), builtAt: new Date().toISOString() };
+}
 
 /** The files `src/lib/db.ts` globs — same directory, same non-recursive scope. */
 function hasGlobbedMigrations(root: string): boolean {
@@ -159,6 +185,7 @@ export default defineConfig(({ command, isPreview }) => ({
     port: 8081,
     strictPort: true,
   },
+  define: { __BUILD__: JSON.stringify(buildInfo()) },
   resolve: { tsconfigPaths: true },
   // iPadOS 15 (Safari 15.6) is a real target: lower the client JS and CSS for it.
   // Vite's CSS minifier reads the top-level cssTarget, the JS target is per environment.

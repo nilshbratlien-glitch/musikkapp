@@ -10,12 +10,15 @@ const SCRIPTS = [
   "/malletsight/app.js",
 ];
 
+/** Fixed file names, so the URL carries the build's hash of them: a stale HTTP or service-worker copy can't be reused. */
+const versioned = (path: string) => `${path}?v=${__BUILD__.assets}`;
+
 function loadScript(src: string) {
   const existing = document.querySelector(`script[data-ms="${src}"]`);
   if (existing) return Promise.resolve();
   return new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = src;
+    script.src = versioned(src);
     script.dataset.ms = src;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error(src));
@@ -41,10 +44,10 @@ export function Malletsight() {
     let cancelled = false;
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/malletsight/app.css";
+    link.href = versioned("/malletsight/app.css");
     document.head.appendChild(link);
     (async () => {
-      const markup = await fetch("/malletsight/markup.html");
+      const markup = await fetch(versioned("/malletsight/markup.html"));
       if (!markup.ok) return;
       const html = await markup.text();
       if (cancelled) return;

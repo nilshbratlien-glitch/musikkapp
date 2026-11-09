@@ -1,6 +1,7 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Drum, FileText, Music, Pause, Piano, Play } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { DebugPanel } from "@/components/debug-panel";
 import { blockName, blockStyle, fmtClock, type BlockId } from "@/lib/oveplan";
 import { bindPlanNavigate, ensurePlanClock, getPlanClock, getPlanClockVersion, subscribePlanClock, togglePlanClock } from "@/lib/plan-clock";
 import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
@@ -104,7 +105,10 @@ export function Shell() {
     ensureToolNamespaces();
     ensurePlanClock();
     if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/", updateViaCache: "none" })
+      .then((registration) => registration.update())
+      .catch(() => {});
   }, []);
 
   const sheet = tool.id === "bladlesing";
@@ -178,6 +182,7 @@ export function Shell() {
           })}
         </ul>
       </nav>
+      <DebugPanel />
     </div>
   );
 }

@@ -1,4 +1,5 @@
-const CACHE = "musikkapp-shell-v4";
+// Every network fetch below uses cache: "no-cache": revalidate, never a stale HTTP-cache copy (iOS Safari keeps those).
+const CACHE = "musikkapp-shell-v5";
 const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 function isAsset(url) {
@@ -19,7 +20,7 @@ self.addEventListener("install", (event) => {
       await Promise.all(
         SHELL.map(async (path) => {
           try {
-            const response = await fetch(path);
+            const response = await fetch(path, { cache: "no-cache" });
             if (response.ok && !response.redirected) await cache.put(path, response);
           } catch {
             /* En feilet fil skal ikke stoppe installasjonen. */
@@ -47,7 +48,7 @@ self.addEventListener("fetch", (event) => {
 
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: "no-cache" })
         .then((response) => {
           if (response.ok) {
             const copy = response.clone();
@@ -55,18 +56,18 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         })
-        .catch(() => caches.match("/").then((cached) => cached || fetch(event.request))),
+        .catch(() => caches.match("/").then((cached) => cached || fetch(event.request, { cache: "no-cache" }))),
     );
     return;
   }
 
   if (!SHELL.includes(url.pathname) && !isAsset(url)) return;
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: "no-cache" })
       .then((response) => {
         putIfOk(event.request, response);
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || fetch(event.request))),
+      .catch(() => caches.match(event.request).then((cached) => cached || fetch(event.request, { cache: "no-cache" }))),
   );
 });

@@ -933,10 +933,15 @@
         endPlay(resume);
         return;
       }
+      // Play carries on a paused SRF block in Øveplan; nothing in Bladlesing pauses it.
+      // First, so that no étude or sound problem below can stop the plan from resuming.
+      try {
+        if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
+      } catch (err) {
+        console.error(err);
+      }
       if (!currentScore) generate();
       if (!currentScore) return;
-      // Play carries on a paused SRF block in Øveplan; nothing in Bladlesing pauses it.
-      if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
       metroBeforePlay = AudioEngine.isMetro();
       AudioEngine.stopMetronome();
       AudioEngine.setClicks(true);

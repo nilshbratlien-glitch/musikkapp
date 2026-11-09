@@ -3,9 +3,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chromium, webkit } from "playwright";
+import { chromium, devices, webkit } from "playwright";
 import { asSafari15, contrastInPage } from "./safari15.mjs";
 
 const BASE = process.env.E2E_URL || "http://127.0.0.1:8081";
@@ -402,6 +402,153 @@ describe("Bladlesing Play after Pause in Øveplan", () => {
     const resumed = await headerSeconds();
     assert.ok(resumed < paused && resumed >= paused - 2, `same time left, then counting: ${paused} -> ${resumed}`);
     await noReload();
+  });
+});
+
+/** Start the SRF block from Øveplan and wait for Bladlesing's score. */
+async function startSrfBlock() {
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.waitForFunction(() => location.pathname === "/");
+  await page.waitForSelector("#score svg");
+}
+
+describe("Bladlesing Play on iPad and in odd orders", () => {
+  it("Play resumes the plan even when the étude cannot be generated (nothing before it may stop the resume)", async () => {
+    await page.addInitScript(() => {
+      let generator;
+      Object.defineProperty(window, "Generator", {
+        configurable: true,
+        get: () => generator,
+        set(value) {
+          generator = { ...value, generate: () => { throw new Error("boom"); } };
+        },
+      });
+    });
+    await open("/oveplan", plan(["srf"]));
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForSelector("#score .error");
+    await header().click();
+    assert.equal(await header().getAttribute("aria-pressed"), "true");
+    await page.locator("#btnPlay").click();
+    await page.waitForTimeout(800);
+    assert.equal(await header().getAttribute("aria-pressed"), "false", "the SRF block runs although Play found no étude");
+  });
+
+  it("with Bladlesing opened first (deep link), then Øveplan, Play still finds window.MusikkPlan", async () => {
+    await open("/", plan(["srf"]));
+    await page.waitForSelector("#score svg");
+    assert.equal(await page.evaluate(() => typeof window.MusikkPlan?.resumeFromBladlesing), "function");
+    await tab("/oveplan");
+    await startSrfBlock();
+    await header().click();
+    await page.locator("#btnPlay").click();
+    await page.waitForTimeout(800);
+    assert.equal(await header().getAttribute("aria-pressed"), "false");
+  });
+
+  it("an iPad with touch: tapping Play reaches #btnPlay, resumes the block and starts the étude", async () => {
+    await page.context().close();
+    const { defaultBrowserType: _ignored, ...ipad } = devices["iPad (gen 7)"];
+    const context = await browser.newContext(ipad);
+    await context.addInitScript(instrument);
+    page = await context.newPage();
+    await open("/oveplan", plan(["srf"]));
+    await startSrfBlock();
+    await header().tap();
+    assert.equal(await header().getAttribute("aria-pressed"), "true", "paused by tapping the header pill");
+    const hit = await page.locator("#btnPlay").evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return top === el || el.contains(top);
+    });
+    assert.equal(hit, true, "nothing covers the middle of #btnPlay");
+    await page.locator("#btnPlay").tap();
+    await page.waitForTimeout(1500);
+    assert.equal(await header().getAttribute("aria-pressed"), "false", "the tap resumed the SRF block");
+    assert.notEqual(await page.locator("#btnPlay").innerText(), "Spill", "and the étude plays");
+  });
+});
+
+describe("?debug=1 panel", () => {
+  const panel = () => page.locator("#debug-panel");
+  /** Wait until the panel's text matches; on timeout the failure shows what it said. */
+  const until = async (pattern) => {
+    try {
+      await page.waitForFunction(({ source }) => new RegExp(source).test(document.querySelector("#debug-panel")?.textContent ?? ""), { source: pattern.source }, { timeout: 8000 });
+    } catch (error) {
+      throw new Error(`panel never matched ${pattern}: «${await panel().innerText()}»`, { cause: error });
+    }
+  };
+
+  it("is absent without debug, and does not move the layout when on", async () => {
+    await open("/");
+    await page.waitForSelector("#score svg");
+    assert.equal(await panel().count(), 0, "no panel by default");
+    const top = await page.locator("#score").evaluate((el) => el.getBoundingClientRect().top);
+    await page.goto(BASE + "/?debug=1");
+    await panel().waitFor();
+    await page.waitForSelector("#score svg");
+    assert.equal(await page.locator("#score").evaluate((el) => el.getBoundingClientRect().top), top, "the score does not move");
+    assert.equal(await panel().evaluate((el) => getComputedStyle(el).pointerEvents), "none");
+    await page.goto(BASE + "/?debug=0");
+    await page.waitForSelector("#score svg");
+    assert.equal(await panel().count(), 0, "?debug=0 turns it off");
+  });
+
+  it("shows the build, MusikkPlan, the clock, the last Play call, taps, the service worker and errors, and survives navigation", async () => {
+    await open("/oveplan?debug=1", plan(["srf"]));
+    await panel().waitFor();
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForSelector("#score svg");
+    assert.equal(await panel().count(), 1, "remembered for the session after in-app navigation");
+    await header().click();
+    const text = () => panel().innerText();
+    await until(/blockPaused=true/)
+    await until(/cache: musikkapp-shell-v5/)
+    let shown = await text();
+    assert.match(shown, /bygg: [0-9a-f]{7}|bygg: unknown/);
+    assert.match(shown, /MusikkPlan: finnes/);
+    assert.match(shown, /app\.js lastet: \/malletsight\/app\.js\?v=[0-9a-f]{10}/);
+    assert.match(shown, /klokke: activeId=srf timer=false blockPaused=true/);
+    assert.match(shown, /siste Play-kall: aldri kalt/);
+    assert.match(shown, /app\.js via HTTP-cache: har resumeFromBladlesing/);
+    assert.match(shown, /app\.js fra nett: har resumeFromBladlesing/);
+    assert.match(shown, /standalone: false/);
+    assert.match(shown, /UA: .*Mozilla/);
+    assert.match(shown, /SW: .*cache: musikkapp-shell-v5/s);
+
+    await page.locator("#btnPlay").click();
+    await until(/siste Play-kall: true/)
+    shown = await text();
+    assert.match(shown, /siste Play-kall: true kl \d\d[.:]\d\d[.:]\d\d \(etter: paused=false timer=true\)/);
+    assert.match(shown, /klokke: activeId=srf timer=true blockPaused=false/);
+    assert.match(shown, /#btnPlay: click 1 .*click.*øverst: btnPlay/);
+
+    await page.evaluate(() => setTimeout(() => { throw new Error("test-feil"); }, 0));
+    await until(/siste feil: .*test-feil/)
+    await page.evaluate(() => { void Promise.reject(new Error("avvist-løfte")); });
+    await until(/unhandledrejection.*avvist-løfte/)
+  });
+});
+
+describe("cache safety for fixed-name Bladlesing files", () => {
+  it("the scripts, stylesheet and markup are requested with the build's version, and sw.js revalidates every fetch", async () => {
+    const urls = [];
+    page.on("request", (request) => request.url().includes("/malletsight/") && urls.push(request.url()));
+    await open("/");
+    await page.waitForSelector("#score svg");
+    const files = ["abcjs.js", "theory.js", "generator.js", "renderer.js", "audio.js", "app.js", "app.css", "markup.html"];
+    for (const file of files) {
+      assert.ok(urls.some((url) => new RegExp(`/malletsight/${file.replace(".", "\\.")}\\?v=[0-9a-f]{10}$`).test(url)), `${file} has ?v=`);
+    }
+    const versions = new Set(urls.filter((url) => /\?v=/.test(url) && !/sample-/.test(url)).map((url) => url.split("?v=")[1]));
+    assert.equal(versions.size, 1, "one version for the whole set");
+    const sw = readFileSync("public/sw.js", "utf8");
+    const fetches = [...sw.matchAll(/\bfetch\(([^)]*)\)/g)].map((m) => m[1]);
+    assert.ok(fetches.length >= 3);
+    for (const call of fetches) assert.match(call, /cache: "no-cache"/, `fetch(${call}) revalidates`);
   });
 });
 
