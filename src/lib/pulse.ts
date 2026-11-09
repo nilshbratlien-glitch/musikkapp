@@ -125,9 +125,12 @@ function loop() {
   if (late > LATE_S) {
     // Skip the clicks the jump swallowed instead of playing them in one burst. Ticks count
     // on by the skipped clicks, so the bar position (and the accent) stays where time puts it.
-    const missed = Math.ceil(late / (60 / state.bpm / state.sub));
+    // A click at most LATE_S old still plays (it was due just now); older ones are skipped.
+    const period = 60 / state.bpm / state.sub;
+    let missed = Math.floor(late / period);
+    if (late - missed * period > LATE_S) missed += 1;
     live.tick += missed;
-    live.next += missed * (60 / state.bpm / state.sub);
+    live.next += missed * period;
   }
   while (live.next < c.currentTime + AHEAD_S) {
     if (live.count != null && live.tick >= live.count) return;
