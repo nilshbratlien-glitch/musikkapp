@@ -164,7 +164,12 @@ test("cli: relative paths follow the script's root, not the caller's cwd", () =>
   assert.equal(existsSync(join(root, "public/og.jpg")), false);
 });
 
-test("every hand-over the og skill prints is one this script accepts", () => {
+// .grok/ is gitignored, so a clean checkout (CI) has no skill docs to pin.
+const NO_SKILL_DOCS = existsSync(join(TEMPLATE_ROOT, ".grok/skills/og/SKILL.md"))
+  ? false
+  : '.grok/ mangler: testen låser den ekte .grok/skills/og-dokumentasjonen til koden, og en kopi i repoet ville bare teste kopien';
+
+test("every hand-over the og skill prints is one this script accepts", { skip: NO_SKILL_DOCS }, () => {
   // The card and banner recipes live in the skill's references/, not SKILL.md.
   const skillDir = join(TEMPLATE_ROOT, ".grok/skills/og");
   const docs = [
