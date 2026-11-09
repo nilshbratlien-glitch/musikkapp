@@ -102,6 +102,28 @@ describe("pulse core", () => {
     });
   });
 
+  it("a clock jump skips the missed clicks and keeps the accent on the right beat", () => {
+    const clicks: { time: number; accent: boolean; beatIndex: number }[] = [];
+    pulse.start({ owner: "oveplan", bpm: 60, beats: 4, onClick: (click) => clicks.push(click) });
+    advance(1500);
+    const first = clicks[0]!.time;
+    const before = clicks.length;
+    contexts[0]!.currentTime += 60;
+    const jumpedTo = contexts[0]!.currentTime;
+    advance(1000);
+    const after = clicks.slice(before);
+    assert.ok(after.length >= 1 && after.length <= 2, `one or two clicks in the second after a 60 s jump, got ${after.length}`);
+    for (const click of after) {
+      const beat = Math.round(click.time - first) % 4;
+      assert.equal(click.beatIndex, beat, "the bar phase follows the clock");
+      assert.equal(click.accent, beat === 0);
+      assert.ok(click.time >= jumpedTo - 0.05, "nothing scheduled in the past");
+    }
+    advance(4000);
+    const later = clicks.slice(before + after.length);
+    assert.ok(later.every((click) => click.beatIndex === Math.round(click.time - first) % 4), "and keeps counting from there");
+  });
+
   it("a meter change keeps the beat position instead of restarting the bar", () => {
     const beats: number[] = [];
     pulse.start({ owner: "metronom", bpm: 120, beats: 4, onClick: (click) => beats.push(click.beatIndex) });
