@@ -124,6 +124,85 @@ describe("pulse core", () => {
     assert.ok(later.every((click) => click.beatIndex === Math.round(click.time - first) % 4), "and keeps counting from there");
   });
 
+  describe("skipping after a clock jump", () => {
+    type Click = { tick: number; time: number; accent: boolean; downbeat: boolean; beatIndex: number };
+    /** Move the audio clock so the next scheduler pass runs at exactly `now`. */
+    const runAt = (now: number) => {
+      contexts[0]!.currentTime = now - 0.025;
+      advance(25);
+    };
+    const record = (opts: { bpm: number; beats?: number; sub?: number; count?: number }) => {
+      const clicks: Click[] = [];
+      pulse.start({ owner: "oveplan", ...opts, onClick: (click) => clicks.push(click) });
+      advance(1500);
+      return clicks;
+    };
+    /** The tick each click should have, from its time: the grid starts at the first click. */
+    const gridTick = (clicks: Click[], click: Click, period: number) => Math.round((click.time - clicks[0]!.time) / period);
+
+    it("a click due just before the jump lands, within LATE_S, still plays", () => {
+      const clicks = record({ bpm: 60, beats: 4 });
+      const due = clicks.at(-1)!.time + 61;
+      const before = clicks.length;
+      runAt(due + 0.03);
+      const after = clicks.slice(before);
+      assert.ok(after.length >= 1, "a click is scheduled");
+      assert.equal(after[0]!.time, due, "the beat 30 ms ago is not skipped");
+      for (const click of after) {
+        assert.equal(click.tick, gridTick(clicks, click, 1));
+        assert.equal(click.beatIndex, click.tick % 4);
+        assert.equal(click.accent, click.tick % 4 === 0);
+      }
+    });
+
+    it("a late scheduler pass within LATE_S skips nothing", () => {
+      const clicks = record({ bpm: 120, beats: 4 });
+      const last = clicks.at(-1)!;
+      runAt(last.time + 0.5 + 0.04);
+      advance(1000);
+      const ticks = clicks.map((click) => click.tick);
+      assert.deepEqual(ticks, ticks.map((_, i) => i), "every tick, in order");
+      assert.ok(clicks.every((click) => click.tick === gridTick(clicks, click, 0.5)), "on the grid");
+    });
+
+    it("with subdivisions, the skip keeps the beat and the sub-click phase", () => {
+      const clicks = record({ bpm: 60, beats: 3, sub: 2 });
+      const first = clicks[0]!.time;
+      for (const [n, past, expected] of [
+        [121, 0.3, 122], // 300 ms past sub-click 121: skip it, the next one plays
+        [245, 0.02, 245], // 20 ms past sub-click 245: within LATE_S, it still plays
+      ] as const) {
+        const mark = clicks.length;
+        runAt(first + n * 0.5 + past);
+        advance(600);
+        const after = clicks.slice(mark);
+        assert.equal(after[0]?.tick, expected, `after landing ${past * 1000} ms past sub-click ${n}`);
+        for (const click of after) {
+          const tick = gridTick(clicks, click, 0.5);
+          assert.equal(click.tick, tick, "the tick follows the clock");
+          assert.equal(click.downbeat, tick % 2 === 0, "beats and sub-clicks keep their phase");
+          assert.equal(click.beatIndex, Math.floor(tick / 2) % 3);
+          assert.equal(click.accent, tick % 6 === 0);
+        }
+      }
+    });
+
+    it("a counted run counts the skipped clicks and still ends on its last tick", () => {
+      const clicks = record({ bpm: 60, beats: 4, count: 8 });
+      const before = clicks.length;
+      const due = clicks[0]!.time + 5;
+      runAt(due + 0.03);
+      advance(5000);
+      const after = clicks.slice(before);
+      assert.deepEqual(
+        after.map((click) => click.tick),
+        [5, 6, 7],
+        "tick 5 (30 ms ago) plays, the skipped ones count, and the run ends at tick 7",
+      );
+      assert.ok(after.every((click) => click.time === clicks[0]!.time + click.tick));
+    });
+  });
+
   it("a meter change keeps the beat position instead of restarting the bar", () => {
     const beats: number[] = [];
     pulse.start({ owner: "metronom", bpm: 120, beats: 4, onClick: (click) => beats.push(click.beatIndex) });
