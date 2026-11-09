@@ -88,8 +88,11 @@
 /* Øveplan owns the shared pulse: these buttons gave way, they are not off by choice. */
 #malletsight-root .btn.yielded {
   border-style: dashed;
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-color: #927c52; /* the mix below, for Safari 15 (no color-mix) */
   color: var(--muted);
+}
+@supports (color: color-mix(in srgb, red, red)) {
+  #malletsight-root .btn.yielded { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
 }
 /* In the stage's reserved 20px top padding, so showing it never moves the score. */
 #malletsight-root .pulse-note {
@@ -377,7 +380,10 @@
 
 #malletsight-root .settings-btn.active {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  background: #3a3a39; /* the mix below, for Safari 15 (no color-mix) */
+}
+@supports (color: color-mix(in srgb, red, red)) {
+  #malletsight-root .settings-btn.active { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 }
 
 #malletsight-root .settings-back {

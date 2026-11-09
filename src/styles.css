@@ -24,6 +24,11 @@
     --color-fourmallet: #8aa4ff;
     --color-srf: var(--color-accent);
     --color-rep: #e89b6d;
+    /* The same colours as rgb channels, for tints that Safari 15 (no color-mix) can draw: rgb(var(--x-rgb) / 0.12). */
+    --color-twomallet-rgb: 126 224 214;
+    --color-fourmallet-rgb: 138 164 255;
+    --color-accent-rgb: 224 177 90;
+    --color-rep-rgb: 232 155 109;
   }
 
   button:not(:disabled),
@@ -126,7 +131,7 @@
   opacity: 0.5;
 }
 
-/* "Øveplan styrer" chip on Metronom, tinted with the active block's colour (--block). */
+/* "Øveplan styrer" chip on Metronom, tinted with the active block's colour (--block, --block-rgb). */
 .plan-chip {
   display: inline-flex;
   align-items: center;
@@ -135,8 +140,8 @@
   border-radius: 999px;
   font-weight: 600;
   color: var(--block, var(--color-accent));
-  border: 1px solid color-mix(in srgb, var(--block, var(--color-accent)) 45%, transparent);
-  background: color-mix(in srgb, var(--block, var(--color-accent)) 12%, transparent);
+  border: 1px solid rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.45);
+  background: rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.12);
 }
 
 .plan-chip-dot {

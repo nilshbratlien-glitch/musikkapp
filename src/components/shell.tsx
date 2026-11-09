@@ -1,7 +1,7 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Drum, FileText, Music, Pause, Piano, Play } from "lucide-react";
-import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { BLOCK_COLOR, blockName, fmtClock, type BlockId } from "@/lib/oveplan";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { blockName, blockStyle, fmtClock, type BlockId } from "@/lib/oveplan";
 import { bindPlanNavigate, ensurePlanClock, getPlanClock, getPlanClockVersion, subscribePlanClock, togglePlanClock } from "@/lib/plan-clock";
 import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
 
@@ -74,11 +74,11 @@ function PlanHeaderTimer() {
       onClick={togglePlanClock}
       aria-label={`${paused ? "Fortsett" : "Pause"} ${name}, ${fmtClock(clock.blockLeft)} igjen`}
       aria-pressed={paused}
-      style={{ "--block": BLOCK_COLOR[clock.activeId as BlockId] ?? "var(--color-accent)" } as CSSProperties}
+      style={blockStyle(clock.activeId as BlockId)}
       className={
         paused
           ? "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-line px-2 text-sm font-semibold text-muted"
-          : "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-[var(--block)] bg-[color-mix(in_srgb,var(--block)_10%,transparent)] px-2 text-sm font-semibold text-[var(--block)]"
+          : "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-[var(--block)] bg-[rgb(var(--block-rgb)/0.1)] px-2 text-sm font-semibold text-[var(--block)]"
       }
     >
       <Icon className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden="true" />

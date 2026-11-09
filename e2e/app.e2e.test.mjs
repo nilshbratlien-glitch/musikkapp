@@ -3,13 +3,16 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
+import { asSafari15, contrastInPage } from "./safari15.mjs";
 
 const BASE = process.env.E2E_URL || "http://127.0.0.1:8081";
 // Optional: save review screenshots here (not used in CI).
 const SHOTS = process.env.E2E_SHOTS || "";
+// E2E_BROWSER=webkit runs the suite in Playwright WebKit (a current engine, not Safari 15.6).
+const ENGINE = process.env.E2E_BROWSER === "webkit" ? webkit : chromium;
 let server = null;
 let browser;
 let page;
@@ -154,7 +157,9 @@ before(async () => {
     server = spawn("node", ["scripts/with-app-env.mjs", "vite", "preview"], { stdio: "ignore", detached: true });
   }
   await waitForServer();
-  browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required", "--disable-audio-output"] });
+  browser = await ENGINE.launch(
+    ENGINE === chromium ? { args: ["--autoplay-policy=no-user-gesture-required", "--disable-audio-output"] } : {},
+  );
 });
 
 after(async () => {
@@ -584,4 +589,51 @@ describe("Bladlesing in Norwegian", () => {
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("musikkapp.bladlesing")));
     for (const key of Object.keys(old)) assert.deepEqual(saved[key], old[key], `saved ${key} keeps its old value`);
   });
+});
+
+/** Serve every stylesheet as Safari 15.6 would read it (no color-mix, no @property). */
+async function simulateSafari15() {
+  await page.route(/\.css(\?|$)/, async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, body: asSafari15(await response.text()) });
+  });
+}
+
+const tintOf = (locator) =>
+  locator.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { color: s.color, background: s.backgroundColor, border: s.borderTopColor };
+  });
+
+describe("Safari 15.6 readability", () => {
+  for (const simulated of [false, true]) {
+    for (const block of ["twomallet", "fourmallet"]) {
+      it(`the header pill and the Metronom chip are readable in a ${block} block${simulated ? " without color-mix() and @property" : ""}`, async () => {
+        if (simulated) await simulateSafari15();
+        await open("/oveplan", plan([block]));
+        await page.getByRole("button", { name: "Start", exact: true }).click();
+        await page.waitForFunction(() => location.pathname === "/metronom");
+        const chip = page.locator(".plan-chip");
+        await chip.waitFor();
+        const pill = header();
+        const contrast = { pill: await pill.evaluate(contrastInPage), chip: await chip.evaluate(contrastInPage) };
+        const tints = { pill: await tintOf(pill), chip: await tintOf(chip), contrast };
+        if (SHOTS) {
+          mkdirSync(SHOTS, { recursive: true });
+          const suffix = `${block}${simulated ? "-safari15" : ""}-${process.env.E2E_BROWSER || "chromium"}`;
+          writeFileSync(join(SHOTS, `tint-${suffix}.json`), JSON.stringify(tints, null, 2) + "\n");
+          const box = await page.locator("header").boundingBox();
+          const chipBox = await chip.boundingBox();
+          await page.screenshot({ path: join(SHOTS, `pill-${suffix}.png`), clip: box });
+          await page.screenshot({
+            path: join(SHOTS, `chip-${suffix}.png`),
+            clip: { x: chipBox.x - 24, y: chipBox.y - 90, width: chipBox.width + 48, height: chipBox.height + 110 },
+          });
+        }
+        for (const [name, c] of Object.entries(contrast)) {
+          assert.ok(c.ratio >= 3, `${name}: text ${c.text} on ${c.back}, contrast ${c.ratio.toFixed(2)}:1`);
+        }
+      });
+    }
+  }
 });

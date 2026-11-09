@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { readToolStore, writeToolStore } from "./tools.ts";
 
 export const BLOCKS = [
@@ -58,6 +59,22 @@ export const BLOCK_COLOR: Record<BlockId, string> = {
   srf: "var(--color-accent)",
   rep: "var(--color-rep)",
 };
+
+/** BLOCK_COLOR as rgb channels, for `rgb(var(--block-rgb) / a)` tints; Safari 15 has no color-mix(). */
+export const BLOCK_RGB: Record<BlockId, string> = {
+  twomallet: "var(--color-twomallet-rgb)",
+  fourmallet: "var(--color-fourmallet-rgb)",
+  srf: "var(--color-accent-rgb)",
+  rep: "var(--color-rep-rgb)",
+};
+
+/** Inline style that sets a block's colour and its rgb channels. */
+export function blockStyle(id: BlockId | null | undefined) {
+  return {
+    "--block": (id && BLOCK_COLOR[id]) ?? "var(--color-accent)",
+    "--block-rgb": (id && BLOCK_RGB[id]) ?? "var(--color-accent-rgb)",
+  } as CSSProperties;
+}
 
 export function playsMetronome(id: string | null) {
   return id === "twomallet" || id === "fourmallet";

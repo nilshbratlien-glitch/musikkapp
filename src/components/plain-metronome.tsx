@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { METERS, SUBDIVISIONS, beatsInMeter, meterForBeats, type Meter, type Subdivision } from "@/lib/metronome";
-import { BLOCK_COLOR, type BlockId } from "@/lib/oveplan";
+import { BLOCK_COLOR, blockStyle, type BlockId } from "@/lib/oveplan";
 import {
   getPlanClock,
   getPlanClockVersion,
@@ -124,7 +124,7 @@ export function PlainMetronome() {
         <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums">{shownBpm}</p>
         <p className="mt-3 text-center text-sm text-muted">
           {plan ? (
-            <span className="plan-chip" style={{ "--block": BLOCK_COLOR[block] } as CSSProperties}>
+            <span className="plan-chip" style={blockStyle(block)}>
               <span className="plan-chip-dot" aria-hidden="true" />
               Øveplan · {beats} slag
             </span>
