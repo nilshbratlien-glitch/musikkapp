@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { after, before, beforeEach, describe, it } from "node:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chromium, webkit } from "playwright";
+import { chromium, devices, webkit } from "playwright";
 import { asSafari15, contrastInPage } from "./safari15.mjs";
 
 const BASE = process.env.E2E_URL || "http://127.0.0.1:8081";
@@ -578,7 +578,7 @@ describe("Bladlesing in Norwegian", () => {
       page.locator(id).evaluate((el) => ({ value: el.value, text: el.selectedOptions[0]?.textContent }));
     assert.deepEqual(await selected("#instrument"), { value: "xylo", text: "Xylofon" });
     assert.deepEqual(await selected("#texture"), { value: "melody", text: "Bare én linje" });
-    assert.deepEqual(await selected("#clef"), { value: "treble", text: "Diskant" });
+    assert.deepEqual(await selected("#clef"), { value: "treble", text: "G-nøkkel" });
     assert.deepEqual(await selected("#time"), { value: "3/4", text: "3/4" });
     assert.deepEqual(await selected("#rolls"), { value: "long", text: "Lange toner" });
     assert.deepEqual(await selected("#annotate"), { value: "names", text: "Tonenavn" });
@@ -635,5 +635,134 @@ describe("Safari 15.6 readability", () => {
         }
       });
     }
+  }
+});
+
+// The Bladlesing settings use music-theory wording; ids and saved values stay as they were.
+describe("Bladlesing settings wording", () => {
+  const OLD_WORDS = /Klaviatur|Tekstur|Melodi med dobbeltgrep|Mest dobbeltgrep|Bare blokker med tre toner|Diskant|\bBass\b|Dobbelt system|Overbinding|Forsetningstegn/i;
+
+  async function openDrawer() {
+    await page.waitForSelector("#score svg");
+    await page.locator("#btnSettings").click();
+  }
+
+  async function panelText(panel) {
+    await page.locator(`[data-settings="${panel}"]`).click();
+    const text = await page.locator(`[data-settings-panel="${panel}"]`).evaluate((el) => el.textContent.replace(/\s+/g, " "));
+    await page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`).click();
+    return text;
+  }
+
+  // Nothing sticks out of the drawer, no label is cut off, and no select is too narrow for its longest option.
+  async function crampedElements(shotPrefix) {
+    const out = [];
+    for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) {
+      await page.locator(`[data-settings="${panel}"]`).click();
+      await shot(`${shotPrefix}-${panel}`);
+      out.push(
+        ...(await page.locator(`[data-settings-panel="${panel}"]`).evaluate((root, name) => {
+          const box = document.querySelector("#drawer").getBoundingClientRect();
+          const bad = [];
+          const canvas = document.createElement("canvas").getContext("2d");
+          for (const el of root.querySelectorAll("*")) {
+            const r = el.getBoundingClientRect();
+            if (!r.width) continue;
+            if (r.right > box.right + 0.5 || r.left < box.left - 0.5) bad.push(`${name}: ${el.tagName} sticks out`);
+            if (el.tagName !== "SELECT" && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).display !== "inline")
+              bad.push(`${name}: ${el.tagName} «${el.textContent.trim().slice(0, 30)}» clipped`);
+            if (el.tagName === "SELECT") {
+              const s = getComputedStyle(el);
+              canvas.font = `${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+              const widest = Math.max(...[...el.options].map((o) => canvas.measureText(o.textContent).width));
+              const room = r.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) - 24;
+              if (widest > room) bad.push(`${name}: select #${el.id} too narrow for its longest option`);
+            }
+          }
+          return bad;
+        }, panel)),
+      );
+      await page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`).click();
+    }
+    const line = await page.locator("#practiceLine").evaluate((el) => el.scrollWidth - el.clientWidth);
+    if (line > 0) out.push("practiceLine clipped");
+    const page_ = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (page_ > 0) out.push("page overflows");
+    return out;
+  }
+
+  it("the new labels show, the old words are gone, and ids and values are unchanged", async () => {
+    await open("/");
+    await openDrawer();
+    const text = {};
+    for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) text[panel] = await panelText(panel);
+    assert.match(text.instrument, /Instrument Instrument/);
+    assert.match(text.instrument, /Notebilde/);
+    assert.match(text.rytme, /Bindebuer/);
+    assert.match(text.toneart, /Fortegn/);
+    for (const [panel, value] of Object.entries(text)) assert.doesNotMatch(value, OLD_WORDS, `${panel}: ${value.match(OLD_WORDS)?.[0]}`);
+    const clef = await page.locator("#clef").evaluate((el) => [...el.options].map((o) => [o.value, o.textContent]));
+    assert.deepEqual(clef, [["auto", "Auto"], ["treble", "G-nøkkel"], ["bass", "F-nøkkel"], ["grand", "Pianosystem"]]);
+    const textures = {};
+    for (const mallets of ["2", "3", "4"]) {
+      await page.locator('[data-settings="instrument"]').click();
+      await page.locator("#mallets").selectOption(mallets);
+      textures[mallets] = await page.locator("#texture").evaluate((el) => [...el.options].map((o) => [o.value, o.textContent]));
+      await page.locator('[data-settings-panel="instrument"] [data-settings-back]').click();
+    }
+    assert.deepEqual(textures["2"], [["mixed", "Melodi med akkorder"], ["melody", "Bare én linje"], ["doublestops", "Mest akkorder"]]);
+    assert.deepEqual(textures["3"], [["mixed", "Melodi med akkorder"], ["melody", "Bare én linje"], ["block", "Bare treklanger"]]);
+    assert.deepEqual(textures["4"].map((o) => o[0]), ["mixed", "melody", "block", "chorale"]);
+    await page.locator("#btnCloseSettings").click();
+    await page.locator("#btnSettings").click();
+    await page.locator('[data-settings="mer"]').click();
+    for (const [level, word] of [[5, "bindebuer"], [7, "fortegn"]]) {
+      await page.locator(`[data-level="${level}"]`).evaluate((el) => el.click());
+      assert.match(await page.locator("#levelHint").textContent(), new RegExp(word), `level ${level} hint`);
+    }
+  });
+
+  it("a setting saved with the old values still loads and shows the new wording", async () => {
+    await open("/");
+    const old = { instrumentId: "mar50", mallets: 3, texture: "block", clef: "bass", keyId: "C", keyIds: ["C"], timeId: "4/4", ties: true, accidentals: true };
+    await page.evaluate((value) => {
+      localStorage.removeItem("musikkapp.bladlesing");
+      localStorage.setItem("mallet-sr-settings-v3", JSON.stringify(value));
+    }, old);
+    await page.reload();
+    await openDrawer();
+    const selected = (id) => page.locator(id).evaluate((el) => ({ value: el.value, text: el.selectedOptions[0]?.textContent }));
+    assert.deepEqual(await selected("#texture"), { value: "block", text: "Bare treklanger" });
+    assert.deepEqual(await selected("#clef"), { value: "bass", text: "F-nøkkel" });
+    assert.equal(await page.locator("#ties").isChecked(), true);
+    assert.equal(await page.locator("#accidentals").isChecked(), true);
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("musikkapp.bladlesing")));
+    for (const key of ["instrumentId", "mallets", "texture", "clef", "ties", "accidentals"]) assert.deepEqual(saved[key], old[key], key);
+  });
+
+  for (const [name, setup] of [
+    ["768x1024", async () => page.setViewportSize({ width: 768, height: 1024 })],
+    ["iPad (gen 7) profile", async () => {
+      const { defaultBrowserType: _browser, ...ipad } = devices["iPad (gen 7)"];
+      await page.context().close();
+      page = await (await browser.newContext(ipad)).newPage();
+    }],
+  ]) {
+    it(`nothing overflows or is cut off in the settings, status and meta line on ${name}`, async () => {
+      await setup();
+      await open("/");
+      for (const mallets of ["2", "3", "4"]) {
+        await openDrawer();
+        await page.locator('[data-settings="instrument"]').click();
+        await page.locator("#mallets").selectOption(mallets);
+        await page.locator("#texture").selectOption({ index: 2 });
+        await page.locator('[data-settings-panel="instrument"] [data-settings-back]').click();
+        assert.deepEqual(await crampedElements(`${name.startsWith("768") ? "768" : "ipad"}-${mallets}k`), [], `${mallets} mallets`);
+        await page.locator('[data-settings="instrument"]').click();
+        await page.locator("#btnApply").click();
+        await page.waitForTimeout(300);
+        await shot(`${name.startsWith("768") ? "768" : "ipad"}-${mallets}k-score`);
+      }
+    });
   }
 });
