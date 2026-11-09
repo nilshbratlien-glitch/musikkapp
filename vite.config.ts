@@ -142,6 +142,9 @@ function authPopupPlugin(): Plugin {
   };
 }
 
+/** Oldest browsers the client bundle is built for; Safari 15.6 is iPadOS 15.8 on Nils's iPad. */
+const SAFARI_TARGETS = ["chrome111", "edge111", "firefox114", "safari15.6"];
+
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
@@ -157,6 +160,10 @@ export default defineConfig(({ command, isPreview }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  // iPadOS 15 (Safari 15.6) is a real target: lower the client JS and CSS for it.
+  // Vite's CSS minifier reads the top-level cssTarget, the JS target is per environment.
+  build: { cssTarget: SAFARI_TARGETS },
+  environments: { client: { build: { target: SAFARI_TARGETS } } },
   plugins: [
     pgliteBootstrapPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
