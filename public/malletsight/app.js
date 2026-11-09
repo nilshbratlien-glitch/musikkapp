@@ -566,7 +566,7 @@
     const ds = $("#doubleStopRow");
     if (ds) ds.hidden = !twoStop;
     if ($("#chordChanceTitle")) {
-      $("#chordChanceTitle").textContent = settings.mallets === 2 ? "Dobbeltgrep i linjen" : "Akkorder i linjen";
+      $("#chordChanceTitle").textContent = "Akkorder i linjen";
     }
     if ($("#chordChanceHint")) {
       $("#chordChanceHint").textContent = settings.mallets === 2

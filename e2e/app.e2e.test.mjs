@@ -640,7 +640,7 @@ describe("Safari 15.6 readability", () => {
 
 // The Bladlesing settings use music-theory wording; ids and saved values stay as they were.
 describe("Bladlesing settings wording", () => {
-  const OLD_WORDS = /Klaviatur|Tekstur|Melodi med dobbeltgrep|Mest dobbeltgrep|Bare blokker med tre toner|Diskant|\bBass\b|Dobbelt system|Overbinding|Forsetningstegn/i;
+  const OLD_WORDS = /Klaviatur|Tekstur|Dobbeltgrep|Bare blokker med tre toner|Diskant|\bBass\b|Dobbelt system|Overbinding|Forsetningstegn/i;
 
   async function openDrawer() {
     await page.waitForSelector("#score svg");
