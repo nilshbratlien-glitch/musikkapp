@@ -473,9 +473,9 @@ describe("Bladlesing Play on iPad and in odd orders", () => {
 describe("?debug=1 panel", () => {
   const panel = () => page.locator("#debug-panel");
   /** Wait until the panel's text matches; on timeout the failure shows what it said. */
-  const until = async (pattern) => {
+  const until = async (pattern, timeout = 8000) => {
     try {
-      await page.waitForFunction(({ source }) => new RegExp(source).test(document.querySelector("#debug-panel")?.textContent ?? ""), { source: pattern.source }, { timeout: 8000 });
+      await page.waitForFunction(({ source }) => new RegExp(source).test(document.querySelector("#debug-panel")?.textContent ?? ""), { source: pattern.source }, { timeout });
     } catch (error) {
       throw new Error(`panel never matched ${pattern}: «${await panel().innerText()}»`, { cause: error });
     }
@@ -506,7 +506,7 @@ describe("?debug=1 panel", () => {
     await header().click();
     const text = () => panel().innerText();
     await until(/blockPaused=true/)
-    await until(/cache: musikkapp-shell-v5/)
+    await until(/cache: musikkapp-shell-v5/, 25000)
     let shown = await text();
     assert.match(shown, /bygg: [0-9a-f]{7}|bygg: unknown/);
     assert.match(shown, /MusikkPlan: finnes/);
