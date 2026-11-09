@@ -1,6 +1,17 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { METERS, SUBDIVISIONS, beatsInMeter, type Meter, type Subdivision } from "@/lib/metronome";
-import { getState, setBpm as pulseBpm, setMeter as pulseMeter, start as pulseStart, stop as pulseStop, subscribe } from "@/lib/pulse";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { METERS, SUBDIVISIONS, beatsInMeter, meterForBeats, type Meter, type Subdivision } from "@/lib/metronome";
+import { BLOCK_COLOR, type BlockId } from "@/lib/oveplan";
+import {
+  getPlanClock,
+  getPlanClockVersion,
+  planMalletBlock,
+  setPlanBpm,
+  setPlanMeter,
+  startFromMetronom,
+  stopFromMetronom,
+  subscribePlanClock,
+} from "@/lib/plan-clock";
+import { getState, setBpm as pulseBpm, setMeter as pulseMeter, stop as pulseStop, subscribe } from "@/lib/pulse";
 import { readToolStore, writeToolStore } from "@/lib/tools";
 
 function savedMeter(value: unknown): Meter {
@@ -23,8 +34,12 @@ export function PlainMetronome() {
   const [meter, setMeter] = useState<Meter>("4/4");
   const [subdivision, setSubdivision] = useState<Subdivision>(1);
   const pulse = useSyncExternalStore(subscribe, getState, getState);
-  const plan = pulse.owner === "oveplan";
-  const playing = pulse.owner === "metronom" || plan;
+  useSyncExternalStore(subscribePlanClock, getPlanClockVersion, getPlanClockVersion);
+  const clock = getPlanClock();
+  const owns = pulse.owner === "oveplan";
+  // The plan runs this tab while it owns the pulse or sits in a (paused) 2-/4-mallet block.
+  const plan = owns || planMalletBlock();
+  const playing = pulse.owner === "metronom" || owns;
   const bpmRef = useRef(80);
   const meterRef = useRef<Meter>("4/4");
   const subRef = useRef<Subdivision>(1);
@@ -55,17 +70,17 @@ export function PlainMetronome() {
 
   function start() {
     if (playing) return;
-    pulseStart({ owner: "metronom", bpm: bpmRef.current, beats: beatsInMeter(meterRef.current), sub: subRef.current });
+    startFromMetronom({ owner: "metronom", bpm: bpmRef.current, beats: beatsInMeter(meterRef.current), sub: subRef.current });
   }
 
   function stop() {
-    pulseStop();
+    stopFromMetronom();
   }
 
   function changeBpm(next: number) {
     const value = Math.min(240, Math.max(40, next));
     if (plan) {
-      pulseBpm(value);
+      setPlanBpm(value);
       return;
     }
     setBpm(value);
@@ -75,6 +90,10 @@ export function PlainMetronome() {
   }
 
   function changeMeter(next: Meter) {
+    if (plan) {
+      setPlanMeter(beatsInMeter(next), shownSub);
+      return;
+    }
     setMeter(next);
     meterRef.current = next;
     if (playing) pulseMeter(beatsInMeter(next), subRef.current);
@@ -82,20 +101,37 @@ export function PlainMetronome() {
   }
 
   function changeSubdivision(next: Subdivision) {
+    if (plan) {
+      setPlanMeter(beats, next);
+      return;
+    }
     setSubdivision(next);
     subRef.current = next;
     if (playing) pulseMeter(beatsInMeter(meterRef.current), next);
     remember();
   }
 
-  const beats = plan ? pulse.beats : beatsInMeter(meter);
-  const shownBpm = plan ? pulse.bpm : bpm;
+  // While the plan runs the tab, every readout comes from the pulse (playing) or the plan store (paused).
+  const beats = owns ? pulse.beats : plan ? clock.store.beats : beatsInMeter(meter);
+  const shownSub = owns ? pulse.sub : plan ? clock.store.sub : subdivision;
+  const shownBpm = owns ? pulse.bpm : plan ? clock.store.bpm : bpm;
+  const shownMeter = plan ? meterForBeats(beats) : meter;
+  const block = (clock.activeId ?? "twomallet") as BlockId;
 
   return (
     <div>
       <div className="metro-hero rounded-card px-4 py-8">
         <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums">{shownBpm}</p>
-        <p className="mt-3 text-center text-sm text-muted">{plan ? `Øveplan · ${beats} slag` : meter}</p>
+        <p className="mt-3 text-center text-sm text-muted">
+          {plan ? (
+            <span className="plan-chip" style={{ "--block": BLOCK_COLOR[block] } as CSSProperties}>
+              <span className="plan-chip-dot" aria-hidden="true" />
+              Øveplan · {beats} slag
+            </span>
+          ) : (
+            meter
+          )}
+        </p>
       </div>
       <div className="mt-4 flex min-h-12 items-center justify-center gap-2">
         {Array.from({ length: beats }, (_, index) => (
@@ -116,8 +152,9 @@ export function PlainMetronome() {
               key={item}
               type="button"
               onClick={() => changeMeter(item)}
+              aria-pressed={item === shownMeter}
               className={
-                item === meter
+                item === shownMeter
                   ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold"
                   : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted"
               }
@@ -133,8 +170,9 @@ export function PlainMetronome() {
               key={item}
               type="button"
               onClick={() => changeSubdivision(item)}
+              aria-pressed={item === shownSub}
               className={
-                item === subdivision
+                item === shownSub
                   ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold"
                   : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted"
               }
@@ -152,10 +190,10 @@ export function PlainMetronome() {
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={start} disabled={playing} className="metro-press min-h-12 rounded-lg bg-accent font-semibold text-bg disabled:opacity-50">
+          <button type="button" onClick={start} disabled={playing} className="metro-press min-h-12 rounded-lg bg-accent font-semibold text-bg disabled:bg-header disabled:text-muted">
             Start
           </button>
-          <button type="button" onClick={stop} disabled={!playing} className="metro-press min-h-12 rounded-lg bg-header font-medium disabled:opacity-50">
+          <button type="button" onClick={stop} disabled={!(pulse.owner === "metronom" || (owns && planMalletBlock()))} className="metro-press min-h-12 rounded-lg bg-header font-medium disabled:opacity-50">
             Stopp
           </button>
         </div>

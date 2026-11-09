@@ -16,7 +16,7 @@ import {
   playsMetronome,
   type BlockId,
 } from "./oveplan.ts";
-import { chime, getState as pulseState, setBpm as pulseBpm, setMeter as pulseMeter, start as pulseStart, stop as pulseStop, subscribe as subscribePulse } from "./pulse.ts";
+import { chime, getState as pulseState, type PulseStart, setBpm as pulseBpm, setMeter as pulseMeter, start as pulseStart, stop as pulseStop, subscribe as subscribePulse } from "./pulse.ts";
 
 export type PlanClock = {
   store: PlanStore;
@@ -440,6 +440,27 @@ function onVisible() {
   }
   syncWake();
   if (clock.activeId && !clock.blockPaused && clock.timer != null) tick();
+}
+
+/** A 2- or 4-mallet block is active (running or paused): the Metronom tab is the plan's. */
+export function planMalletBlock() {
+  return !!clock.activeId && playsMetronome(clock.activeId);
+}
+
+/** Metronom's Start: in a 2-/4-mallet block it resumes the block at the block's tempo, otherwise `local` starts. */
+export function startFromMetronom(local: PulseStart) {
+  if (!planMalletBlock()) {
+    pulseStart(local);
+    return;
+  }
+  if (clock.blockPaused || clock.timer == null) resumeBlock();
+  else startPlanMetro();
+}
+
+/** Metronom's Stopp: pauses a running 2-/4-mallet block like the header does, otherwise stops only the tab's own clicks. */
+export function stopFromMetronom() {
+  if (planMalletBlock() && planClockRunning()) pauseBlock();
+  else pulseStop("metronom");
 }
 
 export function planClockRunning() {

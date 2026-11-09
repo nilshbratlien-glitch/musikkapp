@@ -5,6 +5,7 @@ import "./fake-audio.test-support.ts";
 const pulse = await import("./pulse.ts");
 const planClock = await import("./plan-clock.ts");
 const { blockTool, playsMetronome } = await import("./oveplan.ts");
+const { meterForBeats } = await import("./metronome.ts");
 
 beforeEach(() => {
   mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"], now: 1_000_000 });
@@ -68,6 +69,68 @@ describe("plan clock on the pulse core", () => {
     planClock.beginBlock(item("twomallet"));
     pulse.start({ owner: "metronom", bpm: 90 });
     assert.equal(planClock.getPlanClock().metroRunning, false);
+  });
+
+  describe("Metronom tab during a block", () => {
+    const local = { owner: "metronom" as const, bpm: 80, beats: 4, sub: 1 };
+    const owners: (string | null)[] = [];
+    let off = () => {};
+
+    beforeEach(() => {
+      planClock.ensurePlanClock();
+      const store = planClock.getPlanClock().store;
+      store.bpmMap.twomallet = 100;
+      store.beats = 3;
+      store.sub = 2;
+      owners.length = 0;
+      off = pulse.subscribe(() => {
+        const owner = pulse.getState().owner;
+        if (owners.at(-1) !== owner) owners.push(owner);
+      });
+    });
+
+    afterEach(() => off());
+
+    it("Stopp pauses a running 2-mallet block like the header, without an owner change", () => {
+      planClock.beginBlock(item("twomallet"));
+      planClock.stopFromMetronom();
+      const clock = planClock.getPlanClock();
+      assert.equal(clock.blockPaused, true, "the block timer is paused");
+      assert.equal(clock.timer, null);
+      assert.equal(clock.metroHeld, true, "resume brings the metronome back");
+      const left = clock.blockLeft;
+      mock.timers.tick(3000);
+      assert.equal(planClock.getPlanClock().blockLeft, left, "the countdown stands still");
+      assert.deepEqual(owners, ["oveplan", null], "the pulse goes from the plan to silence, never to Metronom");
+    });
+
+    it("Start resumes the paused block at the block's tempo, meter and subdivision", () => {
+      planClock.beginBlock(item("twomallet"));
+      planClock.stopFromMetronom();
+      planClock.startFromMetronom(local);
+      const state = pulse.getState();
+      assert.equal(state.owner, "oveplan", "the plan keeps the pulse");
+      assert.equal(state.bpm, 100, "the block's BPM, not Metronom's 80");
+      assert.equal(state.beats, 3);
+      assert.equal(state.sub, 2);
+      assert.equal(meterForBeats(state.beats), "3/4", "the meter chip matches the beat count");
+      assert.equal(meterForBeats(5), null, "no chip for five beats");
+      assert.equal(planClock.getPlanClock().blockPaused, false);
+      assert.ok(!owners.includes("metronom"));
+    });
+
+    it("outside a 2-/4-mallet block Stopp and Start only touch Metronom's own clicks", () => {
+      planClock.startFromMetronom(local);
+      assert.equal(pulse.getState().owner, "metronom");
+      assert.equal(pulse.getState().bpm, 80);
+      planClock.stopFromMetronom();
+      assert.equal(pulse.getState().owner, null);
+      planClock.beginBlock(item("rep"));
+      planClock.togglePlanMetro();
+      planClock.stopFromMetronom();
+      assert.equal(pulse.getState().owner, "oveplan", "Metronom never stops the plan's metronome");
+      assert.equal(planClock.getPlanClock().blockPaused, false, "and a Repertoar block keeps running");
+    });
   });
 
   it("opens the block's tool through the bound navigation", () => {

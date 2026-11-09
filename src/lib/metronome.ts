@@ -80,6 +80,11 @@ export function nextPulse(beat: number, meter: Meter) {
   return { accent: index === 0, index, beat: beat + 1 };
 }
 
+/** The meter chip for a beat count, or null when no chip has that many beats (5, 7). */
+export function meterForBeats(beats: number): Meter | null {
+  return METERS.find((meter) => beatsInMeter(meter) === beats) ?? null;
+}
+
 export const SUBDIVISIONS = [1, 2, 3, 4] as const;
 
 export type Subdivision = (typeof SUBDIVISIONS)[number];

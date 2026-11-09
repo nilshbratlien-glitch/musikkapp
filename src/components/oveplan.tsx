@@ -8,7 +8,7 @@ import {
   liveItems,
   playingSum,
   savePlanStore,
-  type BlockId,
+  BLOCK_COLOR,
   type PlanItem,
   type PlanPreset,
 } from "@/lib/oveplan";
@@ -31,13 +31,6 @@ import {
   togglePlanMetro,
   touchPlanClock,
 } from "@/lib/plan-clock";
-
-const KIND: Record<BlockId, string> = {
-  twomallet: "var(--color-twomallet)",
-  fourmallet: "var(--color-fourmallet)",
-  srf: "var(--color-accent)",
-  rep: "var(--color-rep)",
-};
 
 type Clock = ReturnType<typeof getPlanClock>;
 
@@ -220,7 +213,7 @@ export function Oveplan() {
                       ? "grid grid-cols-[28px_1fr_auto_auto] items-center gap-2.5 rounded-card border border-accent bg-accent/10 py-3 pr-3 pl-3.5"
                       : "grid grid-cols-[28px_1fr_auto_auto] items-center gap-2.5 rounded-card border border-line bg-surface py-3 pr-3 pl-3.5"
                   }
-                  style={{ boxShadow: `inset 3px 0 0 ${KIND[item.id]}`, opacity: dim && cur.activeId !== item.id ? 0.4 : 1 }}
+                  style={{ boxShadow: `inset 3px 0 0 ${BLOCK_COLOR[item.id]}`, opacity: dim && cur.activeId !== item.id ? 0.4 : 1 }}
                 >
                   <input
                     type="checkbox"

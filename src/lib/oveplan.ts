@@ -51,6 +51,14 @@ export function blockTool(id: BlockId) {
   return BLOCK_TOOLS[id] ?? null;
 }
 
+/** Each block's colour token; the plan list, the header pill and the Metronom chip share it. */
+export const BLOCK_COLOR: Record<BlockId, string> = {
+  twomallet: "var(--color-twomallet)",
+  fourmallet: "var(--color-fourmallet)",
+  srf: "var(--color-accent)",
+  rep: "var(--color-rep)",
+};
+
 export function playsMetronome(id: string | null) {
   return id === "twomallet" || id === "fourmallet";
 }
