@@ -17,6 +17,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # .grok/ is gitignored, so the four tests that pin .grok/skills/og docs
+      # (brand-check x3, write-atomic x1) are skipped here; they run where .grok/ exists.
       - run: npm test
       - run: npm run typecheck
 
