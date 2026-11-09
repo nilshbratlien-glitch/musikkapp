@@ -7,6 +7,7 @@
   let wired = false;
   let onResize = null;
   let onKey = null;
+  let offPulse = null;
 
   const DEFAULTS = {
     instrumentId: "mar50",
@@ -902,6 +903,16 @@
       ScoreRenderer.clearBeat();
     });
 
+    // While Øveplan owns the pulse, Metronome and Play show that they gave way.
+    const syncYield = () => {
+      const yielded = window.MusikkPulse.getState().owner === "oveplan";
+      $("#btnMetro").classList.toggle("yielded", yielded);
+      $("#btnPlay").classList.toggle("yielded", yielded);
+      $("#pulseNote").hidden = !yielded;
+    };
+    offPulse = window.MusikkPulse.subscribe(syncYield);
+    syncYield();
+
     if ($("#btnSubdiv")) {
       $("#btnSubdiv").addEventListener("click", () => {
         metroSubdiv = metroSubdiv === 1 ? 2 : metroSubdiv === 2 ? 4 : 1;
@@ -1003,6 +1014,8 @@
     } catch (e) { /* best effort */ }
     if (onResize) window.removeEventListener("resize", onResize);
     if (onKey) document.removeEventListener("keydown", onKey);
+    if (offPulse) offPulse();
+    offPulse = null;
     onResize = null;
     onKey = null;
     wired = false;

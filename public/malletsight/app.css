@@ -85,6 +85,19 @@
   border-color: var(--ok);
   color: #d7f0d4;
 }
+/* Øveplan owns the shared pulse: these buttons gave way, they are not off by choice. */
+#malletsight-root .btn.yielded {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--muted);
+}
+#malletsight-root .pulse-note {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--accent);
+  text-align: center;
+}
+#malletsight-root .pulse-note[hidden] { display: none; }
 #malletsight-root .icon-btn { min-width: var(--tap); padding: 0; font-size: 18px; }
 
 #malletsight-root .stage {
