@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   RUDIMENTS,
   commitBest,
   onClick,
   recordBest,
-  secondsPerNote,
   type ClickState,
   type MetronomeSettings,
   type RudimentId,
 } from "@/lib/metronome";
+import { getState, setBpm as pulseBpm, start as pulseStart, stop as pulseStop, subscribe } from "@/lib/pulse";
 import { readToolStore, writeToolStore } from "@/lib/tools";
 
 const RUDIMENT_LABELS: { id: RudimentId; label: string }[] = [
@@ -29,22 +29,10 @@ function loadBests() {
   return bests;
 }
 
-function scheduleClick(audio: AudioContext, time: number, isAccent: boolean) {
-  const osc = audio.createOscillator();
-  const gain = audio.createGain();
-  osc.connect(gain);
-  gain.connect(audio.destination);
-  osc.frequency.value = isAccent ? 1200 : 800;
-  gain.gain.setValueAtTime(isAccent ? 0.35 : 0.2, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
-  osc.start(time);
-  osc.stop(time + 0.05);
-}
-
 export function SnareSpeed() {
   const [displayBpm, setDisplayBpm] = useState(120);
   const [status, setStatus] = useState("Klar");
-  const [playing, setPlaying] = useState(false);
+  const playing = useSyncExternalStore(subscribe, getState, getState).owner === "snare";
   const [active, setActive] = useState(-1);
   const [pattern, setPattern] = useState<readonly string[]>([]);
   const [rudiment, setRudiment] = useState<RudimentId>("singles");
@@ -61,55 +49,43 @@ export function SnareSpeed() {
     sub: 8,
     rudiment: "singles",
   });
-  const stateRef = useRef<ClickState & { next: number; timer: number | null; bpmLive: number }>({
+  const stateRef = useRef<ClickState & { bpmLive: number }>({
     bpm: 100,
     beat: 0,
     barCount: 0,
-    next: 0,
-    timer: null,
     bpmLive: 100,
   });
-  const audioRef = useRef<AudioContext | null>(null);
-  const playingRef = useRef(false);
 
   settingsRef.current = { start: startBpm, inc, bars, sub, rudiment };
 
   useEffect(() => {
     setBests(loadBests());
     return () => {
-      playingRef.current = false;
-      const timer = stateRef.current.timer;
-      if (timer != null) window.clearTimeout(timer);
+      pulseStop("snare");
     };
   }, []);
 
-  function scheduler() {
-    const audio = audioRef.current;
-    if (!audio || !playingRef.current) return;
+  /** Called by the pulse core for every scheduled click; steps the BPM after the set number of bars. */
+  function onPulseClick() {
     const settings = settingsRef.current;
     const live = stateRef.current;
-    const seconds = secondsPerNote(live.bpm, settings.sub);
     const sticks = RUDIMENTS[settings.rudiment];
-    while (live.next < audio.currentTime + 0.1) {
-      const step = onClick(live, settings);
-      scheduleClick(audio, live.next, step.accent);
-      setPattern(sticks);
-      setActive(live.beat % sticks.length);
-      live.beat = step.state.beat;
-      live.barCount = step.state.barCount;
-      live.bpm = step.state.bpm;
-      live.bpmLive = step.state.bpm;
-      live.next += seconds;
-      if (step.stepped) {
-        setDisplayBpm(step.state.bpm);
-        setStatus(`Økt til ${step.state.bpm}`);
-      }
+    const step = onClick(live, settings);
+    setPattern(sticks);
+    setActive(live.beat % sticks.length);
+    live.beat = step.state.beat;
+    live.barCount = step.state.barCount;
+    live.bpm = step.state.bpm;
+    live.bpmLive = step.state.bpm;
+    if (step.stepped) {
+      pulseBpm(step.state.bpm);
+      setDisplayBpm(step.state.bpm);
+      setStatus(`Økt til ${step.state.bpm}`);
     }
-    live.timer = window.setTimeout(scheduler, 25);
   }
 
   function start() {
-    if (playingRef.current) return;
+    if (playing) return;
     const settings = settingsRef.current;
     const live = stateRef.current;
     live.bpm = settings.start;
@@ -118,25 +94,20 @@ export function SnareSpeed() {
     live.barCount = 0;
     setDisplayBpm(settings.start);
     setStatus("Spiller…");
-    if (!audioRef.current) audioRef.current = new AudioContext();
-    const audio = audioRef.current;
-    if (audio.state === "suspended") void audio.resume();
-    live.next = audio.currentTime + 0.05;
-    playingRef.current = true;
-    setPlaying(true);
     setPattern(RUDIMENTS[settings.rudiment]);
     setActive(0);
-    scheduler();
+    pulseStart({
+      owner: "snare",
+      bpm: settings.start,
+      beats: 4,
+      sub: Math.max(1, settings.sub / 4),
+      onClick: onPulseClick,
+      onStop: () => setStatus("Stoppet"),
+    });
   }
 
   function stop() {
-    if (!playingRef.current) return;
-    playingRef.current = false;
-    const timer = stateRef.current.timer;
-    if (timer != null) window.clearTimeout(timer);
-    stateRef.current.timer = null;
-    setPlaying(false);
-    setStatus("Stoppet");
+    pulseStop("snare");
   }
 
   function markClean() {
