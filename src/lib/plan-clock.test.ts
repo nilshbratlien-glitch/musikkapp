@@ -184,6 +184,27 @@ describe("plan clock on the pulse core", () => {
       assert.equal(planClock.getPlanClock().blockPaused, false);
     });
 
+    it("every way to pause an SRF block leaves a state Play resumes, and the header never shows pause without blockPaused", () => {
+      const ways: [string, () => void][] = [
+        ["header pause", () => (planClock.beginBlock(item("srf"), true), planClock.togglePlanClock())],
+        ["Pause in Øveplan", () => (planClock.beginBlock(item("srf"), true), planClock.togglePlanClock())],
+        ["Endre plan", () => (planClock.beginBlock(item("srf"), true), planClock.pauseBlock(), (planClock.getPlanClock().forceSetup = true))],
+        ["armed after the previous block", () => (planClock.beginBlock(item("fourmallet"), true), (planClock.getPlanClock().store.done = ["twomallet"]), planClock.finishPlanBlock())],
+        ["paused, then the page hidden and shown", () => (planClock.beginBlock(item("srf"), true), planClock.togglePlanClock(), setPageVisible(false), setPageVisible(true))],
+      ];
+      for (const [name, pause] of ways) {
+        planClock.resetPlan();
+        pause();
+        const clock = planClock.getPlanClock();
+        assert.equal(clock.activeId, "srf", name);
+        const headerPaused = clock.blockPaused || clock.timer == null;
+        assert.equal(headerPaused, true, `${name}: the header shows pause`);
+        assert.equal(clock.blockPaused, true, `${name}: and blockPaused is set`);
+        assert.equal(play(), true, `${name}: Play resumes`);
+        assert.ok(clock.timer != null && !clock.blockPaused, `${name}: the timer runs`);
+      }
+    });
+
     it("Play without a plan, or in another block, leaves the plan alone", () => {
       assert.equal(play(), false);
       assert.deepEqual(snapshot(), { activeId: null, paused: false, remain: 0, timer: false });

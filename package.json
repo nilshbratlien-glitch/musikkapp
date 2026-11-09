@@ -18,7 +18,7 @@
     "check:auth": "node scripts/check-auth-invariant.mjs",
     "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/app-data/app-data.test.ts src/lib/app-data/readiness-schedule.test.ts src/lib/auth/gate-identity.test.ts src/lib/auth/sign-in-gate.test.ts src/lib/preview-path-prefix.test.ts src/lib/tools.test.ts src/lib/metronome.test.ts src/lib/notekort.test.ts src/lib/oveplan.test.ts src/lib/pulse.test.ts src/lib/plan-clock.test.ts && cd public/malletsight && node --test tests/*.test.cjs",
     "test:e2e": "npm run build && node --test --test-concurrency=1 'e2e/*.test.mjs'",
-    "test:e2e:webkit": "npm run build && E2E_BROWSER=webkit node --test --test-concurrency=1 --test-name-pattern='Safari|layout|Norwegian' 'e2e/*.test.mjs'",
+    "test:e2e:webkit": "npm run build && E2E_BROWSER=webkit node --test --test-concurrency=1 --test-name-pattern='Safari|layout|Norwegian|Bladlesing Play|Bladlesing during' 'e2e/*.test.mjs'",
     "lint": "eslint --no-error-on-unmatched-pattern src tests e2e scripts",
     "format": "prettier --write ."
   },
