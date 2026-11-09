@@ -64,4 +64,14 @@ describe("pulse core", () => {
     assert.equal(pulse.getState().owner, "bladlesing");
     assert.equal(clicksBetween(contexts[0]!.currentTime - 3.2, contexts[0]!.currentTime + 1), 3);
   });
+
+  it("a meter change keeps the beat position instead of restarting the bar", () => {
+    const beats: number[] = [];
+    pulse.start({ owner: "metronom", bpm: 120, beats: 4, onClick: (click) => beats.push(click.beatIndex) });
+    advance(500);
+    assert.deepEqual(beats, [0, 1], "two beats of a 4/4 bar scheduled");
+    pulse.setMeter(3, 1);
+    advance(2000);
+    assert.deepEqual(beats.slice(2, 6), [2, 0, 1, 2], "carries on at beat 3, then bars of three");
+  });
 });

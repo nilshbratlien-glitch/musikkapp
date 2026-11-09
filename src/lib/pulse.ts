@@ -166,9 +166,16 @@ export function setBpm(bpm: number) {
   if (bpm > 0 && bpm !== state.bpm) emit({ bpm });
 }
 
+/** Change meter without restarting the bar: the next click keeps its beat, modulo the new beat count. */
 export function setMeter(beats: number, sub: number) {
-  if (run) run.tick = 0;
-  emit({ beats: Math.max(1, beats), sub: Math.max(1, sub) });
+  const nextBeats = Math.max(1, beats);
+  const nextSub = Math.max(1, sub);
+  if (run) {
+    const index = run.tick % (state.beats * state.sub);
+    const beat = Math.floor(index / state.sub) % nextBeats;
+    run.tick = beat * nextSub + ((index % state.sub) % nextSub);
+  }
+  emit({ beats: nextBeats, sub: nextSub });
 }
 
 /** Two-note end-of-block chime on the shared bus. */
