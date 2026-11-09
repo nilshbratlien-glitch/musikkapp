@@ -33,7 +33,6 @@ import {
 const KIND: Record<BlockId, string> = {
   twomallet: "var(--color-twomallet)",
   fourmallet: "var(--color-fourmallet)",
-  scales: "var(--color-scales)",
   srf: "var(--color-accent)",
   rep: "var(--color-rep)",
 };

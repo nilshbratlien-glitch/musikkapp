@@ -28,10 +28,10 @@ describe("oveplan", () => {
 
   it("starts from the default blocks and sums only live ones", () => {
     const items = base();
-    assert.equal(items.length, 5);
-    assert.equal(playingSum(items), 12 + 8 + 8 + 12 + 15);
-    const off = items.map((item) => (item.id === "scales" ? { ...item, on: false } : item));
-    assert.equal(liveItems(off).some((item) => item.id === "scales"), false);
+    assert.equal(items.length, 4);
+    assert.equal(playingSum(items), 12 + 8 + 12 + 15);
+    const off = items.map((item) => (item.id === "rep" ? { ...item, on: false } : item));
+    assert.equal(liveItems(off).some((item) => item.id === "rep"), false);
   });
 
   it("bumps minutes inside 1–90 and finds the next undone block", () => {
@@ -40,7 +40,7 @@ describe("oveplan", () => {
     assert.equal(bumpItem(first, -1)?.mins, 11);
     assert.equal(bumpItem({ ...first, mins: 1 }, -1), null);
     assert.equal(bumpItem({ ...first, mins: 90 }, 1), null);
-    assert.equal(nextUndone(items, ["twomallet"], "fourmallet")?.id, "scales");
+    assert.equal(nextUndone(items, ["twomallet"], "fourmallet")?.id, "srf");
     assert.equal(fmtClock(65), "1:05");
     assert.equal(bpmFromTaps([0, 500, 1000]), 120);
   });

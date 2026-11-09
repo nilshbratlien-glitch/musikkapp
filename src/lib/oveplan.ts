@@ -3,7 +3,6 @@ import { readToolStore, writeToolStore } from "./tools.ts";
 export const BLOCKS = [
   { id: "twomallet", name: "2-mallet" },
   { id: "fourmallet", name: "4-mallet" },
-  { id: "scales", name: "Skalaer" },
   { id: "srf", name: "Bladlesing" },
   { id: "rep", name: "Repertoar" },
 ] as const;
@@ -37,7 +36,6 @@ export type PlanStore = {
 export const DEFAULT_MINS: Record<BlockId, number> = {
   twomallet: 12,
   fourmallet: 8,
-  scales: 8,
   srf: 12,
   rep: 15,
 };
