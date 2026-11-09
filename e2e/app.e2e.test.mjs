@@ -455,8 +455,16 @@ describe("layout", () => {
       await header().click();
       await tab("/");
       await page.waitForSelector("#score svg");
+      const scoreTop = () => page.locator("#score").evaluate((el) => el.getBoundingClientRect().top);
+      const before = await scoreTop();
       await header().click();
       await page.locator("#pulseNote").waitFor({ state: "visible" });
+      assert.equal(await scoreTop(), before, "the status line does not push the score down");
+      assert.equal(
+        await page.locator("#pulseNote").evaluate((el) => getComputedStyle(el).color),
+        "rgb(126, 224, 214)",
+        "the status line uses the 2-mallet colour",
+      );
       assert.deepEqual(await overflowOf(), [0, 0], "Bladlesing with the status line overflows");
       await shot(`bladlesing-yielded-${width}x${height}`);
     });

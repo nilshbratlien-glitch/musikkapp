@@ -80,9 +80,9 @@ export function nextPulse(beat: number, meter: Meter) {
   return { accent: index === 0, index, beat: beat + 1 };
 }
 
-/** The meter chip for a beat count, or null when no chip has that many beats (5, 7). */
+/** The simple-meter chip for a beat count, or null (5, 7, and 6: six plan beats are not compound 6/8). */
 export function meterForBeats(beats: number): Meter | null {
-  return METERS.find((meter) => beatsInMeter(meter) === beats) ?? null;
+  return METERS.find((meter) => meter !== "6/8" && beatsInMeter(meter) === beats) ?? null;
 }
 
 export const SUBDIVISIONS = [1, 2, 3, 4] as const;

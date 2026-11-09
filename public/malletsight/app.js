@@ -909,6 +909,8 @@
       $("#btnMetro").classList.toggle("yielded", yielded);
       $("#btnPlay").classList.toggle("yielded", yielded);
       $("#pulseNote").hidden = !yielded;
+      const color = window.MusikkPlan && window.MusikkPlan.activeBlockColor();
+      if (color) $("#pulseNote").style.setProperty("--block", color);
     };
     offPulse = window.MusikkPulse.subscribe(syncYield);
     syncYield();

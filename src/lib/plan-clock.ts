@@ -15,6 +15,7 @@ import {
   blockTool,
   playsMetronome,
   type BlockId,
+  BLOCK_COLOR,
 } from "./oveplan.ts";
 import { chime, getState as pulseState, type PulseStart, setBpm as pulseBpm, setMeter as pulseMeter, start as pulseStart, stop as pulseStop, subscribe as subscribePulse } from "./pulse.ts";
 
@@ -476,7 +477,12 @@ export function resumeFromBladlesing() {
   return !clock.blockPaused;
 }
 
-export const MusikkPlan = { resumeFromBladlesing };
+/** The active block's colour token, so Bladlesing's status line matches the header pill. */
+export function activeBlockColor() {
+  return clock.activeId ? BLOCK_COLOR[clock.activeId as BlockId] : null;
+}
+
+export const MusikkPlan = { resumeFromBladlesing, activeBlockColor };
 
 declare global {
   interface Window {

@@ -115,6 +115,7 @@ describe("plan clock on the pulse core", () => {
       assert.equal(state.sub, 2);
       assert.equal(meterForBeats(state.beats), "3/4", "the meter chip matches the beat count");
       assert.equal(meterForBeats(5), null, "no chip for five beats");
+      assert.equal(meterForBeats(6), null, "six beats are not 6/8");
       assert.equal(planClock.getPlanClock().blockPaused, false);
       assert.ok(!owners.includes("metronom"));
     });
