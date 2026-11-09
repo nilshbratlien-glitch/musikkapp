@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
-import { advance, audible, clicksBetween, contexts, started } from "./fake-audio.test-support.ts";
+import { advance, audible, clicksBetween, contexts, setPageVisible, started } from "./fake-audio.test-support.ts";
 
 const pulse = await import("./pulse.ts");
 
@@ -63,6 +63,43 @@ describe("pulse core", () => {
     advance(3000);
     assert.equal(pulse.getState().owner, "bladlesing");
     assert.equal(clicksBetween(contexts[0]!.currentTime - 3.2, contexts[0]!.currentTime + 1), 3);
+  });
+
+  describe("hidden and shown again", () => {
+    const ctx = () => contexts[0]! as unknown as { state: string; resumes: number };
+
+    it("hiding the page (visibilitychange, pagehide) stops nothing", () => {
+      pulse.start({ owner: "oveplan", bpm: 100 });
+      setPageVisible(false);
+      assert.equal(pulse.getState().owner, "oveplan");
+      assert.equal(pulse.getState().running, true);
+    });
+
+    it("a suspended context resumes when the page is visible again and someone owns the pulse", () => {
+      pulse.start({ owner: "metronom", bpm: 100 });
+      setPageVisible(false);
+      ctx().state = "suspended";
+      const before = ctx().resumes;
+      setPageVisible(true);
+      assert.ok(ctx().resumes > before, "resume() was called");
+      assert.equal(ctx().state, "running");
+    });
+
+    it("an interrupted context (iOS) resumes on pageshow", () => {
+      pulse.start({ owner: "bladlesing", bpm: 100 });
+      ctx().state = "interrupted";
+      globalThis.dispatchEvent(new Event("pageshow"));
+      assert.equal(ctx().state, "running");
+    });
+
+    it("without an owner a suspended context stays suspended", () => {
+      pulse.start({ owner: "snare", bpm: 100 });
+      pulse.stop();
+      ctx().state = "suspended";
+      setPageVisible(true);
+      assert.equal(ctx().state, "suspended");
+      ctx().state = "running";
+    });
   });
 
   it("a meter change keeps the beat position instead of restarting the bar", () => {

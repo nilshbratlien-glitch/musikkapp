@@ -201,6 +201,27 @@ export function chime() {
   tone(783.99, begin + 0.18, 0.42, 0.26);
 }
 
+/**
+ * Back in view: browsers suspend (or on iOS interrupt) audio while a page is hidden
+ * or in the back/forward cache. Resume it if someone still owns the pulse.
+ * Hiding the page (visibilitychange to hidden, pagehide) deliberately stops
+ * nothing, so Øveplan keeps running; its countdown is computed from a timestamp.
+ */
+export function wake() {
+  if (!ctx || !state.running) return false;
+  const now = ctx.state as string;
+  if (now !== "suspended" && now !== "interrupted") return false;
+  void ctx.resume().catch(() => {});
+  return true;
+}
+
+if (typeof document !== "undefined" && typeof window !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") wake();
+  });
+  window.addEventListener("pageshow", () => wake());
+}
+
 export const MusikkPulse = { start, stop, setBpm, setMeter, setClicks, chime, subscribe, getState, audio, output };
 
 declare global {

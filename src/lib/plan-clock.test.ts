@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
-import "./fake-audio.test-support.ts";
+import { contexts, setPageVisible } from "./fake-audio.test-support.ts";
 
 const pulse = await import("./pulse.ts");
 const planClock = await import("./plan-clock.ts");
@@ -196,6 +196,22 @@ describe("plan clock on the pulse core", () => {
         assert.deepEqual(snapshot(), before, `${id}: still paused with the same time`);
       }
     });
+  });
+
+  it("hiding and showing the page never pauses the plan, and the countdown stays on the timestamp", () => {
+    planClock.ensurePlanClock();
+    planClock.beginBlock(item("twomallet"));
+    const left = planClock.getPlanClock().blockLeft;
+    setPageVisible(false);
+    const ctx = contexts[0]! as unknown as { state: string };
+    ctx.state = "suspended";
+    mock.timers.setTime(Date.now() + 30_000);
+    setPageVisible(true);
+    const clock = planClock.getPlanClock();
+    assert.equal(clock.blockPaused, false, "still running");
+    assert.equal(clock.blockLeft, left - 30, "30 s passed while hidden");
+    assert.equal(pulse.getState().owner, "oveplan", "the block metronome kept its owner");
+    assert.equal(ctx.state, "running", "and its audio resumed");
   });
 
   it("opens the block's tool through the bound navigation", () => {
