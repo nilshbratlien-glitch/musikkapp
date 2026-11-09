@@ -72,11 +72,13 @@ function PlanHeaderTimer() {
       onClick={togglePlanClock}
       className={
         paused
-          ? "metro-press min-h-10 max-w-28 truncate rounded-lg border border-line px-2 text-sm font-semibold text-muted tabular-nums"
-          : "metro-press min-h-10 max-w-28 truncate rounded-lg border border-accent px-2 text-sm font-semibold text-accent tabular-nums"
+          ? "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-line px-2 text-sm font-semibold text-muted"
+          : "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-accent bg-accent/10 px-2 text-sm font-semibold text-accent"
       }
     >
-      {blockName(clock.activeId)} {fmtClock(clock.blockLeft)}
+      {paused ? null : <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-accent" aria-hidden="true" />}
+      <span className="min-w-0 truncate">{blockName(clock.activeId)}</span>
+      <span className="shrink-0 tabular-nums">{fmtClock(clock.blockLeft)}</span>
     </button>
   );
 }
