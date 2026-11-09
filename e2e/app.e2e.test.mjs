@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { after, before, beforeEach, describe, it } from "node:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chromium, webkit } from "playwright";
+import { chromium, devices, webkit } from "playwright";
 import { asSafari15, contrastInPage } from "./safari15.mjs";
 
 const BASE = process.env.E2E_URL || "http://127.0.0.1:8081";
@@ -636,4 +636,113 @@ describe("Safari 15.6 readability", () => {
       });
     }
   }
+});
+
+// Øveplan is the only place a preset gets a name (Metronom and Bladlesing have no named presets).
+// Installed on the iPad home screen the keyboard did not show; this guards the field itself.
+// Playwright cannot run an installed standalone PWA or Safari 15.6, so this is a regression net, not a proof.
+describe("Preset name on iPad", () => {
+  const NAME = 'input[placeholder="Presetnavn"]';
+
+  async function openOnIpad() {
+    const { defaultBrowserType, ...ipad } = devices["iPad (gen 7)"];
+    await page.context().close();
+    const context = await browser.newContext(ipad);
+    await context.addInitScript(instrument);
+    await context.addInitScript(() => {
+      window.__prompts = 0;
+      window.prompt = () => {
+        window.__prompts++;
+        return null;
+      };
+    });
+    page = await context.newPage();
+    page.on("dialog", async (dialog) => {
+      await page.evaluate(() => window.__prompts++);
+      await dialog.dismiss();
+    });
+    await open("/oveplan", plan(["twomallet", "srf"]));
+  }
+
+  const lagre = () => page.locator(NAME).locator("..").getByRole("button", { name: "Lagre", exact: true });
+  const savedNames = () =>
+    page.evaluate(() => JSON.parse(localStorage.getItem("musikkapp.oveplan") || "{}").presets?.map((p) => p.name) ?? []);
+
+  it("tapping the field focuses it at once: editable, text selectable, no prompt()", async () => {
+    await openOnIpad();
+    await shot("preset-before-tap");
+    await page.locator(NAME).tap();
+    const state = await page.evaluate((selector) => {
+      const input = document.querySelector(selector);
+      const style = getComputedStyle(input);
+      return {
+        focused: document.activeElement === input,
+        readOnly: input.readOnly,
+        disabled: input.disabled,
+        userSelect: style.userSelect,
+        webkitUserSelect: style.webkitUserSelect,
+        touchAction: style.touchAction,
+        pointerEvents: style.pointerEvents,
+        fontSize: parseFloat(style.fontSize),
+        covered: (() => {
+          const r = input.getBoundingClientRect();
+          return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) !== input;
+        })(),
+      };
+    }, NAME);
+    await shot("preset-after-tap");
+    assert.equal(state.focused, true, "the field is not document.activeElement after the tap");
+    assert.equal(state.readOnly || state.disabled, false);
+    assert.notEqual(state.userSelect, "none");
+    assert.notEqual(state.webkitUserSelect, "none");
+    assert.ok(!["none", "pan-x", "pan-y"].includes(state.touchAction), `touch-action ${state.touchAction}`);
+    assert.notEqual(state.pointerEvents, "none");
+    assert.ok(state.fontSize >= 16, "under 16px iOS zooms the page when the field is focused");
+    assert.equal(state.covered, false, "something covers the field");
+    await page.keyboard.type("Rudiments");
+    assert.equal(await page.locator(NAME).inputValue(), "Rudiments");
+    assert.equal(await page.evaluate(() => window.__prompts), 0, "prompt() was called");
+  });
+
+  it("an inherited user-select: none cannot reach the field", async () => {
+    await openOnIpad();
+    await page.addStyleTag({ content: "body, main { -webkit-user-select: none; user-select: none; }" });
+    const style = await page.locator(NAME).evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { standard: s.userSelect, webkit: s.webkitUserSelect };
+    });
+    assert.equal(style.standard, "text");
+    assert.equal(style.webkit, "text");
+  });
+
+  it("Enter saves the name, and Lagre saves it", async () => {
+    await openOnIpad();
+    await page.locator(NAME).tap();
+    await page.keyboard.type("Med Enter");
+    await page.keyboard.press("Enter");
+    assert.deepEqual(await savedNames(), ["Med Enter"]);
+    assert.equal(await page.locator(NAME).inputValue(), "", "the field is cleared after saving");
+    await page.locator(NAME).tap();
+    await page.keyboard.type("Med Lagre");
+    await lagre().tap();
+    assert.deepEqual(await savedNames(), ["Med Lagre", "Med Enter"]);
+    assert.equal(await page.evaluate(() => window.__prompts), 0, "prompt() was called");
+  });
+
+  it("Escape and leaving the field save nothing; an empty name is not saved", async () => {
+    await openOnIpad();
+    await page.locator(NAME).tap();
+    await page.keyboard.type("Skal ikke lagres");
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator(NAME).inputValue(), "");
+    assert.equal(await page.evaluate((selector) => document.activeElement === document.querySelector(selector), NAME), false);
+    await page.locator(NAME).tap();
+    await page.keyboard.type("Forlatt");
+    await page.getByRole("button", { name: "Logg", exact: true }).tap();
+    assert.deepEqual(await savedNames(), [], "leaving the field saved the name");
+    await page.locator(NAME).fill("   ");
+    await page.locator(NAME).press("Enter");
+    await lagre().tap();
+    assert.deepEqual(await savedNames(), []);
+  });
 });

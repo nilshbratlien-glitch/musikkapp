@@ -49,6 +49,13 @@
     overflow: hidden;
   }
 
+  /* iOS Safari will not edit a field whose -webkit-user-select is none, so a field never inherits that. */
+  input,
+  textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
   a:focus-visible,
   button:focus-visible {
     outline: 2px solid var(--color-accent);

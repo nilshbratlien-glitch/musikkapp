@@ -43,6 +43,18 @@ export function Oveplan() {
     savePlanStore(clock.current.store);
   }
 
+  function savePreset() {
+    const cur = clock.current;
+    const name = cur.presetName.trim();
+    const blocks = liveItems(cur.store.items).map((item) => ({ id: item.id, mins: item.mins }));
+    if (!name || !blocks.length) return;
+    const preset: PlanPreset = { id: `u${Date.now()}`, name, blocks };
+    cur.store.presets = [preset, ...cur.store.presets.filter((item) => item.name !== name)].slice(0, 8);
+    cur.presetName = "";
+    persist();
+    redraw();
+  }
+
   function findItem(id: string) {
     return clock.current.store.items.find((item) => item.id === id) ?? null;
   }
@@ -170,20 +182,20 @@ export function Oveplan() {
                 cur.presetName = event.target.value;
                 redraw();
               }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") savePreset();
+                else if (event.key === "Escape") {
+                  cur.presetName = "";
+                  event.currentTarget.blur();
+                  redraw();
+                }
+              }}
+              enterKeyHint="done"
               className="metro-field min-h-11 min-w-36 flex-1 rounded-xl border border-line bg-header px-3 text-fg"
             />
             <button
               type="button"
-              onClick={() => {
-                const name = cur.presetName.trim();
-                const blocks = liveItems(cur.store.items).map((item) => ({ id: item.id, mins: item.mins }));
-                if (!name || !blocks.length) return;
-                const preset: PlanPreset = { id: `u${Date.now()}`, name, blocks };
-                cur.store.presets = [preset, ...cur.store.presets.filter((item) => item.name !== name)].slice(0, 8);
-                cur.presetName = "";
-                persist();
-                redraw();
-              }}
+              onClick={savePreset}
               className="metro-press min-h-11 rounded-full border border-line px-3 text-sm font-semibold"
             >
               Lagre
