@@ -641,7 +641,7 @@
     const btn = $("#btnPlay");
     if (!btn) return;
     btn.classList.remove("on");
-    btn.textContent = "Play";
+    btn.textContent = "Spill";
   }
 
   function haltPlay() {
@@ -960,7 +960,7 @@
             $("#btnPlay").textContent = String(q.beat + 1);
             ScoreRenderer.showBeat(beatMap, 0);
           } else {
-            $("#btnPlay").textContent = "Stop";
+            $("#btnPlay").textContent = "Stopp";
             ScoreRenderer.showBeat(beatMap, q.beat);
           }
         },

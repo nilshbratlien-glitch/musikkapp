@@ -336,7 +336,7 @@ describe("Bladlesing buttons follow the shared pulse", () => {
     await header().click();
     await page.waitForFunction(() => window.MusikkPulse?.getState().owner === "oveplan");
     await page.waitForTimeout(200);
-    assert.equal(await page.locator("#btnPlay").innerText(), "Play", "play-along shows as stopped");
+    assert.equal(await page.locator("#btnPlay").innerText(), "Spill", "play-along shows as stopped");
     assert.equal(await page.locator("#btnPlay").evaluate((el) => el.classList.contains("on")), false);
     assert.equal(await metroOn(), false);
     assert.equal(await liveContexts(), 1);

@@ -5,14 +5,14 @@
         <span>v1.4 · 2–4 mallets</span>
       </div>
       <div class="spacer"></div>
-      <div class="level-step" title="Level">
-        <button class="btn icon-btn" id="btnLevelDown" type="button" title="Easier">−</button>
+      <div class="level-step" title="Nivå">
+        <button class="btn icon-btn" id="btnLevelDown" type="button" title="Lettere">−</button>
         <span id="levelRead">1</span>
-        <button class="btn icon-btn" id="btnLevelUp" type="button" title="Harder">+</button>
+        <button class="btn icon-btn" id="btnLevelUp" type="button" title="Vanskeligere">+</button>
       </div>
-      <button class="btn icon-btn" id="btnZoomOut" title="Zoom out">−</button>
-      <button class="btn icon-btn" id="btnZoomIn" title="Zoom in">+</button>
-      <button class="btn" id="btnSettings">Settings</button>
+      <button class="btn icon-btn" id="btnZoomOut" title="Zoom ut">−</button>
+      <button class="btn icon-btn" id="btnZoomIn" title="Zoom inn">+</button>
+      <button class="btn" id="btnSettings">Innstillinger</button>
     </header>
 
     <main class="stage">
@@ -23,21 +23,21 @@
 
     <footer class="bottombar">
       <div class="cluster wrap">
-        <button class="btn" id="btnPlay">Play</button>
-        <button class="btn" id="btnMetro">Metronome</button>
-        <button class="btn" id="btnSubdiv" title="Subdivision">♩</button>
+        <button class="btn" id="btnPlay">Spill</button>
+        <button class="btn" id="btnMetro">Metronom</button>
+        <button class="btn" id="btnSubdiv" title="Underdeling">♩</button>
         <div class="tempo-pad">
-          <button class="btn icon-btn" id="btnTempoDown" title="Slower">−</button>
+          <button class="btn icon-btn" id="btnTempoDown" title="Saktere">−</button>
           <div class="metro-ui">
             <div class="beat-lamps" id="beatLamps"></div>
             <div class="tempo-read"><span id="tempoRead">80</span></div>
           </div>
-          <button class="btn icon-btn" id="btnTempoUp" title="Faster">+</button>
+          <button class="btn icon-btn" id="btnTempoUp" title="Raskere">+</button>
         </div>
       </div>
       <div class="cluster">
-        <button class="btn" id="btnAgain" type="button" title="Same etude, a little slower">Again</button>
-        <button class="btn primary" id="btnGenerate">Generate</button>
+        <button class="btn" id="btnAgain" type="button" title="Samme etyde, litt saktere">Igjen</button>
+        <button class="btn primary" id="btnGenerate">Ny etyde</button>
       </div>
     </footer>
   </div>
@@ -45,8 +45,8 @@
   <div class="scrim" id="scrim"></div>
   <aside class="drawer" id="drawer">
     <header>
-      <h2>Settings</h2>
-      <button class="btn" id="btnCloseSettings">Close</button>
+      <h2>Innstillinger</h2>
+      <button class="btn" id="btnCloseSettings">Lukk</button>
     </header>
     <div class="drawer-body">
       <div class="settings-grid" id="settingsGrid">
