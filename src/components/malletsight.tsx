@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import "@/lib/pulse";
 
 const SCRIPTS = [
   "/malletsight/abcjs.js",
