@@ -2,7 +2,7 @@
     <header class="topbar">
       <div class="brand">
         <strong>Mallet Sight Reader</strong>
-        <span>v1.4 · 2–4 mallets</span>
+        <span>v1.4 · 2–4 køller</span>
       </div>
       <div class="spacer"></div>
       <div class="level-step" title="Nivå">
@@ -60,93 +60,93 @@
       <div class="settings-panel" data-settings-panel="instrument" hidden>
         <button type="button" class="settings-back" data-settings-back>Tilbake</button>
         <h3 class="settings-title">Instrument</h3>
-        <div class="row"><label>Keyboard</label><select id="instrument"></select></div>
-        <div class="row"><label>Mallets</label>
+        <div class="row"><label>Klaviatur</label><select id="instrument"></select></div>
+        <div class="row"><label>Køller</label>
           <select id="mallets">
             <option value="2">2</option>
             <option value="3">3</option>
             <option value="4">4</option>
           </select>
         </div>
-        <div class="row" id="textureRow"><label>Texture</label><select id="texture"></select></div>
+        <div class="row" id="textureRow"><label>Tekstur</label><select id="texture"></select></div>
         <div id="chordChanceRow">
-          <div class="row"><label><span id="chordChanceTitle">Chords in the line</span> <span id="chordChanceLbl">28%</span></label></div>
+          <div class="row"><label><span id="chordChanceTitle">Akkorder i linjen</span> <span id="chordChanceLbl">28%</span></label></div>
           <input type="range" id="chordChance" min="5" max="80" value="28" />
-          <p class="hint" id="chordChanceHint">Melody continues; extra notes appear on some longer values.</p>
+          <p class="hint" id="chordChanceHint">Melodien fortsetter, og ekstra toner kommer på noen lengre verdier.</p>
         </div>
         <div id="doubleStopRow">
-          <p class="hint">Allowed double-stop intervals</p>
+          <p class="hint">Tillatte intervaller for dobbeltgrep</p>
           <div class="chips" id="stopIntervals"></div>
-          <div class="row"><label>Second mallet</label>
+          <div class="row"><label>Andre kølle</label>
             <select id="stopPlace">
-              <option value="below">Below the melody</option>
-              <option value="above">Above the melody</option>
-              <option value="either">Either</option>
+              <option value="below">Under melodien</option>
+              <option value="above">Over melodien</option>
+              <option value="either">Begge deler</option>
             </select>
           </div>
         </div>
-        <div class="row"><label>Staff</label><select id="clef"></select></div>
+        <div class="row"><label>Notesystem</label><select id="clef"></select></div>
       </div>
 
       <div class="settings-panel" data-settings-panel="rytme" hidden>
         <button type="button" class="settings-back" data-settings-back>Tilbake</button>
         <h3 class="settings-title">Rytme</h3>
         <div class="chips key-presets" id="rhythmPresets">
-          <button type="button" class="chip" data-rhythm-preset="all">All</button>
-          <button type="button" class="chip" data-rhythm-preset="long">Long</button>
-          <button type="button" class="chip" data-rhythm-preset="simple">Simple</button>
-          <button type="button" class="chip" data-rhythm-preset="dotted">Dotted</button>
-          <button type="button" class="chip" data-rhythm-preset="triplets">Triplets</button>
-          <button type="button" class="chip" data-rhythm-preset="short">Short</button>
+          <button type="button" class="chip" data-rhythm-preset="all">Alle</button>
+          <button type="button" class="chip" data-rhythm-preset="long">Lange</button>
+          <button type="button" class="chip" data-rhythm-preset="simple">Enkle</button>
+          <button type="button" class="chip" data-rhythm-preset="dotted">Punkterte</button>
+          <button type="button" class="chip" data-rhythm-preset="triplets">Trioler</button>
+          <button type="button" class="chip" data-rhythm-preset="short">Korte</button>
         </div>
-        <p class="hint">Allowed note values. Triplets are placed as a group of three.</p>
+        <p class="hint">Tillatte noteverdier. Trioler settes som en gruppe på tre.</p>
         <div class="chips" id="rhythms"></div>
-        <label class="toggle"><span>Allow rests</span><input type="checkbox" id="allowRests" /></label>
-        <p class="hint">Allowed rests</p>
+        <label class="toggle"><span>Tillat pauser</span><input type="checkbox" id="allowRests" /></label>
+        <p class="hint">Tillatte pauser</p>
         <div class="chips" id="rests"></div>
-        <div class="row"><label>Density (easy→hard)</label>
+        <div class="row"><label>Tetthet (lett→vanskelig)</label>
           <select id="density">
             <option value="1">1</option><option value="2">2</option>
             <option value="3">3</option><option value="4">4</option><option value="5">5</option>
           </select>
         </div>
-        <label class="toggle"><span>Syncopation</span><input type="checkbox" id="syncopation" /></label>
-        <p class="hint">Pushes one note off the beat so it holds across the next pulse. The rest of the bar keeps the rhythms you picked.</p>
-        <label class="toggle"><span>Ties</span><input type="checkbox" id="ties" /></label>
+        <label class="toggle"><span>Synkoper</span><input type="checkbox" id="syncopation" /></label>
+        <p class="hint">Skyver én tone bort fra slaget, så den holdes over neste puls. Resten av takten beholder rytmene du valgte.</p>
+        <label class="toggle"><span>Overbindinger</span><input type="checkbox" id="ties" /></label>
       </div>
 
       <div class="settings-panel" data-settings-panel="register" hidden>
         <button type="button" class="settings-back" data-settings-back>Tilbake</button>
         <h3 class="settings-title">Register</h3>
-        <div class="row"><label>Low <span id="rangeLowLbl">C4</span></label></div>
+        <div class="row"><label>Lav <span id="rangeLowLbl">C4</span></label></div>
         <input type="range" id="rangeLow" min="36" max="108" />
-        <div class="row"><label>High <span id="rangeHighLbl">C6</span></label></div>
+        <div class="row"><label>Høy <span id="rangeHighLbl">C6</span></label></div>
         <input type="range" id="rangeHigh" min="36" max="108" />
-        <p class="hint" id="rangeHint">Slider scale is written C2–C8. Each instrument is clamped to its real written range.</p>
-        <div class="row"><label>Max leap</label><select id="maxLeap"></select></div>
+        <p class="hint" id="rangeHint">Skalaen er skrevet C2–C8. Hvert instrument begrenses til sitt faktiske skrevne omfang.</p>
+        <div class="row"><label>Største sprang</label><select id="maxLeap"></select></div>
       </div>
 
       <div class="settings-panel" data-settings-panel="toneart" hidden>
         <button type="button" class="settings-back" data-settings-back>Tilbake</button>
         <h3 class="settings-title">Toneart</h3>
         <div class="row">
-          <label>Keys</label>
+          <label>Tonearter</label>
           <span id="keyModeHint" class="hint"></span>
         </div>
         <div class="chips key-presets">
-          <button type="button" class="chip" id="keysAll">All</button>
-          <button type="button" class="chip" id="keysMajor">Majors</button>
-          <button type="button" class="chip" id="keysMinor">Minors</button>
+          <button type="button" class="chip" id="keysAll">Alle</button>
+          <button type="button" class="chip" id="keysMajor">Dur</button>
+          <button type="button" class="chip" id="keysMinor">Moll</button>
         </div>
-        <p class="hint">Major</p>
+        <p class="hint">Dur</p>
         <div class="chips" id="keysMajorChips"></div>
-        <p class="hint">Minor</p>
+        <p class="hint">Moll</p>
         <div class="chips" id="keysMinorChips"></div>
-        <p class="hint" id="keyPickHint">One key stays fixed. Two or more walk the circle of fifths, fewest accidentals first, then repeat.</p>
-        <label class="toggle"><span>Accidentals</span><input type="checkbox" id="accidentals" /></label>
-        <p class="hint">Chromatic neighbors outside the key. The next note steps back to the scale. Minor leading tones are always written.</p>
-        <label class="toggle"><span>Start on tonic</span><input type="checkbox" id="startTonic" /></label>
-        <label class="toggle"><span>End on tonic</span><input type="checkbox" id="endTonic" /></label>
+        <p class="hint" id="keyPickHint">Én toneart står fast. To eller flere går rundt kvintsirkelen, med færrest fortegn først, og gjentas.</p>
+        <label class="toggle"><span>Forsetningstegn</span><input type="checkbox" id="accidentals" /></label>
+        <p class="hint">Kromatiske nabotoner utenfor tonearten. Neste tone går tilbake til skalaen. Ledetoner i moll skrives alltid.</p>
+        <label class="toggle"><span>Start på grunntonen</span><input type="checkbox" id="startTonic" /></label>
+        <label class="toggle"><span>Slutt på grunntonen</span><input type="checkbox" id="endTonic" /></label>
       </div>
 
       <div class="settings-panel" data-settings-panel="mer" hidden>
@@ -164,55 +164,55 @@
           <button type="button" class="chip" data-level="9">9</button>
           <button type="button" class="chip" data-level="10">10</button>
         </div>
-        <p class="hint" id="levelHint">Levels 1–10. Each step adds a little: rhythms, rests, leaps, then ties, syncopation, accidentals, and dynamics.</p>
-        <div class="row"><label>Meter</label><select id="time"></select></div>
-        <div class="row"><label>Measures</label>
+        <p class="hint" id="levelHint">Nivå 1–10. Hvert trinn legger til litt: rytmer, pauser, sprang, deretter overbindinger, synkoper, forsetningstegn og dynamikk.</p>
+        <div class="row"><label>Taktart</label><select id="time"></select></div>
+        <div class="row"><label>Takter</label>
           <select id="measures">
             <option>4</option><option>8</option><option>12</option><option>16</option>
           </select>
         </div>
         <div class="row"><label>Tempo <span id="tempoVal">80</span></label></div>
         <input type="range" id="tempo" min="40" max="160" />
-        <label class="toggle"><span>Accents</span><input type="checkbox" id="accents" /></label>
+        <label class="toggle"><span>Aksenter</span><input type="checkbox" id="accents" /></label>
         <label class="toggle"><span>Staccato</span><input type="checkbox" id="staccato" /></label>
-        <label class="toggle"><span>Dynamics</span><input type="checkbox" id="dynamics" /></label>
-        <div class="row"><label>Rolls</label>
+        <label class="toggle"><span>Dynamikk</span><input type="checkbox" id="dynamics" /></label>
+        <div class="row"><label>Virvler</label>
           <select id="rolls">
-            <option value="off">Off</option>
-            <option value="long">Long notes</option>
-            <option value="always">Often</option>
+            <option value="off">Av</option>
+            <option value="long">Lange toner</option>
+            <option value="always">Ofte</option>
           </select>
         </div>
-        <div class="row"><label>Note names</label>
+        <div class="row"><label>Notenavn</label>
           <select id="annotate">
-            <option value="off">Off</option>
-            <option value="names">Pitch names</option>
+            <option value="off">Av</option>
+            <option value="names">Tonenavn</option>
           </select>
         </div>
-        <label class="toggle"><span>Show mallet numbers</span><input type="checkbox" id="showSticking" /></label>
+        <label class="toggle"><span>Vis køllenummer</span><input type="checkbox" id="showSticking" /></label>
         <div class="multi-only">
-          <h3 class="settings-title">4-mallet</h3>
-          <div class="row"><label>Voicing</label>
+          <h3 class="settings-title">4 køller</h3>
+          <div class="row"><label>Akkordleie</label>
             <select id="voicing">
-              <option value="closed">Closed</option>
-              <option value="open">Open (5ths in the left hand)</option>
+              <option value="closed">Tett</option>
+              <option value="open">Åpen (kvinter i venstre hånd)</option>
             </select>
           </div>
-          <div class="row"><label>Notes per chord</label>
+          <div class="row"><label>Toner per akkord</label>
             <select id="blockSize">
-              <option value="mix">Mix 3 and 4</option>
-              <option value="3">3 notes</option>
-              <option value="4">4 notes</option>
+              <option value="mix">Blanding av 3 og 4</option>
+              <option value="3">3 toner</option>
+              <option value="4">4 toner</option>
             </select>
           </div>
-          <div class="row"><label>Max interval in one hand <span id="handSpanLbl">12</span></label></div>
+          <div class="row"><label>Største intervall i én hånd <span id="handSpanLbl">12</span></label></div>
           <input type="range" id="handSpanMax" min="5" max="16" />
-          <div class="row"><label>Max grip shift <span id="gripShiftLbl">7</span></label></div>
+          <div class="row"><label>Største grepsflytt <span id="gripShiftLbl">7</span></label></div>
           <input type="range" id="gripShift" min="3" max="12" />
         </div>
       </div>
     </div>
     <footer class="drawer-footer">
-      <button class="btn primary" id="btnApply">Generate with these settings</button>
+      <button class="btn primary" id="btnApply">Lag etyde med disse valgene</button>
     </footer>
   </aside>

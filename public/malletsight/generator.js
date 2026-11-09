@@ -337,7 +337,7 @@
     for (let t = 1; t <= ticks; t++) {
       canFill[t] = units.some((d) => spanOf(d) <= t && canFill[t - spanOf(d)]);
     }
-    if (!canFill[ticks]) throw new Error("Selected note and rest values cannot fill this meter.");
+    if (!canFill[ticks]) throw new Error("Valgte note- og pauseverdier kan ikke fylle denne taktarten.");
     const events = [];
     let left = ticks;
     let lastWasRest = false;

@@ -470,3 +470,79 @@ describe("layout", () => {
     });
   }
 });
+
+/** English words that used to be labels in Bladlesing; none may be left in the drawer, the meta line or the title. */
+const ENGLISH =
+  /\b(keyboard|mallets?|texture|chords?|double|stops?|second|below|above|either|staff|treble|grand|all|long|simple|dotted|triplets?|short|whole|half|quarter|eighth|sixteenth|16th|32nd|allow|rests?|density|syncopation|ties|low|high|max|leap|keys?|majors?|minors?|accidentals|tonic|meter|measures|accents|dynamics|rolls|off|often|names|show|voicing|closed|open|notes?|generate|settings|level|custom|random|melody|single|only|fixed|next|sounds|the|and|with|glockenspiel|xylophone|vibraphone|octave|[2-9](nd|rd|th))\b/i;
+
+async function bladlesingTexts() {
+  return page.evaluate(() => {
+    const score = document.querySelector("#score svg");
+    return {
+      drawer: document.querySelector("#drawer").textContent.replace(/\s+/g, " "),
+      meta: document.querySelector("#practiceLine").textContent,
+      title: score ? score.querySelector("text")?.textContent ?? "" : "",
+    };
+  });
+}
+
+describe("Bladlesing in Norwegian", () => {
+  it("the drawer, the meta line and the sheet title have no English labels left, with 2, 3 and 4 mallets", async () => {
+    await open("/");
+    await page.waitForSelector("#score svg");
+    for (const mallets of ["2", "3", "4"]) {
+      await page.locator("#btnSettings").click();
+      await page.locator('[data-settings="instrument"]').click();
+      await page.locator("#mallets").selectOption(mallets);
+      await page.locator("#btnApply").click();
+      await page.waitForFunction(
+        (n) => document.querySelector("#score svg text")?.textContent.includes(` ${n} `),
+        mallets,
+      );
+      const texts = await bladlesingTexts();
+      for (const [where, text] of Object.entries(texts)) {
+        assert.doesNotMatch(text, ENGLISH, `${where} with ${mallets} mallets: ${text.match(ENGLISH)?.[0]} in «${text.slice(0, 200)}»`);
+      }
+      const key = texts.meta.match(/^Egendefinert · ([A-Ha-h](?:is|es|s)?-(?:dur|moll)) · 4\/4 · Marimba 5\.0$/)?.[1];
+      assert.ok(key, `Norwegian meta line, got «${texts.meta}»`);
+      assert.equal(texts.title, `Marimba 5.0 · ${mallets} køller · ${key}`);
+    }
+  });
+
+  it("settings saved by the old English version still load, with the same ids and values", async () => {
+    await open("/");
+    const old = {
+      instrumentId: "xylo",
+      mallets: 2,
+      texture: "melody",
+      clef: "treble",
+      keyId: "Bb",
+      keyIds: ["Bb"],
+      timeId: "3/4",
+      measures: 4,
+      rhythms: ["q", "8", "q."],
+      rolls: "long",
+      annotate: "names",
+    };
+    await page.evaluate((value) => {
+      localStorage.removeItem("musikkapp.bladlesing");
+      localStorage.setItem("mallet-sr-settings-v3", JSON.stringify(value));
+    }, old);
+    await page.reload();
+    await page.waitForSelector("#score svg");
+    const selected = (id) =>
+      page.locator(id).evaluate((el) => ({ value: el.value, text: el.selectedOptions[0]?.textContent }));
+    assert.deepEqual(await selected("#instrument"), { value: "xylo", text: "Xylofon" });
+    assert.deepEqual(await selected("#texture"), { value: "melody", text: "Bare én linje" });
+    assert.deepEqual(await selected("#clef"), { value: "treble", text: "Diskant" });
+    assert.deepEqual(await selected("#time"), { value: "3/4", text: "3/4" });
+    assert.deepEqual(await selected("#rolls"), { value: "long", text: "Lange toner" });
+    assert.deepEqual(await selected("#annotate"), { value: "names", text: "Tonenavn" });
+    assert.equal(await page.locator("#measures").inputValue(), "4");
+    const { meta, title } = await bladlesingTexts();
+    assert.equal(meta, "Egendefinert · B-dur · 3/4 · Xylofon");
+    assert.match(title, /^Xylofon · klinger 8va · 2 køller · B-dur$/);
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("musikkapp.bladlesing")));
+    for (const key of Object.keys(old)) assert.deepEqual(saved[key], old[key], `saved ${key} keeps its old value`);
+  });
+});
