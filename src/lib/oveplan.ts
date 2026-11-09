@@ -40,6 +40,21 @@ export const DEFAULT_MINS: Record<BlockId, number> = {
   rep: 15,
 };
 
+/** The tool a block opens when it starts: 2- and 4-mallet practise with the metronome, SRF is sight-reading. */
+const BLOCK_TOOLS: Partial<Record<BlockId, string>> = {
+  twomallet: "/metronom",
+  fourmallet: "/metronom",
+  srf: "/",
+};
+
+export function blockTool(id: BlockId) {
+  return BLOCK_TOOLS[id] ?? null;
+}
+
+export function playsMetronome(id: string | null) {
+  return id === "twomallet" || id === "fourmallet";
+}
+
 export function blockName(id: string) {
   return BLOCKS.find((block) => block.id === id)?.name ?? id;
 }

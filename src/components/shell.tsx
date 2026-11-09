@@ -1,8 +1,8 @@
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Drum, FileText, Music, Piano } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { blockName, fmtClock } from "@/lib/oveplan";
-import { ensurePlanClock, getPlanClock, getPlanClockVersion, subscribePlanClock, togglePlanClock } from "@/lib/plan-clock";
+import { bindPlanNavigate, ensurePlanClock, getPlanClock, getPlanClockVersion, subscribePlanClock, togglePlanClock } from "@/lib/plan-clock";
 import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
 
 const ICONS: Record<ToolId, typeof Music> = {
@@ -87,6 +87,13 @@ export function Shell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tool = toolForPath(pathname);
   const install = useInstall();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    bindPlanNavigate((to) => {
+      if (window.location.pathname !== to) void navigate({ to });
+    });
+  }, [navigate]);
 
   useEffect(() => {
     ensureToolNamespaces();
