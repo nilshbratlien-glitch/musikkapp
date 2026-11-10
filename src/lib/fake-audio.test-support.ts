@@ -48,6 +48,10 @@ class FakeContext {
   createOscillator() {
     return new FakeOsc();
   }
+  close() {
+    this.state = "closed";
+    return Promise.resolve();
+  }
   resumes = 0;
   resume() {
     this.resumes++;

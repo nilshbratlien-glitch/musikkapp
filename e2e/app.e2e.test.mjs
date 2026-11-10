@@ -780,3 +780,41 @@ describe("Bladlesing settings wording", () => {
     });
   }
 });
+
+// iPad after the screen lock: the shared AudioContext stays "interrupted", its clock stands still and
+// resume() never settles. Playwright cannot lock a real iPad, so the context is faked stuck.
+describe("audio after the screen was locked", () => {
+  async function lockContext() {
+    await page.evaluate(() => {
+      const ctx = window.MusikkPulse.audio();
+      window.__stuck = ctx;
+      const frozen = ctx.currentTime;
+      Object.defineProperty(ctx, "state", { get: () => "interrupted", configurable: true });
+      Object.defineProperty(ctx, "currentTime", { get: () => frozen, configurable: true });
+      ctx.resume = () => new Promise(() => {});
+    });
+  }
+  const replaced = () => page.evaluate(() => window.MusikkPulse.audio() !== window.__stuck);
+
+  it("Metronom: the first Start after the lock moves on from beat 1, in the sound and on screen", async () => {
+    await open("/metronom");
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.getByRole("button", { name: "Stopp", exact: true }).click();
+    await lockContext();
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => window.MusikkPulse.getState().beat >= 1, null, { timeout: 8000 });
+    const dot = await page.evaluate(() => [...document.querySelectorAll(".metro-badge")].findIndex((el) => el.classList.contains("is-active")));
+    assert.ok(dot >= 0, "a beat dot is lit");
+    assert.ok(await replaced(), "the stuck context was replaced");
+    assert.ok(await page.evaluate(() => window.__probe.starts.some((s) => s.ctx >= 1)), "clicks play on the new context");
+  });
+
+  it("Bladlesing: Play after the lock starts clicking past the first beat", async () => {
+    await open("/");
+    await page.waitForSelector("#score svg");
+    await lockContext();
+    await page.locator("#btnPlay").click();
+    await page.waitForFunction(() => window.MusikkPulse.getState().beat >= 1, null, { timeout: 10000 });
+    assert.ok(await replaced(), "the stuck context was replaced");
+  });
+});

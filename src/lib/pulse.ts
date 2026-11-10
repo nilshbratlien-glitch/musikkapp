@@ -34,13 +34,17 @@ const LOOKAHEAD_MS = 25;
 const AHEAD_S = 0.1;
 /** A click this late means the clock jumped (background tab, sleep), not a slow loop. */
 const LATE_S = 0.05;
+/** A context that is not running, or whose clock stands still, this long is replaced (once per start). */
+const STALL_MS = 500;
 
 let ctx: AudioContext | null = null;
+/** The context has been running at least once, so a later non-running state is the system's doing (screen lock). */
+let ran = false;
 let bus: GainNode | null = null;
 let clickBus: GainNode | null = null;
 let clicksOn = true;
 let timer: ReturnType<typeof setTimeout> | null = null;
-let run: (PulseStart & { next: number; tick: number }) | null = null;
+let run: (PulseStart & { next: number; tick: number; seenTime?: number; seenAt?: number; passAt?: number; renewed?: boolean }) | null = null;
 let state: PulseState = { owner: null, running: false, bpm: 80, beats: 4, sub: 1, beat: -1 };
 const listeners = new Set<() => void>();
 
@@ -60,15 +64,45 @@ export function subscribe(listener: () => void) {
   };
 }
 
-/** The shared AudioContext, created on first use. */
+/**
+ * The shared AudioContext, created on first use. Called from a Play/Start tap it also resumes
+ * a context that is suspended or (iOS) interrupted, which only works inside the user gesture.
+ */
 export function audio() {
+  if (ctx?.state === "closed") forget();
   if (!ctx) {
     const Context = globalThis.AudioContext ?? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Context) return null;
     ctx = new Context();
   }
-  if (ctx.state === "suspended") void ctx.resume();
+  if (ctx.state === "running") ran = true;
+  else void ctx.resume().catch(() => {});
   return ctx;
+}
+
+/**
+ * The context for a Play/Start tap. One that ran before and no longer does (iOS suspended or
+ * interrupted it while the screen was locked) is replaced here, inside the user gesture: a
+ * context made later would start suspended and could not be resumed. Otherwise as audio().
+ */
+export function unlock() {
+  if (ctx && ctx.state !== "running" && ran) renew();
+  return audio();
+}
+
+function forget() {
+  ran = false;
+  ctx = null;
+  bus = null;
+  clickBus = null;
+}
+
+/** Close the stuck context and make a new one; nodes on the bus are rebuilt on next use. */
+export function renew() {
+  const old = ctx;
+  forget();
+  void old?.close().catch(() => {});
+  return audio();
 }
 
 /** The one output bus. Every sound connects here; stop() disconnects it. */
@@ -119,8 +153,29 @@ function click(c: AudioContext, time: number, kind: "accent" | "beat" | "sub") {
 function loop() {
   timer = null;
   const live = run;
-  const c = ctx;
+  let c = ctx;
   if (!live || !c) return;
+  // A context that is not running (iOS suspended or interrupted it, e.g. after the screen was locked)
+  // has a frozen clock: nothing is scheduled until it runs. If it does not come back, replace it once.
+  const now = Date.now();
+  // Our own timer was frozen too (screen locked, tab asleep): that is not a stall yet.
+  if (live.passAt !== undefined && now - live.passAt > 10 * LOOKAHEAD_MS) live.seenAt = now;
+  live.passAt = now;
+  if (c.state === "running" && c.currentTime !== live.seenTime) {
+    live.seenTime = c.currentTime;
+    live.seenAt = now;
+  } else live.seenAt ??= now;
+  if (now - live.seenAt > STALL_MS && !live.renewed) {
+    live.renewed = true;
+    c = renew();
+    if (!c) return;
+    live.next = c.currentTime + 0.05;
+    live.seenTime = undefined;
+    live.seenAt = now;
+  } else if (c.state !== "running") {
+    timer = setTimeout(loop, LOOKAHEAD_MS);
+    return;
+  }
   const late = c.currentTime - live.next;
   if (late > LATE_S) {
     // Skip the clicks the jump swallowed instead of playing them in one burst. Ticks count
@@ -148,7 +203,7 @@ function loop() {
 
 /** Make `opts.owner` the only sound owner and start its clicks. */
 export function start(opts: PulseStart) {
-  const c = audio();
+  const c = unlock();
   if (!c) return false;
   stop(undefined, "replaced");
   const beats = Math.max(1, opts.beats ?? 4);
@@ -235,7 +290,7 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
   window.addEventListener("pageshow", () => wake());
 }
 
-export const MusikkPulse = { start, stop, setBpm, setMeter, setClicks, chime, subscribe, getState, audio, output, wake };
+export const MusikkPulse = { start, stop, unlock, setBpm, setMeter, setClicks, chime, subscribe, getState, audio, output, wake };
 
 declare global {
   interface Window {

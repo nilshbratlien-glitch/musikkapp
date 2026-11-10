@@ -126,10 +126,11 @@
 
   function scoreOut() {
     const c = ac();
+    const dest = out();
     if (!playBus) {
       playBus = c.createGain();
       playBus.gain.value = 0.85;
-      playBus.connect(out());
+      playBus.connect(dest);
     }
     return playBus;
   }
@@ -298,7 +299,7 @@
     stopPlayback();
     opts = opts || {};
     const token = playToken;
-    const c = ac();
+    const c = Pulse.unlock();
     const quarterBpm = Number(opts.quarterBpm) || tempo || 80;
     const clickBpm = Number(opts.clickBpm) || quarterBpm;
     const beats = Math.max(1, opts.beatsPerBar || 4);
