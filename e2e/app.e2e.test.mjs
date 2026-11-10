@@ -730,7 +730,7 @@ describe("Bladlesing settings wording", () => {
     await page.locator("#btnCloseSettings").click();
     await page.locator("#btnSettings").click();
     await page.locator('[data-settings="mer"]').click();
-    for (const [level, word] of [[5, "bindebuer"], [7, "fortegn"]]) {
+    for (const [level, word] of [[5, "bindebuer"], [7, "løse fortegn"]]) {
       await page.locator(`[data-level="${level}"]`).evaluate((el) => el.click());
       assert.match(await page.locator("#levelHint").textContent(), new RegExp(word), `level ${level} hint`);
     }
