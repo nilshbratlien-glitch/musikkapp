@@ -699,7 +699,21 @@ describe("Bladlesing settings wording", () => {
     assert.match(text.instrument, /Instrument Instrument/);
     assert.match(text.instrument, /Notebilde/);
     assert.match(text.rytme, /Bindebuer/);
-    assert.match(text.toneart, /Fortegn/);
+    assert.match(text.toneart, /Løse fortegn/);
+    const a11y = await page.evaluate(() => {
+      const name = (el) => el.getAttribute("aria-labelledby").split(" ").map((id) => document.getElementById(id).textContent.trim()).join(" ");
+      const groups = [document.querySelector("#keysMajorChips"), document.querySelector("#keysMinorChips"), document.querySelector("#keysAll").parentElement];
+      return {
+        slider: name(document.querySelector("#chordChance")),
+        sliderLabelFor: document.querySelector("#chordChanceTitle").closest("label").htmlFor,
+        groups: groups.map((el) => [el.getAttribute("role"), name(el)]),
+      };
+    });
+    assert.deepEqual(a11y, {
+      slider: "Akkorder i linjen",
+      sliderLabelFor: "chordChance",
+      groups: [["group", "Tonearter Dur"], ["group", "Tonearter Moll"], ["group", "Tonearter"]],
+    });
     for (const [panel, value] of Object.entries(text)) assert.doesNotMatch(value, OLD_WORDS, `${panel}: ${value.match(OLD_WORDS)?.[0]}`);
     const clef = await page.locator("#clef").evaluate((el) => [...el.options].map((o) => [o.value, o.textContent]));
     assert.deepEqual(clef, [["auto", "Auto"], ["treble", "G-nøkkel"], ["bass", "F-nøkkel"], ["grand", "Pianosystem"]]);
