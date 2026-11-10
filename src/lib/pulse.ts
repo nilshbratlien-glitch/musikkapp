@@ -6,7 +6,7 @@ import { clickStep } from "./metronome.ts";
  * "replaced") and cuts everything it had scheduled.
  */
 export type PulseOwner = "metronom" | "snare" | "oveplan" | "bladlesing";
-export type PulseStopReason = "stopped" | "replaced";
+export type PulseStopReason = "stopped" | "replaced" | "stalled";
 export type PulseClick = { tick: number; time: number; accent: boolean; downbeat: boolean; beatIndex: number };
 export type PulseStart = {
   owner: PulseOwner;
@@ -34,17 +34,17 @@ const LOOKAHEAD_MS = 25;
 const AHEAD_S = 0.1;
 /** A click this late means the clock jumped (background tab, sleep), not a slow loop. */
 const LATE_S = 0.05;
-/** A context that is not running, or whose clock stands still, this long is replaced (once per start). */
-const STALL_MS = 500;
+/** A context that is not running, or whose clock stands still, this long gets one resume(); after another such wait playback stops. */
+const STALL_MS = 600;
 
 let ctx: AudioContext | null = null;
-/** The context has been running at least once, so a later non-running state is the system's doing (screen lock). */
-let ran = false;
+/** The context did not run again after resume(), so the next Start/Play replaces it. */
+let spent = false;
 let bus: GainNode | null = null;
 let clickBus: GainNode | null = null;
 let clicksOn = true;
 let timer: ReturnType<typeof setTimeout> | null = null;
-let run: (PulseStart & { next: number; tick: number; seenTime?: number; seenAt?: number; passAt?: number; renewed?: boolean }) | null = null;
+let run: (PulseStart & { next: number; tick: number; seenTime?: number; seenAt?: number; passAt?: number; resumed?: boolean }) | null = null;
 let state: PulseState = { owner: null, running: false, bpm: 80, beats: 4, sub: 1, beat: -1 };
 const listeners = new Set<() => void>();
 
@@ -64,10 +64,7 @@ export function subscribe(listener: () => void) {
   };
 }
 
-/**
- * The shared AudioContext, created on first use. Called from a Play/Start tap it also resumes
- * a context that is suspended or (iOS) interrupted, which only works inside the user gesture.
- */
+/** The shared AudioContext, created on first use. A context that is not running gets resume(). */
 export function audio() {
   if (ctx?.state === "closed") forget();
   if (!ctx) {
@@ -75,29 +72,29 @@ export function audio() {
     if (!Context) return null;
     ctx = new Context();
   }
-  if (ctx.state === "running") ran = true;
-  else void ctx.resume().catch(() => {});
+  if (ctx.state !== "running") void ctx.resume().catch(() => {});
   return ctx;
 }
 
 /**
- * The context for a Play/Start tap. One that ran before and no longer does (iOS suspended or
- * interrupted it while the screen was locked) is replaced here, inside the user gesture: a
- * context made later would start suspended and could not be resumed. Otherwise as audio().
+ * The context for a Play/Start tap. A suspended one just gets resume(). One that is interrupted
+ * (iOS, after the screen lock), closed, or marked spent by a stall is replaced here, inside the
+ * user gesture: a context made later would start suspended and could not be resumed.
  */
 export function unlock() {
-  if (ctx && ctx.state !== "running" && ran) renew();
+  const now = ctx?.state as string | undefined;
+  if (ctx && (spent || now === "interrupted" || now === "closed")) renew();
   return audio();
 }
 
 function forget() {
-  ran = false;
+  spent = false;
   ctx = null;
   bus = null;
   clickBus = null;
 }
 
-/** Close the stuck context and make a new one; nodes on the bus are rebuilt on next use. */
+/** Close the context and make a new one; nodes on the bus are rebuilt on next use. Only call it inside a user gesture. */
 export function renew() {
   const old = ctx;
   forget();
@@ -153,10 +150,11 @@ function click(c: AudioContext, time: number, kind: "accent" | "beat" | "sub") {
 function loop() {
   timer = null;
   const live = run;
-  let c = ctx;
+  const c = ctx;
   if (!live || !c) return;
   // A context that is not running (iOS suspended or interrupted it, e.g. after the screen was locked)
-  // has a frozen clock: nothing is scheduled until it runs. If it does not come back, replace it once.
+  // has a frozen clock: nothing is scheduled until it runs. After a wait it gets one resume(); if
+  // the clock still stands, playback stops (the UI shows it) and the next Start/Play replaces the context.
   const now = Date.now();
   // Our own timer was frozen too (screen locked, tab asleep): that is not a stall yet.
   if (live.passAt !== undefined && now - live.passAt > 10 * LOOKAHEAD_MS) live.seenAt = now;
@@ -164,15 +162,19 @@ function loop() {
   if (c.state === "running" && c.currentTime !== live.seenTime) {
     live.seenTime = c.currentTime;
     live.seenAt = now;
+    live.resumed = false;
   } else live.seenAt ??= now;
-  if (now - live.seenAt > STALL_MS && !live.renewed) {
-    live.renewed = true;
-    c = renew();
-    if (!c) return;
-    live.next = c.currentTime + 0.05;
-    live.seenTime = undefined;
+  if (now - live.seenAt > STALL_MS) {
+    if (live.resumed) {
+      spent = true;
+      stop(undefined, "stalled");
+      return;
+    }
+    live.resumed = true;
     live.seenAt = now;
-  } else if (c.state !== "running") {
+    void c.resume().catch(() => {});
+  }
+  if (c.state !== "running") {
     timer = setTimeout(loop, LOOKAHEAD_MS);
     return;
   }

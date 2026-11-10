@@ -213,3 +213,63 @@ describe("pulse core", () => {
     assert.deepEqual(beats.slice(2, 6), [2, 0, 1, 2], "carries on at beat 3, then bars of three");
   });
 });
+
+// Last in the file: these replace the context, and the helpers above read contexts[0].
+describe("a context the screen lock stopped", () => {
+  type Fake = { state: string; currentTime: number; resumes: number; resume: () => Promise<void> };
+  const latest = () => contexts.at(-1)! as unknown as Fake;
+  /** The clock stands still and resume() never settles, as on a locked iPad. */
+  const freeze = (ctx: Fake) => {
+    const frozen = ctx.currentTime;
+    Object.defineProperty(ctx, "currentTime", { get: () => frozen, configurable: true });
+    ctx.resume = () => {
+      ctx.resumes++;
+      return new Promise(() => {});
+    };
+  };
+  const tick = (ms: number) => {
+    for (let t = 0; t < ms; t += 25) mock.timers.tick(25);
+  };
+
+  it("unlock: a running context stays, a suspended one is resumed, an interrupted one is replaced in the tap", () => {
+    pulse.start({ owner: "metronom", bpm: 100 });
+    pulse.stop();
+    const first = latest();
+    assert.equal(pulse.unlock(), first as unknown, "running: the same context");
+    first.state = "suspended";
+    assert.equal(pulse.unlock(), first as unknown, "suspended: resume() first, no swap");
+    assert.equal(first.state, "running");
+    first.state = "interrupted";
+    const next = pulse.unlock();
+    assert.notEqual(next, first as unknown, "interrupted: a new context");
+    assert.equal(first.state, "closed", "and the old one is closed");
+    assert.equal(contexts.length, 2);
+  });
+
+  it("a frozen clock gets one resume(), then playback stops and the next Start replaces the context", () => {
+    const stops: string[] = [];
+    pulse.start({ owner: "metronom", bpm: 100, onStop: (why) => stops.push(why) });
+    const stuck = latest();
+    freeze(stuck);
+    const count = contexts.length;
+    tick(500);
+    assert.equal(pulse.getState().running, true, "not stopped yet");
+    tick(700);
+    assert.ok(stuck.resumes >= 1, "resume() was tried");
+    tick(700);
+    assert.equal(pulse.getState().running, false, "the UI state says stopped");
+    assert.deepEqual(stops, ["stalled"]);
+    assert.equal(contexts.length, count, "no new context outside a tap");
+
+    pulse.start({ owner: "metronom", bpm: 120 });
+    const fresh = latest();
+    assert.notEqual(fresh, stuck, "the tap made a new context");
+    assert.equal(stuck.state, "closed");
+    for (let t = 0; t < 1200; t += 25) {
+      fresh.currentTime += 0.025;
+      mock.timers.tick(25);
+    }
+    assert.ok(pulse.getState().beat >= 1, "and the beat moves past the first one");
+    assert.equal(pulse.getState().running, true);
+  });
+});

@@ -781,40 +781,70 @@ describe("Bladlesing settings wording", () => {
   }
 });
 
-// iPad after the screen lock: the shared AudioContext stays "interrupted", its clock stands still and
+// iPad after the screen lock: the shared AudioContext is "interrupted" or its clock stands still, and
 // resume() never settles. Playwright cannot lock a real iPad, so the context is faked stuck.
 describe("audio after the screen was locked", () => {
-  async function lockContext() {
-    await page.evaluate(() => {
+  async function lockContext(mode) {
+    await page.evaluate((how) => {
       const ctx = window.MusikkPulse.audio();
       window.__stuck = ctx;
       const frozen = ctx.currentTime;
-      Object.defineProperty(ctx, "state", { get: () => "interrupted", configurable: true });
+      if (how === "interrupted") Object.defineProperty(ctx, "state", { get: () => "interrupted", configurable: true });
       Object.defineProperty(ctx, "currentTime", { get: () => frozen, configurable: true });
       ctx.resume = () => new Promise(() => {});
-    });
+    }, mode);
   }
   const replaced = () => page.evaluate(() => window.MusikkPulse.audio() !== window.__stuck);
+  const pastFirstBeat = (timeout = 8000) => page.waitForFunction(() => window.MusikkPulse.getState().beat >= 1, null, { timeout });
 
-  it("Metronom: the first Start after the lock moves on from beat 1, in the sound and on screen", async () => {
+  it("Metronom, interrupted: the first Start after the lock moves on from beat 1, in the sound and on screen", async () => {
     await open("/metronom");
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.getByRole("button", { name: "Stopp", exact: true }).click();
-    await lockContext();
+    await lockContext("interrupted");
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => window.MusikkPulse.getState().beat >= 1, null, { timeout: 8000 });
+    await pastFirstBeat();
     const dot = await page.evaluate(() => [...document.querySelectorAll(".metro-badge")].findIndex((el) => el.classList.contains("is-active")));
     assert.ok(dot >= 0, "a beat dot is lit");
-    assert.ok(await replaced(), "the stuck context was replaced");
+    assert.ok(await replaced(), "the stuck context was replaced in the tap");
     assert.ok(await page.evaluate(() => window.__probe.starts.some((s) => s.ctx >= 1)), "clicks play on the new context");
   });
 
-  it("Bladlesing: Play after the lock starts clicking past the first beat", async () => {
+  it("Metronom, clock freezes while playing: it stops, the screen shows stopped, the next Start works", async () => {
+    await open("/metronom");
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await pastFirstBeat();
+    await lockContext("frozen");
+    await page.waitForFunction(() => !window.MusikkPulse.getState().running, null, { timeout: 8000 });
+    assert.equal(await replaced(), false, "nothing was swapped outside a tap");
+    assert.equal(await page.getByRole("button", { name: "Start", exact: true }).isEnabled(), true, "Start is available again");
+    assert.equal(await page.locator(".metro-badge.is-active").count(), 0, "no beat dot is lit");
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await pastFirstBeat();
+    assert.equal(await page.evaluate(() => window.MusikkPulse.audio() !== window.__stuck), true, "the tap replaced the context");
+    assert.ok(await page.evaluate(() => window.__probe.starts.some((s) => s.ctx >= 1)), "clicks play on the new context");
+  });
+
+  it("Bladlesing, clock frozen but state running: Play stops with the button reset, the next Play plays on a new context", async () => {
     await open("/");
     await page.waitForSelector("#score svg");
-    await lockContext();
+    await lockContext("frozen");
     await page.locator("#btnPlay").click();
-    await page.waitForFunction(() => window.MusikkPulse.getState().beat >= 1, null, { timeout: 10000 });
-    assert.ok(await replaced(), "the stuck context was replaced");
+    await page.waitForFunction(() => window.MusikkPulse.getState().running, null, { timeout: 8000 });
+    await page.waitForFunction(() => !window.MusikkPulse.getState().running, null, { timeout: 8000 });
+    assert.equal(await replaced(), false, "nothing was swapped outside a tap");
+    assert.equal(await page.locator("#btnPlay").evaluate((el) => el.classList.contains("on")), false, "Play shows stopped");
+    await page.locator("#btnPlay").click();
+    await pastFirstBeat(12000);
+    assert.equal(await page.evaluate(() => window.MusikkPulse.audio() !== window.__stuck), true, "the tap replaced the context");
+  });
+
+  it("Bladlesing, interrupted with a resume() that hangs: Play starts at once", async () => {
+    await open("/");
+    await page.waitForSelector("#score svg");
+    await lockContext("interrupted");
+    await page.locator("#btnPlay").click();
+    await pastFirstBeat(12000);
+    assert.ok(await replaced(), "the stuck context was replaced in the tap");
   });
 });

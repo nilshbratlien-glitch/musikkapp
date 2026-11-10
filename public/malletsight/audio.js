@@ -299,7 +299,7 @@
     stopPlayback();
     opts = opts || {};
     const token = playToken;
-    const c = Pulse.unlock();
+    Pulse.unlock();
     const quarterBpm = Number(opts.quarterBpm) || tempo || 80;
     const clickBpm = Number(opts.clickBpm) || quarterBpm;
     const beats = Math.max(1, opts.beatsPerBar || 4);
@@ -312,6 +312,7 @@
 
     const kick = () => {
       if (token !== playToken) return;
+      const c = ac();
       if (!score || !score.measures) {
         const cb = onPlayDone;
         onPlayDone = null;
@@ -399,8 +400,7 @@
     const go = () => {
       loadInstrument(instId).then(() => { if (token === playToken) kick(); }).catch(() => { if (token === playToken) kick(); });
     };
-    if (c.state === "running") go();
-    else c.resume().then(go).catch(go);
+    go();
   }
 
   function setClicks(on) {
