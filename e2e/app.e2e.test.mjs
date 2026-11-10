@@ -844,6 +844,26 @@ describe("audio after the screen was locked", () => {
     assert.ok((await headerSeconds()) < left, "and counts down again");
   });
 
+  it("Øveplan, clock freezes during play-along in a SRF block: the plan pauses with its time kept, and the next Play carries on", async () => {
+    await open("/oveplan", plan(["srf"]));
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForSelector("#score svg");
+    await lockContext("frozen");
+    await page.locator("#btnPlay").click();
+    await page.waitForFunction(() => window.MusikkPulse.getState().running, null, { timeout: 8000 });
+    await page.waitForFunction(() => !window.MusikkPulse.getState().running, null, { timeout: 8000 });
+    assert.equal(await header().getAttribute("aria-pressed"), "true", "the plan is paused, like the pause button");
+    const left = await headerSeconds();
+    await page.waitForTimeout(2200);
+    assert.equal(await headerSeconds(), left, "the time left stands still");
+    await page.locator("#btnPlay").click();
+    await pastFirstBeat(12000);
+    assert.equal(await header().getAttribute("aria-pressed"), "false", "the block carries on");
+    await page.waitForTimeout(2200);
+    assert.ok((await headerSeconds()) < left, "and counts down again");
+  });
+
   it("Bladlesing, clock frozen but state running: Play stops with the button reset, the next Play plays on a new context", async () => {
     await open("/");
     await page.waitForSelector("#score svg");

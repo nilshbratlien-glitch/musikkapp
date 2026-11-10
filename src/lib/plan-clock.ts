@@ -17,7 +17,7 @@ import {
   type BlockId,
   BLOCK_COLOR,
 } from "./oveplan.ts";
-import { chime, getState as pulseState, type PulseStart, setBpm as pulseBpm, setMeter as pulseMeter, start as pulseStart, stop as pulseStop, subscribe as subscribePulse } from "./pulse.ts";
+import { chime, getState as pulseState, type PulseStart, setBpm as pulseBpm, setMeter as pulseMeter, onStall, start as pulseStart, stop as pulseStop, subscribe as subscribePulse } from "./pulse.ts";
 
 export type PlanClock = {
   store: PlanStore;
@@ -98,6 +98,13 @@ export function ensurePlanClock() {
   savePlanStore(clock.store);
   if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
   subscribePulse(followPulse);
+  // The pulse gave up (its audio clock stood still), whoever played: pause the block like the pause button
+  // does, keep the time left, and let the next Start/Play carry on (the plan's own metronome again).
+  onStall((owner) => {
+    const running = !!clock.activeId && !clock.blockPaused && clock.timer != null;
+    pauseBlock();
+    if (running && owner === "oveplan") clock.metroHeld = true;
+  });
   return clock;
 }
 
@@ -131,17 +138,10 @@ export function startPlanMetro() {
     bpm: clock.store.bpm,
     beats: clock.store.beats,
     sub: clock.store.sub,
-    onStop: (reason) => {
+    onStop: () => {
       clock.metroRunning = false;
       syncWake();
       touchPlanClock();
-      // The metronome gave up (its audio clock stood still): pause the block like the pause button does,
-      // keep the time left, and let the next Start/Play carry on, with the metronome again.
-      if (reason === "stalled") {
-        const running = !!clock.activeId && !clock.blockPaused && clock.timer != null;
-        pauseBlock();
-        if (running) clock.metroHeld = true;
-      }
     },
   });
   clock.metroRunning = started;

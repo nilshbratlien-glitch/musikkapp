@@ -57,6 +57,16 @@ export function getState() {
   return state;
 }
 
+const stallListeners = new Set<(owner: PulseOwner | null) => void>();
+
+/** Called after the pulse stopped by itself ("stalled"), whoever owned it. Returns the unsubscribe. */
+export function onStall(listener: (owner: PulseOwner | null) => void) {
+  stallListeners.add(listener);
+  return () => {
+    stallListeners.delete(listener);
+  };
+}
+
 export function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => {
@@ -167,7 +177,9 @@ function loop() {
   if (now - live.seenAt > STALL_MS) {
     if (live.resumed) {
       spent = true;
+      const owner = state.owner;
       stop(undefined, "stalled");
+      for (const listener of stallListeners) listener(owner);
       return;
     }
     live.resumed = true;
