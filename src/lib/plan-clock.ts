@@ -131,10 +131,17 @@ export function startPlanMetro() {
     bpm: clock.store.bpm,
     beats: clock.store.beats,
     sub: clock.store.sub,
-    onStop: () => {
+    onStop: (reason) => {
       clock.metroRunning = false;
       syncWake();
       touchPlanClock();
+      // The metronome gave up (its audio clock stood still): pause the block like the pause button does,
+      // keep the time left, and let the next Start/Play carry on, with the metronome again.
+      if (reason === "stalled") {
+        const running = !!clock.activeId && !clock.blockPaused && clock.timer != null;
+        pauseBlock();
+        if (running) clock.metroHeld = true;
+      }
     },
   });
   clock.metroRunning = started;
