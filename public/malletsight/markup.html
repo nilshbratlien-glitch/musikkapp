@@ -60,7 +60,7 @@
       <div class="settings-panel" data-settings-panel="instrument" hidden>
         <button type="button" class="settings-back" data-settings-back>Tilbake</button>
         <h3 class="settings-title">Instrument</h3>
-        <div class="row"><label>Klaviatur</label><select id="instrument"></select></div>
+        <div class="row"><label>Instrument</label><select id="instrument"></select></div>
         <div class="row"><label>Køller</label>
           <select id="mallets">
             <option value="2">2</option>
@@ -68,14 +68,14 @@
             <option value="4">4</option>
           </select>
         </div>
-        <div class="row" id="textureRow"><label>Tekstur</label><select id="texture"></select></div>
+        <div class="row" id="textureRow"><label>Notebilde</label><select id="texture"></select></div>
         <div id="chordChanceRow">
-          <div class="row"><label><span id="chordChanceTitle">Akkorder i linjen</span> <span id="chordChanceLbl">28%</span></label></div>
-          <input type="range" id="chordChance" min="5" max="80" value="28" />
+          <div class="row"><label for="chordChance"><span id="chordChanceTitle">Akkorder i linjen</span> <span id="chordChanceLbl">28%</span></label></div>
+          <input type="range" id="chordChance" aria-labelledby="chordChanceTitle" min="5" max="80" value="28" />
           <p class="hint" id="chordChanceHint">Melodien fortsetter, og ekstra toner kommer på noen lengre verdier.</p>
         </div>
         <div id="doubleStopRow">
-          <p class="hint">Tillatte intervaller for dobbeltgrep</p>
+          <p class="hint">Tillatte intervaller for akkorder</p>
           <div class="chips" id="stopIntervals"></div>
           <div class="row"><label>Andre kølle</label>
             <select id="stopPlace">
@@ -112,7 +112,7 @@
         </div>
         <label class="toggle"><span>Synkoper</span><input type="checkbox" id="syncopation" /></label>
         <p class="hint">Skyver én tone bort fra slaget, så den holdes over neste puls. Resten av takten beholder rytmene du valgte.</p>
-        <label class="toggle"><span>Overbindinger</span><input type="checkbox" id="ties" /></label>
+        <label class="toggle"><span>Bindebuer</span><input type="checkbox" id="ties" /></label>
       </div>
 
       <div class="settings-panel" data-settings-panel="register" hidden>
@@ -130,20 +130,20 @@
         <button type="button" class="settings-back" data-settings-back>Tilbake</button>
         <h3 class="settings-title">Toneart</h3>
         <div class="row">
-          <label>Tonearter</label>
+          <label id="keysLabel">Tonearter</label>
           <span id="keyModeHint" class="hint"></span>
         </div>
-        <div class="chips key-presets">
+        <div class="chips key-presets" role="group" aria-labelledby="keysLabel">
           <button type="button" class="chip" id="keysAll">Alle</button>
           <button type="button" class="chip" id="keysMajor">Dur</button>
           <button type="button" class="chip" id="keysMinor">Moll</button>
         </div>
-        <p class="hint">Dur</p>
-        <div class="chips" id="keysMajorChips"></div>
-        <p class="hint">Moll</p>
-        <div class="chips" id="keysMinorChips"></div>
+        <p class="hint" id="keysMajorLabel">Dur</p>
+        <div class="chips" id="keysMajorChips" role="group" aria-labelledby="keysLabel keysMajorLabel"></div>
+        <p class="hint" id="keysMinorLabel">Moll</p>
+        <div class="chips" id="keysMinorChips" role="group" aria-labelledby="keysLabel keysMinorLabel"></div>
         <p class="hint" id="keyPickHint">Én toneart står fast. To eller flere går rundt kvintsirkelen, med færrest fortegn først, og gjentas.</p>
-        <label class="toggle"><span>Forsetningstegn</span><input type="checkbox" id="accidentals" /></label>
+        <label class="toggle"><span>Løse fortegn</span><input type="checkbox" id="accidentals" /></label>
         <p class="hint">Kromatiske nabotoner utenfor tonearten. Neste tone går tilbake til skalaen. Ledetoner i moll skrives alltid.</p>
         <label class="toggle"><span>Start på grunntonen</span><input type="checkbox" id="startTonic" /></label>
         <label class="toggle"><span>Slutt på grunntonen</span><input type="checkbox" id="endTonic" /></label>
@@ -164,7 +164,7 @@
           <button type="button" class="chip" data-level="9">9</button>
           <button type="button" class="chip" data-level="10">10</button>
         </div>
-        <p class="hint" id="levelHint">Nivå 1–10. Hvert trinn legger til litt: rytmer, pauser, sprang, deretter overbindinger, synkoper, forsetningstegn og dynamikk.</p>
+        <p class="hint" id="levelHint">Nivå 1–10. Hvert trinn legger til litt: rytmer, pauser, sprang, deretter bindebuer, synkoper, fortegn og dynamikk.</p>
         <div class="row"><label>Taktart</label><select id="time"></select></div>
         <div class="row"><label>Takter</label>
           <select id="measures">

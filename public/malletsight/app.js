@@ -206,9 +206,9 @@
     { rhythms: ["h", "q"], rests: ["h", "q"], maxLeap: 3, rhythmDensity: 1, measures: 4, allowRests: true, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Pauser, og sprang på en ters." },
     { rhythms: ["h", "q", "8"], rests: ["q", "8"], maxLeap: 3, rhythmDensity: 2, measures: 4, allowRests: true, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Åttendeler kommer inn. Sprangene er små." },
     { rhythms: ["hd", "h", "q", "8"], rests: ["h", "q", "8"], maxLeap: 4, rhythmDensity: 2, measures: 8, allowRests: true, syncopation: false, ties: false, accidentals: false, dynamics: false, hint: "Punkterte halvnoter. Sprang på en kvart." },
-    { rhythms: ["h", "q", "qd", "8"], rests: ["q", "8"], maxLeap: 5, rhythmDensity: 3, measures: 8, allowRests: true, syncopation: false, ties: true, accidentals: false, dynamics: false, hint: "Punkterte fjerdedeler og overbindinger. Sprang på en kvint." },
+    { rhythms: ["h", "q", "qd", "8"], rests: ["q", "8"], maxLeap: 5, rhythmDensity: 3, measures: 8, allowRests: true, syncopation: false, ties: true, accidentals: false, dynamics: false, hint: "Punkterte fjerdedeler og bindebuer. Sprang på en kvint." },
     { rhythms: ["q", "qd", "8", "8d", "16"], rests: ["q", "8"], maxLeap: 5, rhythmDensity: 3, measures: 8, allowRests: true, syncopation: false, ties: true, accidentals: false, dynamics: false, hint: "Sekstendeler og punkterte åttendeler." },
-    { rhythms: ["q", "qd", "8", "8d", "16"], rests: ["q", "8", "16"], maxLeap: 6, rhythmDensity: 4, measures: 8, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Synkoper, forsetningstegn og dynamikk. Sprang på en sekst." },
+    { rhythms: ["q", "qd", "8", "8d", "16"], rests: ["q", "8", "16"], maxLeap: 6, rhythmDensity: 4, measures: 8, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Synkoper, løse fortegn og dynamikk. Sprang på en sekst." },
     { rhythms: ["q", "qd", "8", "16", "8t"], rests: ["q", "8"], maxLeap: 6, rhythmDensity: 4, measures: 12, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Åttendelstrioler." },
     { rhythms: ["q", "qd", "8", "8d", "16", "16d", "8t"], rests: ["q", "8", "16"], maxLeap: 8, rhythmDensity: 5, measures: 12, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Punkterte sekstendeler og oktavsprang." },
     { rhythms: ["q", "qd", "qdd", "8", "8d", "16", "16d", "32", "8t", "16t"], rests: ["q", "8", "16"], maxLeap: 8, rhythmDensity: 5, measures: 12, allowRests: true, syncopation: true, ties: true, accidentals: true, dynamics: true, hint: "Trettitodeler og sekstendelstrioler. Full miks." },
@@ -440,16 +440,16 @@
   function textureOptions() {
     if (settings.mallets === 2) {
       return [
-        { id: "mixed", name: "Melodi med dobbeltgrep" },
+        { id: "mixed", name: "Melodi med akkorder" },
         { id: "melody", name: "Bare én linje" },
-        { id: "doublestops", name: "Mest dobbeltgrep" },
+        { id: "doublestops", name: "Mest akkorder" },
       ];
     }
     if (settings.mallets === 3) {
       return [
         { id: "mixed", name: "Melodi med akkorder" },
         { id: "melody", name: "Bare én linje" },
-        { id: "block", name: "Bare blokker med tre toner" },
+        { id: "block", name: "Bare treklanger" },
       ];
     }
     return [
@@ -480,9 +480,9 @@
       $("#clef"),
       [
         { id: "auto", name: "Auto" },
-        { id: "treble", name: "Diskant" },
-        { id: "bass", name: "Bass" },
-        { id: "grand", name: "Dobbelt system" },
+        { id: "treble", name: "G-nøkkel" },
+        { id: "bass", name: "F-nøkkel" },
+        { id: "grand", name: "Pianosystem" },
       ],
       settings.clef
     );
@@ -566,7 +566,7 @@
     const ds = $("#doubleStopRow");
     if (ds) ds.hidden = !twoStop;
     if ($("#chordChanceTitle")) {
-      $("#chordChanceTitle").textContent = settings.mallets === 2 ? "Dobbeltgrep i linjen" : "Akkorder i linjen";
+      $("#chordChanceTitle").textContent = "Akkorder i linjen";
     }
     if ($("#chordChanceHint")) {
       $("#chordChanceHint").textContent = settings.mallets === 2
