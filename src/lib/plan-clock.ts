@@ -72,8 +72,10 @@ export function bindPlanNavigate(fn: (to: string) => void) {
 
 export type PlanBroadcastHook = {
   onStart?: (item: PlanItem, endsAt: number) => void;
+  onArm?: (item: PlanItem) => void;
   onPause?: (remainMs: number) => void;
   onResume?: (endsAt: number) => void;
+  onStop?: () => void;
   onBpm?: (bpm: number) => void;
   onMeter?: (beats: number, sub: number) => void;
 };
@@ -276,6 +278,7 @@ function armBlock(next: PlanItem) {
   openBlockTool(next.id);
   syncWake();
   touchPlanClock();
+  planBroadcastHook?.onArm?.(next);
 }
 
 function openBlockTool(id: BlockId) {
@@ -302,6 +305,7 @@ export function endCurrent(justId: string) {
     saveSession("");
     syncWake();
     touchPlanClock();
+    planBroadcastHook?.onStop?.();
     return;
   }
   armBlock(next);
@@ -398,7 +402,7 @@ export function beginBlockRemote(
   blockId: BlockId,
   mins: number,
   bpm: number,
-  meter: string,
+  beats: number,
   sub: number,
   endsAt: number,
 ) {
@@ -410,12 +414,51 @@ export function beginBlockRemote(
   clock.blockPaused = false;
   clock.metroHeld = false;
   clock.store.bpm = clampBpm(bpm);
+  clock.store.beats = beats;
   clock.store.sub = sub;
   clock.startLabel = "Pause";
   startTimer();
   blockSound(blockId);
   syncWake();
   tick();
+}
+
+export function armBlockRemote(
+  blockId: BlockId,
+  mins: number,
+  bpm: number,
+  beats: number,
+  sub: number,
+) {
+  if (clock.activeId && clock.activeId !== blockId) saveBlockBpm(clock.activeId);
+  clock.forceSetup = false;
+  clock.activeId = blockId;
+  clock.blockRemainMs = Math.max(0, mins * 60 * 1000);
+  clock.blockEndsAt = 0;
+  clock.blockPaused = true;
+  clock.metroHeld = false;
+  clock.store.bpm = clampBpm(bpm);
+  clock.store.beats = beats;
+  clock.store.sub = sub;
+  stopTimer();
+  stopPlanMetro();
+  syncLeft();
+  clock.startLabel = "Start";
+  clock.live = blockName(blockId);
+  syncWake();
+  touchPlanClock();
+}
+
+export function stopPlanRemote() {
+  clock.activeId = null;
+  clock.forceSetup = false;
+  clock.metroHeld = false;
+  stopPlanMetro();
+  clearClock();
+  clock.startLabel = "Start";
+  clock.live = "Ferdig";
+  syncWake();
+  touchPlanClock();
 }
 
 export function pauseBlockRemote(remainMs: number) {
@@ -471,6 +514,7 @@ export function togglePlanClock() {
     saveSession("");
     syncWake();
     touchPlanClock();
+    planBroadcastHook?.onStop?.();
     return;
   }
   beginBlock(next);
@@ -491,6 +535,7 @@ export function resetPlan() {
   persist();
   syncWake();
   touchPlanClock();
+  planBroadcastHook?.onStop?.();
 }
 
 export function finishPlanBlock() {

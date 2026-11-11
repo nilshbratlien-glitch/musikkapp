@@ -1,5 +1,6 @@
-import { blockTool, playsMetronome, type BlockId } from "@/lib/oveplan";
+import { blockTool, type BlockId } from "@/lib/oveplan";
 import {
+  armBlockRemote,
   beginBlockRemote,
   getPlanClock,
   pauseBlockRemote,
@@ -7,7 +8,7 @@ import {
   setPlanBpm,
   setPlanBroadcastHook,
   setPlanMeter,
-  stopPlanMetro,
+  stopPlanRemote,
 } from "@/lib/plan-clock";
 import { setMasterMuted, start as pulseStart, stop as pulseStop } from "@/lib/pulse";
 import { broadcastSync, getSyncState, onSyncPayload, subscribeSyncState } from "./room";
@@ -24,7 +25,7 @@ export function initSyncBridge() {
   if (initialized) return;
   initialized = true;
 
-  // Register broadcast hook so controller broadcasts its actions automatically
+  // Register broadcast hook so controller broadcasts all block lifecycle actions automatically
   setPlanBroadcastHook({
     onStart: (item, endsAt) => {
       const clock = getPlanClock();
@@ -32,18 +33,29 @@ export function initSyncBridge() {
         item.id,
         item.mins,
         clock.store.bpm,
-        `${clock.store.beats}/4`,
+        clock.store.beats,
         clock.store.sub,
         item.mins * 60,
         endsAt,
       );
     },
+    onArm: (item) => {
+      const clock = getPlanClock();
+      syncPlanArm(
+        item.id,
+        item.mins,
+        clock.store.bpm,
+        clock.store.beats,
+        clock.store.sub,
+      );
+    },
     onPause: (remainMs) => syncPlanPause(remainMs),
     onResume: (endsAt) => syncPlanResume(endsAt),
+    onStop: () => syncPlanStop(),
     onBpm: (bpm) => syncMetroSet(bpm),
     onMeter: (beats, sub) => {
       const clock = getPlanClock();
-      syncMetroSet(clock.store.bpm, `${beats}/4`, sub);
+      syncMetroSet(clock.store.bpm, beats, sub);
     },
   });
 
@@ -69,9 +81,24 @@ export function initSyncBridge() {
           payload.blockId as BlockId,
           payload.mins,
           payload.bpm,
-          payload.meter,
+          payload.beats,
           payload.sub,
           payload.endsAt,
+        );
+        const to = blockTool(payload.blockId as BlockId);
+        if (to && routerNavigate) {
+          routerNavigate(to);
+        }
+        break;
+      }
+
+      case "PLAN_ARM": {
+        armBlockRemote(
+          payload.blockId as BlockId,
+          payload.mins,
+          payload.bpm,
+          payload.beats,
+          payload.sub,
         );
         const to = blockTool(payload.blockId as BlockId);
         if (to && routerNavigate) {
@@ -90,9 +117,8 @@ export function initSyncBridge() {
         break;
       }
 
-      case "PLAN_FINISH": {
-        // Just pause sound when block finishes
-        stopPlanMetro();
+      case "PLAN_STOP": {
+        stopPlanRemote();
         break;
       }
 
@@ -105,6 +131,9 @@ export function initSyncBridge() {
 
       case "METRO_SET": {
         setPlanBpm(payload.bpm);
+        if (payload.beats != null && payload.sub != null) {
+          setPlanMeter(payload.beats, payload.sub);
+        }
         break;
       }
 
@@ -113,7 +142,7 @@ export function initSyncBridge() {
           pulseStart({
             owner: "metronom",
             bpm: payload.bpm,
-            beats: 4,
+            beats: payload.beats ?? 4,
             sub: payload.sub ?? 1,
           });
         }
@@ -133,7 +162,7 @@ export function syncPlanStart(
   blockId: string,
   mins: number,
   bpm: number,
-  meter: string,
+  beats: number,
   sub: number,
   durationSec: number,
   endsAt: number,
@@ -145,10 +174,29 @@ export function syncPlanStart(
     blockId,
     mins,
     bpm,
-    meter,
+    beats,
     sub,
     durationSec,
     endsAt,
+  });
+}
+
+export function syncPlanArm(
+  blockId: string,
+  mins: number,
+  bpm: number,
+  beats: number,
+  sub: number,
+) {
+  const state = getSyncState();
+  if (!state.connected || state.role !== "controller") return;
+  broadcastSync({
+    type: "PLAN_ARM",
+    blockId,
+    mins,
+    bpm,
+    beats,
+    sub,
   });
 }
 
@@ -170,6 +218,14 @@ export function syncPlanResume(endsAt: number) {
   });
 }
 
+export function syncPlanStop() {
+  const state = getSyncState();
+  if (!state.connected || state.role !== "controller") return;
+  broadcastSync({
+    type: "PLAN_STOP",
+  });
+}
+
 export function syncPlanNavigate(to: string) {
   const state = getSyncState();
   if (!state.connected || state.role !== "controller") return;
@@ -179,24 +235,24 @@ export function syncPlanNavigate(to: string) {
   });
 }
 
-export function syncMetroSet(bpm: number, meter?: string, sub?: number) {
+export function syncMetroSet(bpm: number, beats?: number, sub?: number) {
   const state = getSyncState();
   if (!state.connected || state.role !== "controller") return;
   broadcastSync({
     type: "METRO_SET",
     bpm,
-    meter,
+    beats,
     sub,
   });
 }
 
-export function syncMetroStart(bpm: number, meter?: string, sub?: number) {
+export function syncMetroStart(bpm: number, beats?: number, sub?: number) {
   const state = getSyncState();
   if (!state.connected || state.role !== "controller") return;
   broadcastSync({
     type: "METRO_START",
     bpm,
-    meter,
+    beats,
     sub,
   });
 }
