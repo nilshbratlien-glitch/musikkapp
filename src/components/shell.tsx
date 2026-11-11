@@ -1,8 +1,12 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Drum, FileText, Music, Pause, Piano, Play } from "lucide-react";
+import { Drum, FileText, Music, Pause, Piano, Play, Wifi } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { SyncModal } from "@/components/sync-modal";
 import { blockName, blockStyle, fmtClock, type BlockId } from "@/lib/oveplan";
 import { bindPlanNavigate, ensurePlanClock, getPlanClock, getPlanClockVersion, subscribePlanClock, togglePlanClock } from "@/lib/plan-clock";
+import { initSyncBridge, registerSyncNavigator } from "@/lib/sync/bridge";
+import { autoReconnectIfConfigured } from "@/lib/sync/room";
+import { useSync } from "@/lib/sync/use-sync";
 import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
 
 const ICONS: Record<ToolId, typeof Music> = {
@@ -93,11 +97,18 @@ export function Shell() {
   const tool = toolForPath(pathname);
   const install = useInstall();
   const navigate = useNavigate();
+  const sync = useSync();
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
 
   useEffect(() => {
     bindPlanNavigate((to) => {
       if (window.location.pathname !== to) void navigate({ to });
     });
+    registerSyncNavigator((to) => {
+      if (window.location.pathname !== to) void navigate({ to });
+    });
+    initSyncBridge();
+    autoReconnectIfConfigured();
   }, [navigate]);
 
   useEffect(() => {
@@ -119,6 +130,20 @@ export function Shell() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <PlanHeaderTimer />
+            <button
+              type="button"
+              onClick={() => setSyncModalOpen(true)}
+              aria-label="Skjerm-synkronisering"
+              title={sync.connected ? `Tilkoblet rom ${sync.roomCode}` : "Synkroniser skjermer"}
+              className={
+                sync.connected
+                  ? "metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-ok/40 bg-ok/10 px-2.5 text-xs font-semibold text-ok"
+                  : "metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-medium text-muted hover:text-fg"
+              }
+            >
+              <Wifi className={sync.connected ? "size-3.5 text-ok" : "size-3.5 text-muted"} />
+              <span className="hidden sm:inline">{sync.connected ? sync.roomCode : "Synk"}</span>
+            </button>
             {install.standalone ? null : (
               <button
                 type="button"
@@ -132,6 +157,7 @@ export function Shell() {
         </div>
         {install.message ? <p className="mt-2 text-sm text-muted">{install.message}</p> : null}
       </header>
+      <SyncModal open={syncModalOpen} onClose={() => setSyncModalOpen(false)} />
       <main
         className={
           sheet

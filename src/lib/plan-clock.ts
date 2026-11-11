@@ -69,6 +69,21 @@ let navigate: (to: string) => void = () => {};
 export function bindPlanNavigate(fn: (to: string) => void) {
   navigate = fn;
 }
+
+export type PlanBroadcastHook = {
+  onStart?: (item: PlanItem, endsAt: number) => void;
+  onPause?: (remainMs: number) => void;
+  onResume?: (endsAt: number) => void;
+  onBpm?: (bpm: number) => void;
+  onMeter?: (beats: number, sub: number) => void;
+};
+
+let planBroadcastHook: PlanBroadcastHook | null = null;
+
+export function setPlanBroadcastHook(hook: PlanBroadcastHook) {
+  planBroadcastHook = hook;
+}
+
 let ready = false;
 let version = 0;
 const listeners = new Set<() => void>();
@@ -157,6 +172,7 @@ export function setPlanMeter(beats: number, sub: number) {
   persist();
   if (clock.metroRunning) pulseMeter(beats, sub);
   touchPlanClock();
+  planBroadcastHook?.onMeter?.(beats, sub);
 }
 
 export function stopTimer() {
@@ -210,6 +226,7 @@ export function setPlanBpm(value: number) {
   persist();
   if (clock.metroRunning) pulseBpm(clock.store.bpm);
   touchPlanClock();
+  planBroadcastHook?.onBpm?.(clock.store.bpm);
 }
 
 function applyBlockBpm(id: string) {
@@ -338,6 +355,7 @@ export function beginBlock(next: PlanItem, quiet = false) {
   blockSound(next.id);
   syncWake();
   tick();
+  planBroadcastHook?.onStart?.(next, clock.blockEndsAt);
 }
 
 export function pauseBlock() {
@@ -355,6 +373,7 @@ export function pauseBlock() {
   clock.startLabel = "Fortsett";
   syncWake();
   touchPlanClock();
+  planBroadcastHook?.onPause?.(clock.blockRemainMs);
 }
 
 export function resumeBlock() {
@@ -362,6 +381,66 @@ export function resumeBlock() {
   clock.forceSetup = false;
   clock.blockPaused = false;
   clock.blockEndsAt = Date.now() + clock.blockRemainMs;
+  clock.startLabel = "Pause";
+  syncLeft();
+  startTimer();
+  if (clock.metroHeld || playsMetronome(clock.activeId)) {
+    clock.metroHeld = false;
+    startPlanMetro();
+  }
+  syncWake();
+  touchPlanClock();
+  planBroadcastHook?.onResume?.(clock.blockEndsAt);
+}
+
+/** Remote control methods invoked when receiving commands from a paired controller. */
+export function beginBlockRemote(
+  blockId: BlockId,
+  mins: number,
+  bpm: number,
+  meter: string,
+  sub: number,
+  endsAt: number,
+) {
+  if (clock.activeId && clock.activeId !== blockId) saveBlockBpm(clock.activeId);
+  clock.forceSetup = false;
+  clock.activeId = blockId;
+  clock.blockEndsAt = endsAt;
+  clock.blockRemainMs = Math.max(0, endsAt - Date.now());
+  clock.blockPaused = false;
+  clock.metroHeld = false;
+  clock.store.bpm = clampBpm(bpm);
+  clock.store.sub = sub;
+  clock.startLabel = "Pause";
+  startTimer();
+  blockSound(blockId);
+  syncWake();
+  tick();
+}
+
+export function pauseBlockRemote(remainMs: number) {
+  if (!clock.activeId) return;
+  clock.blockRemainMs = remainMs;
+  clock.blockPaused = true;
+  clock.blockEndsAt = 0;
+  stopTimer();
+  syncLeft();
+  if (clock.metroRunning) {
+    clock.metroHeld = true;
+    stopPlanMetro();
+  }
+  clock.live = `${blockName(clock.activeId)} — ${fmtClock(clock.blockLeft)}`;
+  clock.startLabel = "Fortsett";
+  syncWake();
+  touchPlanClock();
+}
+
+export function resumeBlockRemote(endsAt: number) {
+  if (!clock.activeId) return;
+  clock.forceSetup = false;
+  clock.blockPaused = false;
+  clock.blockEndsAt = endsAt;
+  clock.blockRemainMs = Math.max(0, endsAt - Date.now());
   clock.startLabel = "Pause";
   syncLeft();
   startTimer();

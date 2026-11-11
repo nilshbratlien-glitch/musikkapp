@@ -12,6 +12,7 @@ import {
   subscribePlanClock,
 } from "@/lib/plan-clock";
 import { getState, setBpm as pulseBpm, setMeter as pulseMeter, stop as pulseStop, subscribe } from "@/lib/pulse";
+import { syncMetroSet, syncMetroStart, syncMetroStop } from "@/lib/sync/bridge";
 import { readToolStore, writeToolStore } from "@/lib/tools";
 
 function savedMeter(value: unknown): Meter {
@@ -71,10 +72,12 @@ export function PlainMetronome() {
   function start() {
     if (playing) return;
     startFromMetronom({ owner: "metronom", bpm: bpmRef.current, beats: beatsInMeter(meterRef.current), sub: subRef.current });
+    syncMetroStart(bpmRef.current, meterRef.current, subRef.current);
   }
 
   function stop() {
     stopFromMetronom();
+    syncMetroStop();
   }
 
   function changeBpm(next: number) {
@@ -87,6 +90,7 @@ export function PlainMetronome() {
     bpmRef.current = value;
     if (playing) pulseBpm(value);
     remember();
+    syncMetroSet(value, meterRef.current, subRef.current);
   }
 
   function changeMeter(next: Meter) {
@@ -98,6 +102,7 @@ export function PlainMetronome() {
     meterRef.current = next;
     if (playing) pulseMeter(beatsInMeter(next), subRef.current);
     remember();
+    syncMetroSet(bpmRef.current, next, subRef.current);
   }
 
   function changeSubdivision(next: Subdivision) {
@@ -109,6 +114,7 @@ export function PlainMetronome() {
     subRef.current = next;
     if (playing) pulseMeter(beatsInMeter(meterRef.current), next);
     remember();
+    syncMetroSet(bpmRef.current, meterRef.current, next);
   }
 
   // While the plan runs the tab, every readout comes from the pulse (playing) or the plan store (paused).
