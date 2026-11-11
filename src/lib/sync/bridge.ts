@@ -1,16 +1,17 @@
-import { blockTool, type BlockId } from "@/lib/oveplan";
+import { blockTool, playsMetronome, type BlockId } from "@/lib/oveplan";
 import {
   armBlockRemote,
   beginBlockRemote,
   getPlanClock,
   pauseBlockRemote,
   resumeBlockRemote,
-  setPlanBpm,
   setPlanBroadcastHook,
-  setPlanMeter,
+  setPlanMetroRemote,
+  startPlanMetroRemote,
+  stopPlanMetroRemote,
   stopPlanRemote,
 } from "@/lib/plan-clock";
-import { setMasterMuted, start as pulseStart, stop as pulseStop } from "@/lib/pulse";
+import { setMasterMuted } from "@/lib/pulse";
 import { broadcastSync, getSyncState, onSyncPayload, subscribeSyncState } from "./room";
 import type { SyncPayload } from "./types";
 
@@ -21,12 +22,87 @@ export function registerSyncNavigator(navigate: (to: string) => void) {
   routerNavigate = navigate;
 }
 
+function runSightAction(action: "generate" | "togglePlay", attempt = 0) {
+  if (typeof window === "undefined") return;
+  const ms = window.MalletSight as
+    | {
+        generate?: () => void;
+        togglePlay?: () => void;
+      }
+    | undefined;
+  if (ms && typeof ms[action] === "function") {
+    ms[action]!();
+    return;
+  }
+  if (attempt < 6) {
+    window.setTimeout(() => runSightAction(action, attempt + 1), 120);
+  }
+}
+
+function applyRemoteSightTempo(bpm: number) {
+  if (typeof window === "undefined") return;
+  const ms = window.MalletSight as { setTempo?: (bpm: number) => void } | undefined;
+  ms?.setTempo?.(bpm);
+}
+
+export function broadcastControllerSnapshot() {
+  const state = getSyncState();
+  if (!state.connected || state.role !== "controller") return;
+  const clock = getPlanClock();
+  if (clock.activeId) {
+    const item = clock.store.items.find((i) => i.id === clock.activeId);
+    const mins = item?.mins ?? 10;
+    if (!clock.blockPaused && clock.timer != null) {
+      syncPlanStart(
+        clock.activeId,
+        mins,
+        clock.store.bpm,
+        clock.store.beats,
+        clock.store.sub,
+        mins * 60,
+        clock.blockEndsAt,
+      );
+      if (clock.metroRunning !== playsMetronome(clock.activeId)) {
+        if (clock.metroRunning) {
+          syncMetroStart(clock.store.bpm, clock.store.beats, clock.store.sub);
+        } else {
+          syncMetroStop();
+        }
+      }
+    } else {
+      const remainMs = clock.blockPaused ? Math.max(0, clock.blockRemainMs) : Math.max(0, clock.blockLeft * 1000);
+      syncPlanArm(
+        clock.activeId,
+        mins,
+        clock.store.bpm,
+        clock.store.beats,
+        clock.store.sub,
+        remainMs,
+        false,
+      );
+      if (clock.metroRunning) {
+        syncMetroStart(clock.store.bpm, clock.store.beats, clock.store.sub);
+      }
+    }
+  } else if (clock.metroRunning) {
+    syncMetroStart(clock.store.bpm, clock.store.beats, clock.store.sub);
+  }
+}
+
 export function initSyncBridge() {
   if (initialized) return;
   initialized = true;
 
   // Register broadcast hook so controller broadcasts all block lifecycle actions automatically
   setPlanBroadcastHook({
+    shouldNavigateLocally: () => {
+      const state = getSyncState();
+      return !(state.connected && state.role === "controller");
+    },
+    isFollower: () => {
+      const state = getSyncState();
+      return state.connected && state.role === "display";
+    },
     onStart: (item, endsAt) => {
       const clock = getPlanClock();
       syncPlanStart(
@@ -39,7 +115,7 @@ export function initSyncBridge() {
         endsAt,
       );
     },
-    onArm: (item) => {
+    onArm: (item, chime) => {
       const clock = getPlanClock();
       syncPlanArm(
         item.id,
@@ -47,16 +123,20 @@ export function initSyncBridge() {
         clock.store.bpm,
         clock.store.beats,
         clock.store.sub,
+        undefined,
+        chime,
       );
     },
     onPause: (remainMs) => syncPlanPause(remainMs),
     onResume: (endsAt) => syncPlanResume(endsAt),
-    onStop: () => syncPlanStop(),
+    onStop: (chime) => syncPlanStop(chime),
     onBpm: (bpm) => syncMetroSet(bpm),
     onMeter: (beats, sub) => {
       const clock = getPlanClock();
       syncMetroSet(clock.store.bpm, beats, sub);
     },
+    onMetroStart: (bpm, beats, sub) => syncMetroStart(bpm, beats, sub),
+    onMetroStop: () => syncMetroStop(),
   });
 
   // Sync audio mute state with pulse core
@@ -72,6 +152,14 @@ export function initSyncBridge() {
   // Handle incoming remote sync messages
   onSyncPayload((payload: SyncPayload) => {
     const state = getSyncState();
+
+    if (payload.type === "SYNC_REQUEST") {
+      if (state.connected && state.role === "controller") {
+        broadcastControllerSnapshot();
+      }
+      return;
+    }
+
     // Only "display" devices automatically follow controller commands
     if (state.role !== "display") return;
 
@@ -85,9 +173,12 @@ export function initSyncBridge() {
           payload.sub,
           payload.endsAt,
         );
-        const to = blockTool(payload.blockId as BlockId);
-        if (to && routerNavigate) {
+        const to = blockTool(payload.blockId as BlockId) ?? "/oveplan";
+        if (routerNavigate) {
           routerNavigate(to);
+        }
+        if (payload.blockId === "srf") {
+          applyRemoteSightTempo(payload.bpm);
         }
         break;
       }
@@ -99,10 +190,15 @@ export function initSyncBridge() {
           payload.bpm,
           payload.beats,
           payload.sub,
+          payload.remainMs,
+          payload.chime,
         );
-        const to = blockTool(payload.blockId as BlockId);
-        if (to && routerNavigate) {
+        const to = blockTool(payload.blockId as BlockId) ?? "/oveplan";
+        if (routerNavigate) {
           routerNavigate(to);
+        }
+        if (payload.blockId === "srf") {
+          applyRemoteSightTempo(payload.bpm);
         }
         break;
       }
@@ -118,7 +214,10 @@ export function initSyncBridge() {
       }
 
       case "PLAN_STOP": {
-        stopPlanRemote();
+        stopPlanRemote(payload.chime);
+        if (routerNavigate) {
+          routerNavigate("/oveplan");
+        }
         break;
       }
 
@@ -130,27 +229,26 @@ export function initSyncBridge() {
       }
 
       case "METRO_SET": {
-        setPlanBpm(payload.bpm);
-        if (payload.beats != null && payload.sub != null) {
-          setPlanMeter(payload.beats, payload.sub);
-        }
+        setPlanMetroRemote(payload.bpm, payload.beats, payload.sub);
+        applyRemoteSightTempo(payload.bpm);
         break;
       }
 
       case "METRO_START": {
-        if (state.audioActive) {
-          pulseStart({
-            owner: "metronom",
-            bpm: payload.bpm,
-            beats: payload.beats ?? 4,
-            sub: payload.sub ?? 1,
-          });
-        }
+        startPlanMetroRemote(payload.bpm, payload.beats ?? 4, payload.sub ?? 1);
         break;
       }
 
       case "METRO_STOP": {
-        pulseStop("metronom");
+        stopPlanMetroRemote();
+        break;
+      }
+
+      case "SIGHT_ACTION": {
+        if (routerNavigate) {
+          routerNavigate("/");
+        }
+        runSightAction(payload.action);
         break;
       }
     }
@@ -187,6 +285,8 @@ export function syncPlanArm(
   bpm: number,
   beats: number,
   sub: number,
+  remainMs?: number,
+  chime?: boolean,
 ) {
   const state = getSyncState();
   if (!state.connected || state.role !== "controller") return;
@@ -197,6 +297,8 @@ export function syncPlanArm(
     bpm,
     beats,
     sub,
+    remainMs,
+    chime,
   });
 }
 
@@ -218,11 +320,12 @@ export function syncPlanResume(endsAt: number) {
   });
 }
 
-export function syncPlanStop() {
+export function syncPlanStop(chime?: boolean) {
   const state = getSyncState();
   if (!state.connected || state.role !== "controller") return;
   broadcastSync({
     type: "PLAN_STOP",
+    chime,
   });
 }
 
@@ -263,4 +366,16 @@ export function syncMetroStop() {
   broadcastSync({
     type: "METRO_STOP",
   });
+}
+
+export function syncSightAction(action: "generate" | "togglePlay") {
+  const state = getSyncState();
+  if (state.connected && state.role === "controller") {
+    broadcastSync({
+      type: "SIGHT_ACTION",
+      action,
+    });
+  } else {
+    runSightAction(action);
+  }
 }

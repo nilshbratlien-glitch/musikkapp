@@ -357,6 +357,32 @@ export function Oveplan() {
           </button>
         </div>
         <p className="text-sm font-semibold text-accent">{cur.live}</p>
+        {cur.activeId === "srf" ? (
+          <div className="rounded-xl border border-line bg-header p-3">
+            <p className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+              Bladlesing på skjerm
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => syncSightAction("generate")}
+                className="metro-press min-h-11 rounded-xl border border-line bg-surface px-3 text-sm font-semibold text-fg"
+              >
+                Ny oppgave
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resumeFromBladlesing();
+                  syncSightAction("togglePlay");
+                }}
+                className="metro-press min-h-11 rounded-xl bg-accent px-3 text-sm font-semibold text-bg"
+              >
+                Spill / Stopp
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={togglePlanClock} className="metro-press min-h-12 rounded-xl bg-fg font-semibold text-bg">
             {cur.startLabel}

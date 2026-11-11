@@ -72,12 +72,16 @@ export function bindPlanNavigate(fn: (to: string) => void) {
 
 export type PlanBroadcastHook = {
   onStart?: (item: PlanItem, endsAt: number) => void;
-  onArm?: (item: PlanItem) => void;
+  onArm?: (item: PlanItem, chime?: boolean) => void;
   onPause?: (remainMs: number) => void;
   onResume?: (endsAt: number) => void;
-  onStop?: () => void;
+  onStop?: (chime?: boolean) => void;
   onBpm?: (bpm: number) => void;
   onMeter?: (beats: number, sub: number) => void;
+  onMetroStart?: (bpm: number, beats: number, sub: number) => void;
+  onMetroStop?: () => void;
+  shouldNavigateLocally?: () => boolean;
+  isFollower?: () => boolean;
 };
 
 let planBroadcastHook: PlanBroadcastHook | null = null;
@@ -118,6 +122,10 @@ export function ensurePlanClock() {
   // The pulse gave up (its audio clock stood still), whoever played: pause the block like the pause button
   // does, keep the time left, and let the next Start/Play carry on (the plan's own metronome again).
   onStall((owner) => {
+    if (planBroadcastHook?.isFollower?.()) {
+      if (owner === "oveplan") clock.metroHeld = true;
+      return;
+    }
     const running = !!clock.activeId && !clock.blockPaused && clock.timer != null;
     pauseBlock();
     if (running && owner === "oveplan") clock.metroHeld = true;
@@ -149,7 +157,7 @@ function followPulse() {
   touchPlanClock();
 }
 
-export function startPlanMetro() {
+export function startPlanMetro(broadcast = true) {
   const started = pulseStart({
     owner: "oveplan",
     bpm: clock.store.bpm,
@@ -164,24 +172,35 @@ export function startPlanMetro() {
   clock.metroRunning = started;
   syncWake();
   touchPlanClock();
+  if (broadcast) {
+    planBroadcastHook?.onMetroStart?.(clock.store.bpm, clock.store.beats, clock.store.sub);
+  }
 }
 
-export function stopPlanMetro() {
+export function stopPlanMetro(broadcast = true) {
   pulseStop("oveplan");
+  clock.metroRunning = false;
+  syncWake();
+  touchPlanClock();
+  if (broadcast) {
+    planBroadcastHook?.onMetroStop?.();
+  }
 }
 
 export function togglePlanMetro() {
-  if (clock.metroRunning) stopPlanMetro();
-  else startPlanMetro();
+  if (clock.metroRunning) stopPlanMetro(true);
+  else startPlanMetro(true);
 }
 
-export function setPlanMeter(beats: number, sub: number) {
+export function setPlanMeter(beats: number, sub: number, broadcast = true) {
   clock.store.beats = beats;
   clock.store.sub = sub;
   persist();
   if (clock.metroRunning) pulseMeter(beats, sub);
   touchPlanClock();
-  planBroadcastHook?.onMeter?.(beats, sub);
+  if (broadcast) {
+    planBroadcastHook?.onMeter?.(beats, sub);
+  }
 }
 
 export function stopTimer() {
@@ -230,17 +249,19 @@ function saveBlockBpm(id: string | null) {
   persist();
 }
 
-export function setPlanBpm(value: number) {
+export function setPlanBpm(value: number, broadcast = true) {
   clock.store.bpm = clampBpm(value);
   persist();
   if (clock.metroRunning) pulseBpm(clock.store.bpm);
   touchPlanClock();
-  planBroadcastHook?.onBpm?.(clock.store.bpm);
+  if (broadcast) {
+    planBroadcastHook?.onBpm?.(clock.store.bpm);
+  }
 }
 
-function applyBlockBpm(id: string) {
+function applyBlockBpm(id: string, broadcast = true) {
   const saved = clock.store.bpmMap[id];
-  if (saved) setPlanBpm(saved);
+  if (saved) setPlanBpm(saved, broadcast);
 }
 
 function markDone(id: string) {
@@ -270,7 +291,7 @@ function saveSession(note: string) {
   persist();
 }
 
-function armBlock(next: PlanItem) {
+function armBlock(next: PlanItem, byTimer = false) {
   clock.forceSetup = false;
   clock.activeId = next.id;
   clock.blockRemainMs = Math.max(0, next.mins * 60 * 1000);
@@ -279,29 +300,32 @@ function armBlock(next: PlanItem) {
   clock.metroHeld = false;
   stopTimer();
   syncLeft();
-  applyBlockBpm(next.id);
+  applyBlockBpm(next.id, false);
   clock.startLabel = "Start";
   clock.live = blockName(next.id);
   openBlockTool(next.id);
   syncWake();
   touchPlanClock();
-  planBroadcastHook?.onArm?.(next);
+  planBroadcastHook?.onArm?.(next, byTimer);
 }
 
 function openBlockTool(id: BlockId) {
+  if (planBroadcastHook?.shouldNavigateLocally && !planBroadcastHook.shouldNavigateLocally()) {
+    return;
+  }
   const to = blockTool(id);
   if (to) navigate(to);
 }
 
 /** A block's own sound: 2- and 4-mallet run the metronome, the others stop the previous block's. */
 function blockSound(id: BlockId) {
-  if (playsMetronome(id)) startPlanMetro();
-  else stopPlanMetro();
+  if (playsMetronome(id)) startPlanMetro(false);
+  else stopPlanMetro(false);
 }
 
-export function endCurrent(justId: string) {
+export function endCurrent(justId: string, byTimer = false) {
   clock.metroHeld = false;
-  stopPlanMetro();
+  stopPlanMetro(false);
   const next = nextUndone(clock.store.items, clock.store.done, justId);
   if (!next) {
     clock.activeId = null;
@@ -312,10 +336,10 @@ export function endCurrent(justId: string) {
     saveSession("");
     syncWake();
     touchPlanClock();
-    planBroadcastHook?.onStop?.();
+    planBroadcastHook?.onStop?.(byTimer);
     return;
   }
-  armBlock(next);
+  armBlock(next, byTimer);
 }
 
 function tick() {
@@ -328,10 +352,18 @@ function tick() {
   const ms = syncLeft();
   clock.live = `${blockName(id)} — ${fmtClock(clock.blockLeft)}`;
   if (ms <= 0) {
+    if (planBroadcastHook?.isFollower?.()) {
+      stopTimer();
+      stopPlanMetro(false);
+      clock.blockLeft = 0;
+      syncWake();
+      touchPlanClock();
+      return;
+    }
     saveBlockBpm(id);
     markDone(id);
     buzz();
-    endCurrent(id);
+    endCurrent(id, true);
     chime();
     return;
   }
@@ -352,7 +384,7 @@ export function beginBlock(next: PlanItem, quiet = false) {
   clock.blockEndsAt = Date.now() + clock.blockRemainMs;
   clock.blockPaused = false;
   clock.metroHeld = false;
-  applyBlockBpm(next.id);
+  applyBlockBpm(next.id, false);
   if (!quiet) {
     try {
       navigator.vibrate?.(25);
@@ -378,7 +410,7 @@ export function pauseBlock() {
   syncLeft();
   if (clock.metroRunning) {
     clock.metroHeld = true;
-    stopPlanMetro();
+    stopPlanMetro(false);
   }
   clock.live = `${blockName(clock.activeId)} — ${fmtClock(clock.blockLeft)}`;
   clock.startLabel = "Fortsett";
@@ -397,7 +429,7 @@ export function resumeBlock() {
   startTimer();
   if (clock.metroHeld || playsMetronome(clock.activeId)) {
     clock.metroHeld = false;
-    startPlanMetro();
+    startPlanMetro(false);
   }
   syncWake();
   touchPlanClock();
@@ -436,11 +468,14 @@ export function armBlockRemote(
   bpm: number,
   beats: number,
   sub: number,
+  remainMs?: number,
+  playChime?: boolean,
 ) {
   if (clock.activeId && clock.activeId !== blockId) saveBlockBpm(clock.activeId);
+  const fullMs = Math.max(0, mins * 60 * 1000);
   clock.forceSetup = false;
   clock.activeId = blockId;
-  clock.blockRemainMs = Math.max(0, mins * 60 * 1000);
+  clock.blockRemainMs = remainMs != null ? Math.max(0, remainMs) : fullMs;
   clock.blockEndsAt = 0;
   clock.blockPaused = true;
   clock.metroHeld = false;
@@ -448,19 +483,21 @@ export function armBlockRemote(
   clock.store.beats = beats;
   clock.store.sub = sub;
   stopTimer();
-  stopPlanMetro();
+  stopPlanMetro(false);
+  if (playChime) chime();
   syncLeft();
-  clock.startLabel = "Start";
+  clock.startLabel = remainMs != null && remainMs < fullMs ? "Fortsett" : "Start";
   clock.live = blockName(blockId);
   syncWake();
   touchPlanClock();
 }
 
-export function stopPlanRemote() {
+export function stopPlanRemote(playChime?: boolean) {
   clock.activeId = null;
   clock.forceSetup = false;
   clock.metroHeld = false;
-  stopPlanMetro();
+  stopPlanMetro(false);
+  if (playChime) chime();
   clearClock();
   clock.startLabel = "Start";
   clock.live = "Ferdig";
@@ -477,7 +514,7 @@ export function pauseBlockRemote(remainMs: number) {
   syncLeft();
   if (clock.metroRunning) {
     clock.metroHeld = true;
-    stopPlanMetro();
+    stopPlanMetro(false);
   }
   clock.live = `${blockName(clock.activeId)} — ${fmtClock(clock.blockLeft)}`;
   clock.startLabel = "Fortsett";
@@ -496,9 +533,37 @@ export function resumeBlockRemote(endsAt: number) {
   startTimer();
   if (clock.metroHeld || playsMetronome(clock.activeId)) {
     clock.metroHeld = false;
-    startPlanMetro();
+    startPlanMetro(false);
   }
   syncWake();
+  touchPlanClock();
+}
+
+export function startPlanMetroRemote(bpm: number, beats: number, sub: number) {
+  clock.store.bpm = clampBpm(bpm);
+  clock.store.beats = beats;
+  clock.store.sub = sub;
+  persist();
+  startPlanMetro(false);
+}
+
+export function stopPlanMetroRemote() {
+  stopPlanMetro(false);
+  pulseStop("metronom");
+}
+
+export function setPlanMetroRemote(bpm: number, beats?: number, sub?: number) {
+  clock.store.bpm = clampBpm(bpm);
+  if (beats != null) clock.store.beats = beats;
+  if (sub != null) clock.store.sub = sub;
+  persist();
+  const p = pulseState();
+  if (p.running) {
+    pulseBpm(clock.store.bpm);
+    if (beats != null || sub != null) {
+      pulseMeter(clock.store.beats, clock.store.sub);
+    }
+  }
   touchPlanClock();
 }
 
@@ -507,21 +572,30 @@ export function togglePlanClock() {
     pauseBlock();
     return;
   }
-  if (clock.activeId && clock.blockPaused && remainingMs() > 0 && !clock.store.done.includes(clock.activeId)) {
+  const activeItem = clock.store.items.find((i) => i.id === clock.activeId);
+  if (
+    clock.activeId &&
+    activeItem &&
+    activeItem.on &&
+    !activeItem.skipped &&
+    clock.blockPaused &&
+    remainingMs() > 0 &&
+    !clock.store.done.includes(clock.activeId)
+  ) {
     resumeBlock();
     return;
   }
   const next = nextUndone(clock.store.items, clock.store.done, null);
   if (!next) {
     clock.activeId = null;
-    stopPlanMetro();
+    stopPlanMetro(false);
     clearClock();
     clock.startLabel = "Start";
     clock.live = "Ferdig";
     saveSession("");
     syncWake();
     touchPlanClock();
-    planBroadcastHook?.onStop?.();
+    planBroadcastHook?.onStop?.(false);
     return;
   }
   beginBlock(next);
@@ -533,7 +607,7 @@ export function resetPlan() {
   clock.activeId = null;
   clock.forceSetup = false;
   clock.metroHeld = false;
-  stopPlanMetro();
+  stopPlanMetro(false);
   clock.store.items = clock.store.items.map((item) => ({ ...item, skipped: false }));
   clearClock();
   clock.startLabel = "Start";
@@ -542,7 +616,7 @@ export function resetPlan() {
   persist();
   syncWake();
   touchPlanClock();
-  planBroadcastHook?.onStop?.();
+  planBroadcastHook?.onStop?.(false);
 }
 
 export function finishPlanBlock() {
@@ -550,7 +624,7 @@ export function finishPlanBlock() {
   if (!id) return;
   saveBlockBpm(id);
   markDone(id);
-  endCurrent(id);
+  endCurrent(id, false);
 }
 
 function onVisible() {

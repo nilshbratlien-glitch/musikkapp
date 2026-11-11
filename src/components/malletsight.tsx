@@ -28,6 +28,9 @@ declare global {
     MalletSight?: {
       mount: (root: HTMLElement) => void;
       unmount: () => void;
+      generate?: () => void;
+      togglePlay?: () => void;
+      setTempo?: (bpm: number) => void;
     };
   }
 }

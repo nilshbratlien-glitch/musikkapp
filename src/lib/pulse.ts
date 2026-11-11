@@ -186,16 +186,19 @@ function loop() {
     live.resumed = false;
   } else live.seenAt ??= now;
   if (now - live.seenAt > STALL_MS) {
-    if (live.resumed) {
+    if (masterMuted) {
+      live.seenAt = now;
+    } else if (live.resumed) {
       spent = true;
       const owner = state.owner;
       stop(undefined, "stalled");
       for (const listener of stallListeners) listener(owner);
       return;
+    } else {
+      live.resumed = true;
+      live.seenAt = now;
+      void c.resume().catch(() => {});
     }
-    live.resumed = true;
-    live.seenAt = now;
-    void c.resume().catch(() => {});
   }
   if (c.state !== "running") {
     timer = setTimeout(loop, LOOKAHEAD_MS);

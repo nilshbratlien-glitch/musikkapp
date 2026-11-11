@@ -27,17 +27,22 @@ export type SyncPayload =
       bpm: number;
       beats: number;
       sub: number;
+      remainMs?: number;
+      chime?: boolean;
     }
   | { type: "PLAN_PAUSE"; remainMs: number }
   | { type: "PLAN_RESUME"; endsAt: number }
-  | { type: "PLAN_STOP" }
+  | { type: "PLAN_STOP"; chime?: boolean }
   | { type: "PLAN_NAVIGATE"; to: string }
   // Metronome events
   | { type: "METRO_SET"; bpm: number; beats?: number; sub?: number }
   | { type: "METRO_START"; bpm: number; beats?: number; sub?: number }
   | { type: "METRO_STOP" }
   // Sight-Reading events
-  | { type: "SIGHT_SET"; level?: number; seed?: number; instrument?: string };
+  | { type: "SIGHT_SET"; level?: number; seed?: number; instrument?: string }
+  | { type: "SIGHT_ACTION"; action: "generate" | "togglePlay" }
+  // State synchronization request from a newly connected display
+  | { type: "SYNC_REQUEST" };
 
 export interface SyncConfig {
   supabaseUrl: string;

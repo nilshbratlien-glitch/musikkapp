@@ -1,5 +1,6 @@
 import { Check, Copy, Laptop, Smartphone, Volume2, VolumeX, Wifi, WifiOff, X } from "lucide-react";
 import { useState } from "react";
+import { unlock } from "@/lib/pulse";
 import { generateRoomCode, loadSyncConfig, saveSyncConfig } from "@/lib/sync/config";
 import { useSync } from "@/lib/sync/use-sync";
 
@@ -24,6 +25,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
   const hasCredentials = Boolean(config.supabaseUrl && config.supabaseAnonKey);
 
   function handleCreateRoom() {
+    unlock();
     if (supabaseUrl.trim() && supabaseKey.trim()) {
       saveSyncConfig({
         supabaseUrl: supabaseUrl.trim(),
@@ -37,6 +39,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
 
   function handleJoinRoom(e: React.FormEvent) {
     e.preventDefault();
+    unlock();
     if (!roomInput.trim()) return;
     if (supabaseUrl.trim() && supabaseKey.trim()) {
       saveSyncConfig({
@@ -63,6 +66,53 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
     setConfigSaved(true);
     setTimeout(() => setConfigSaved(false), 2500);
   }
+
+  const roleSelector = (
+    <div>
+      <label className="text-xs font-semibold tracking-wide text-muted uppercase">
+        Rolle for denne enheten
+      </label>
+      <div className="mt-1.5 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            unlock();
+            void sync.setRole("controller");
+            void sync.setAudioActive(false);
+          }}
+          className={
+            sync.role === "controller"
+              ? "flex min-h-12 flex-col items-center justify-center rounded-xl border-2 border-accent bg-accent/10 p-2 font-semibold text-accent"
+              : "flex min-h-12 flex-col items-center justify-center rounded-xl border border-line bg-header p-2 text-muted"
+          }
+        >
+          <Smartphone className="size-4 mb-1" />
+          <span className="text-xs">Fjernkontroll</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            unlock();
+            void sync.setRole("display");
+            void sync.setAudioActive(true);
+          }}
+          className={
+            sync.role === "display"
+              ? "flex min-h-12 flex-col items-center justify-center rounded-xl border-2 border-accent bg-accent/10 p-2 font-semibold text-accent"
+              : "flex min-h-12 flex-col items-center justify-center rounded-xl border border-line bg-header p-2 text-muted"
+          }
+        >
+          <Laptop className="size-4 mb-1" />
+          <span className="text-xs">Skjerm (Følger)</span>
+        </button>
+      </div>
+      <p className="mt-1.5 text-xs text-muted">
+        {sync.role === "controller"
+          ? "Du blir værende på Øveplan og styrer økten. Skjermen på stativet bytter fane automatisk."
+          : "Skjermen følger automatisk øvelsene som startes på fjernkontrollen."}
+      </p>
+    </div>
+  );
 
   return (
     <div
@@ -120,48 +170,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
                 </p>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold tracking-wide text-muted uppercase">
-                  Rolle for denne enheten
-                </label>
-                <div className="mt-1.5 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void sync.setRole("controller");
-                      void sync.setAudioActive(false);
-                    }}
-                    className={
-                      sync.role === "controller"
-                        ? "flex min-h-12 flex-col items-center justify-center rounded-xl border-2 border-accent bg-accent/10 p-2 font-semibold text-accent"
-                        : "flex min-h-12 flex-col items-center justify-center rounded-xl border border-line bg-header p-2 text-muted"
-                    }
-                  >
-                    <Smartphone className="size-4 mb-1" />
-                    <span className="text-xs">Fjernkontroll</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void sync.setRole("display");
-                      void sync.setAudioActive(true);
-                    }}
-                    className={
-                      sync.role === "display"
-                        ? "flex min-h-12 flex-col items-center justify-center rounded-xl border-2 border-accent bg-accent/10 p-2 font-semibold text-accent"
-                        : "flex min-h-12 flex-col items-center justify-center rounded-xl border border-line bg-header p-2 text-muted"
-                    }
-                  >
-                    <Laptop className="size-4 mb-1" />
-                    <span className="text-xs">Skjerm (Følger)</span>
-                  </button>
-                </div>
-                <p className="mt-1.5 text-xs text-muted">
-                  {sync.role === "controller"
-                    ? "Du styrer øveplan og metronom. Skjermen på stativet følger etter."
-                    : "Skjermen følger automatisk øvelsene som startes på fjernkontrollen."}
-                </p>
-              </div>
+              {roleSelector}
 
               <div className="flex items-center justify-between rounded-xl border border-line bg-header p-3">
                 <div className="flex items-center gap-2.5">
@@ -179,7 +188,10 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => void sync.setAudioActive(!sync.audioActive)}
+                  onClick={() => {
+                    unlock();
+                    void sync.setAudioActive(!sync.audioActive);
+                  }}
                   className={
                     sync.audioActive
                       ? "metro-press rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-bg"
@@ -227,6 +239,8 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
             </div>
           ) : (
             <div className="space-y-4">
+              {roleSelector}
+
               <form onSubmit={handleJoinRoom} className="space-y-2.5">
                 <label className="block text-xs font-semibold tracking-wide text-muted uppercase">
                   Romkode

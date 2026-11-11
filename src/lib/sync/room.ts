@@ -134,11 +134,26 @@ export async function joinRoom(roomCode: string, role?: DeviceRole, deviceName?:
     emitState({ peers });
   });
 
+  channel.on("presence", { event: "join" }, () => {
+    if (state.role === "controller") {
+      for (const listener of payloadListeners) {
+        try {
+          listener({ type: "SYNC_REQUEST" });
+        } catch (err) {
+          console.error("[sync] Listener error:", err);
+        }
+      }
+    }
+  });
+
   channel.subscribe(async (status) => {
     if (status === "SUBSCRIBED") {
       emitState({ connected: true, connecting: false, error: null });
       await trackPresence(nextRole, nextName, state.audioActive);
       await updateWakeLock(nextRole, true);
+      if (nextRole === "display") {
+        broadcastSync({ type: "SYNC_REQUEST" });
+      }
     } else if (status === "CLOSED" || status === "TIMED_OUT") {
       emitState({ connected: false, connecting: false });
       await updateWakeLock(nextRole, false);
@@ -203,6 +218,17 @@ export async function setRole(role: DeviceRole) {
   emitState({ role });
   await trackPresence(role, state.deviceName, state.audioActive);
   await updateWakeLock(role, state.connected);
+  if (state.connected && role === "display") {
+    broadcastSync({ type: "SYNC_REQUEST" });
+  } else if (state.connected && role === "controller") {
+    for (const listener of payloadListeners) {
+      try {
+        listener({ type: "SYNC_REQUEST" });
+      } catch (err) {
+        console.error("[sync] Listener error:", err);
+      }
+    }
+  }
 }
 
 export async function setAudioActive(active: boolean) {
