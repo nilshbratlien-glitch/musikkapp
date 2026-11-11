@@ -31,6 +31,7 @@ import {
   togglePlanMetro,
   touchPlanClock,
 } from "@/lib/plan-clock";
+import { syncPlanPause, syncPlanResume, syncPlanStop } from "@/lib/sync/bridge";
 
 type Clock = ReturnType<typeof getPlanClock>;
 
@@ -141,6 +142,7 @@ export function Oveplan() {
                     cur.live = "Klar";
                     persist();
                     redraw();
+                    syncPlanStop();
                   }}
                   className="metro-press min-h-10 rounded-full border border-line px-3 text-sm font-semibold"
                 >
@@ -398,9 +400,15 @@ export function Oveplan() {
     if (!next) return;
     replaceItem(next);
     if (cur.activeId === id) {
-      if (cur.blockPaused) cur.blockRemainMs = Math.max(1000, cur.blockRemainMs + dir * 60000);
-      else if (cur.blockEndsAt) cur.blockEndsAt += dir * 60000;
-      syncLeft();
+      if (cur.blockPaused) {
+        cur.blockRemainMs = Math.max(1000, cur.blockRemainMs + dir * 60000);
+        syncLeft();
+        syncPlanPause(cur.blockRemainMs);
+      } else if (cur.blockEndsAt) {
+        cur.blockEndsAt += dir * 60000;
+        syncLeft();
+        syncPlanResume(cur.blockEndsAt);
+      }
     }
     persist();
     redraw();

@@ -15,19 +15,26 @@ export type SyncPayload =
       blockId: string;
       mins: number;
       bpm: number;
-      meter: string;
+      beats: number;
       sub: number;
       durationSec: number;
       endsAt: number;
     }
+  | {
+      type: "PLAN_ARM";
+      blockId: string;
+      mins: number;
+      bpm: number;
+      beats: number;
+      sub: number;
+    }
   | { type: "PLAN_PAUSE"; remainMs: number }
   | { type: "PLAN_RESUME"; endsAt: number }
-  | { type: "PLAN_SKIP"; nextBlockId: string }
-  | { type: "PLAN_FINISH"; blockId: string }
+  | { type: "PLAN_STOP" }
   | { type: "PLAN_NAVIGATE"; to: string }
   // Metronome events
-  | { type: "METRO_SET"; bpm: number; meter?: string; sub?: number }
-  | { type: "METRO_START"; bpm: number; meter?: string; sub?: number }
+  | { type: "METRO_SET"; bpm: number; beats?: number; sub?: number }
+  | { type: "METRO_START"; bpm: number; beats?: number; sub?: number }
   | { type: "METRO_STOP" }
   // Sight-Reading events
   | { type: "SIGHT_SET"; level?: number; seed?: number; instrument?: string };

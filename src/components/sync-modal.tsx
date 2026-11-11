@@ -24,6 +24,12 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
   const hasCredentials = Boolean(config.supabaseUrl && config.supabaseAnonKey);
 
   function handleCreateRoom() {
+    if (supabaseUrl.trim() && supabaseKey.trim()) {
+      saveSyncConfig({
+        supabaseUrl: supabaseUrl.trim(),
+        supabaseAnonKey: supabaseKey.trim(),
+      });
+    }
     const code = generateRoomCode();
     setRoomInput(code);
     void sync.joinRoom(code, sync.role, sync.deviceName);
@@ -32,6 +38,12 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
   function handleJoinRoom(e: React.FormEvent) {
     e.preventDefault();
     if (!roomInput.trim()) return;
+    if (supabaseUrl.trim() && supabaseKey.trim()) {
+      saveSyncConfig({
+        supabaseUrl: supabaseUrl.trim(),
+        supabaseAnonKey: supabaseKey.trim(),
+      });
+    }
     void sync.joinRoom(roomInput.trim(), sync.role, sync.deviceName);
   }
 

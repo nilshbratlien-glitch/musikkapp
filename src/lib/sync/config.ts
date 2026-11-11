@@ -49,9 +49,12 @@ export function generateRoomCode(): string {
   return `${word}-${num}`;
 }
 
+const DEFAULT_SUPABASE_URL = "https://omogoigkpjscqnggqjum.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_2nEanL9fmc2JxcQnUdS9kQ_Dfv9p33U";
+
 export function loadSyncConfig(): SyncConfig {
-  const envUrl = safeGetEnv("VITE_SUPABASE_URL");
-  const envKey = safeGetEnv("VITE_SUPABASE_ANON_KEY");
+  const envUrl = safeGetEnv("VITE_SUPABASE_URL") || DEFAULT_SUPABASE_URL;
+  const envKey = safeGetEnv("VITE_SUPABASE_ANON_KEY") || DEFAULT_SUPABASE_ANON_KEY;
 
   let saved: Partial<SyncConfig> = {};
   const storage = getStorage();
