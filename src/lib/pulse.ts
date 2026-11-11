@@ -113,11 +113,14 @@ export function renew() {
 }
 
 /** The one output bus. Every sound connects here; stop() disconnects it. */
+let masterMuted = false;
+
 export function output() {
   const c = audio();
   if (!c) return null;
   if (!bus) {
     bus = c.createGain();
+    bus.gain.value = masterMuted ? 0 : 1;
     bus.connect(c.destination);
     clickBus = c.createGain();
     clickBus.gain.value = clicksOn ? 1 : 0;
@@ -136,6 +139,14 @@ function cut() {
   }
   bus = null;
   clickBus = null;
+}
+
+/** Master mute for follower/controller sync (prevents double-click echo across devices). */
+export function setMasterMuted(muted: boolean) {
+  masterMuted = muted;
+  if (bus && ctx) {
+    bus.gain.setValueAtTime(muted ? 0 : 1, ctx.currentTime);
+  }
 }
 
 /** Mute or unmute clicks without touching other sound on the bus. */
