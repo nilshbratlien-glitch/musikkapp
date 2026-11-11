@@ -226,4 +226,39 @@ describe("plan clock on the pulse core", () => {
     assert.equal(blockTool("fourmallet"), "/metronom");
     assert.equal(playsMetronome("rep"), false);
   });
+
+  it("keeps the controller on Øveplan when shouldNavigateLocally returns false", () => {
+    planClock.ensurePlanClock();
+    const went: string[] = [];
+    const events: string[] = [];
+    planClock.bindPlanNavigate((to) => went.push(to));
+    planClock.setPlanBroadcastHook({
+      shouldNavigateLocally: () => false,
+      onStart: (b) => events.push(`start:${b.id}`),
+      onArm: (b) => events.push(`arm:${b.id}`),
+    });
+    planClock.beginBlock(item("twomallet"));
+    planClock.finishPlanBlock();
+    planClock.bindPlanNavigate(() => {});
+    planClock.setPlanBroadcastHook({});
+    assert.deepEqual(went, []);
+    assert.deepEqual(events, ["start:twomallet", "arm:fourmallet"]);
+  });
+
+  it("follower waits for controller at 0:00 instead of advancing from local items", () => {
+    planClock.ensurePlanClock();
+    const events: string[] = [];
+    planClock.setPlanBroadcastHook({
+      isFollower: () => true,
+      onArm: (b) => events.push(`arm:${b.id}`),
+      onStop: () => events.push("stop"),
+    });
+    planClock.beginBlockRemote("twomallet", 1, 100, 4, 1, Date.now() + 1000);
+    mock.timers.tick(1500);
+    const clock = planClock.getPlanClock();
+    assert.equal(clock.activeId, "twomallet", "still on twomallet waiting for controller command");
+    assert.equal(clock.blockLeft, 0);
+    assert.deepEqual(events, []);
+    planClock.setPlanBroadcastHook({});
+  });
 });

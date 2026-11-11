@@ -3,9 +3,18 @@ import { Drum, FileText, Music, Pause, Piano, Play, Wifi } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { SyncModal } from "@/components/sync-modal";
 import { blockName, blockStyle, fmtClock, type BlockId } from "@/lib/oveplan";
-import { bindPlanNavigate, ensurePlanClock, getPlanClock, getPlanClockVersion, subscribePlanClock, togglePlanClock } from "@/lib/plan-clock";
+import {
+  bindPlanNavigate,
+  ensurePlanClock,
+  getPlanClock,
+  getPlanClockVersion,
+  startPlanMetro,
+  subscribePlanClock,
+  togglePlanClock,
+} from "@/lib/plan-clock";
+import { unlock } from "@/lib/pulse";
 import { initSyncBridge, registerSyncNavigator } from "@/lib/sync/bridge";
-import { autoReconnectIfConfigured } from "@/lib/sync/room";
+import { autoReconnectIfConfigured, getSyncState } from "@/lib/sync/room";
 import { useSync } from "@/lib/sync/use-sync";
 import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
 
@@ -102,6 +111,8 @@ export function Shell() {
 
   useEffect(() => {
     bindPlanNavigate((to) => {
+      const state = getSyncState();
+      if (state.connected && state.role === "controller") return;
       if (window.location.pathname !== to) void navigate({ to });
     });
     registerSyncNavigator((to) => {
@@ -110,6 +121,25 @@ export function Shell() {
     initSyncBridge();
     autoReconnectIfConfigured();
   }, [navigate]);
+
+  useEffect(() => {
+    const onGesture = () => {
+      const state = getSyncState();
+      if (state.connected && !state.audioActive) return;
+      unlock();
+      const clock = getPlanClock();
+      if (clock.metroHeld && clock.activeId && !clock.blockPaused && clock.timer != null) {
+        clock.metroHeld = false;
+        startPlanMetro(false);
+      }
+    };
+    window.addEventListener("pointerdown", onGesture, { passive: true });
+    window.addEventListener("keydown", onGesture, { passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
+    };
+  }, []);
 
   useEffect(() => {
     ensureToolNamespaces();
@@ -132,9 +162,12 @@ export function Shell() {
             <PlanHeaderTimer />
             <button
               type="button"
-              onClick={() => setSyncModalOpen(true)}
+              onClick={() => {
+                unlock();
+                setSyncModalOpen(true);
+              }}
               aria-label="Skjerm-synkronisering"
-              title={sync.connected ? `Tilkoblet rom ${sync.roomCode}` : "Synkroniser skjermer"}
+              title={sync.connected ? `Tilkoblet rom ${sync.roomCode} (${sync.role === "controller" ? "Fjernkontroll" : "Skjerm"})` : "Synkroniser skjermer"}
               className={
                 sync.connected
                   ? "metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-ok/40 bg-ok/10 px-2.5 text-xs font-semibold text-ok"
@@ -142,7 +175,9 @@ export function Shell() {
               }
             >
               <Wifi className={sync.connected ? "size-3.5 text-ok" : "size-3.5 text-muted"} />
-              <span className="hidden sm:inline">{sync.connected ? sync.roomCode : "Synk"}</span>
+              <span className="hidden sm:inline">
+                {sync.connected ? `${sync.roomCode} · ${sync.role === "controller" ? "Kontroll" : "Skjerm"}` : "Synk"}
+              </span>
             </button>
             {install.standalone ? null : (
               <button

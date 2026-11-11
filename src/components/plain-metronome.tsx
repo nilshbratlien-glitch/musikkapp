@@ -71,11 +71,19 @@ export function PlainMetronome() {
 
   function start() {
     if (playing) return;
+    if (planMalletBlock()) {
+      startFromMetronom({ owner: "metronom", bpm: bpmRef.current, beats: beatsInMeter(meterRef.current), sub: subRef.current });
+      return;
+    }
     startFromMetronom({ owner: "metronom", bpm: bpmRef.current, beats: beatsInMeter(meterRef.current), sub: subRef.current });
     syncMetroStart(bpmRef.current, beatsInMeter(meterRef.current), subRef.current);
   }
 
   function stop() {
+    if (planMalletBlock()) {
+      stopFromMetronom();
+      return;
+    }
     stopFromMetronom();
     syncMetroStop();
   }

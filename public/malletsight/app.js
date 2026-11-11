@@ -1033,5 +1033,25 @@
       wire();
     },
     unmount,
+    generate() {
+      if (!wired) return;
+      openSettings(false);
+      generate();
+    },
+    togglePlay() {
+      if (!wired) return;
+      const btn = $("#btnPlay");
+      if (btn) btn.click();
+    },
+    setTempo(bpm) {
+      if (!wired) return;
+      const clamped = Math.max(40, Math.min(160, Math.round(bpm)));
+      settings.tempo = clamped;
+      if ($("#tempo")) $("#tempo").value = String(clamped);
+      if ($("#tempoVal")) $("#tempoVal").textContent = String(clamped);
+      if ($("#tempoRead")) $("#tempoRead").textContent = String(clamped);
+      if (typeof AudioEngine !== "undefined") AudioEngine.setTempo(clamped);
+      saveSettings();
+    },
   };
 })();
