@@ -1,13 +1,14 @@
 import { useEffect, useRef } from "react";
 import "@/lib/pulse";
 
+const ASSET_VER = "v5";
 const SCRIPTS = [
-  "/malletsight/abcjs.js",
-  "/malletsight/theory.js",
-  "/malletsight/generator.js",
-  "/malletsight/renderer.js",
-  "/malletsight/audio.js",
-  "/malletsight/app.js",
+  `/malletsight/abcjs.js?${ASSET_VER}`,
+  `/malletsight/theory.js?${ASSET_VER}`,
+  `/malletsight/generator.js?${ASSET_VER}`,
+  `/malletsight/renderer.js?${ASSET_VER}`,
+  `/malletsight/audio.js?${ASSET_VER}`,
+  `/malletsight/app.js?${ASSET_VER}`,
 ];
 
 function loadScript(src: string) {
@@ -28,9 +29,13 @@ declare global {
     MalletSight?: {
       mount: (root: HTMLElement) => void;
       unmount: () => void;
-      generate?: () => void;
-      togglePlay?: () => void;
-      setTempo?: (bpm: number) => void;
+      isReady?: () => boolean;
+      generate?: () => boolean;
+      togglePlay?: () => boolean;
+      toggleMetro?: () => boolean;
+      again?: () => boolean;
+      stopAll?: () => void;
+      setTempo?: (bpm: number) => boolean;
     };
   }
 }
@@ -44,10 +49,10 @@ export function Malletsight() {
     let cancelled = false;
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "/malletsight/app.css";
+    link.href = `/malletsight/app.css?${ASSET_VER}`;
     document.head.appendChild(link);
     (async () => {
-      const markup = await fetch("/malletsight/markup.html");
+      const markup = await fetch(`/malletsight/markup.html?${ASSET_VER}`);
       if (!markup.ok) return;
       const html = await markup.text();
       if (cancelled) return;

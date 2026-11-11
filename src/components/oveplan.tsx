@@ -22,6 +22,7 @@ import {
   getPlanClockVersion,
   pauseBlock,
   resetPlan,
+  resumeFromBladlesing,
   setPlanBpm,
   setPlanMeter,
   subscribePlanClock,
@@ -31,7 +32,7 @@ import {
   togglePlanMetro,
   touchPlanClock,
 } from "@/lib/plan-clock";
-import { syncPlanPause, syncPlanResume, syncPlanStop } from "@/lib/sync/bridge";
+import { syncPlanPause, syncPlanResume, syncPlanStop, syncSightAction } from "@/lib/sync/bridge";
 
 type Clock = ReturnType<typeof getPlanClock>;
 
@@ -379,6 +380,23 @@ export function Oveplan() {
                 className="metro-press min-h-11 rounded-xl bg-accent px-3 text-sm font-semibold text-bg"
               >
                 Spill / Stopp
+              </button>
+              <button
+                type="button"
+                onClick={() => syncSightAction("toggleMetro")}
+                className="metro-press min-h-10 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-fg"
+              >
+                Metronom av/på
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resumeFromBladlesing();
+                  syncSightAction("again");
+                }}
+                className="metro-press min-h-10 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-fg"
+              >
+                Igjen −10
               </button>
             </div>
           </div>

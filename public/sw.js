@@ -1,4 +1,4 @@
-const CACHE = "musikkapp-shell-v4";
+const CACHE = "musikkapp-shell-v5";
 const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 function isAsset(url) {

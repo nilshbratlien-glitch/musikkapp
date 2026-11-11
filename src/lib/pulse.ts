@@ -43,8 +43,19 @@ let spent = false;
 let bus: GainNode | null = null;
 let clickBus: GainNode | null = null;
 let clicksOn = true;
+let followerMode = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
-let run: (PulseStart & { next: number; tick: number; seenTime?: number; seenAt?: number; passAt?: number; resumed?: boolean }) | null = null;
+let run: (PulseStart & {
+  next: number;
+  tick: number;
+  baseTime: number;
+  wallStartMs: number;
+  usedWallClock?: boolean;
+  seenTime?: number;
+  seenAt?: number;
+  passAt?: number;
+  resumed?: boolean;
+}) | null = null;
 let state: PulseState = { owner: null, running: false, bpm: 80, beats: 4, sub: 1, beat: -1 };
 const listeners = new Set<() => void>();
 
@@ -149,6 +160,11 @@ export function setMasterMuted(muted: boolean) {
   }
 }
 
+/** Follower mode for Skjerm devices: never stall-kill remote playback and fall back to wall-clock ticks while AudioContext is suspended. */
+export function setFollowerMode(on: boolean) {
+  followerMode = on;
+}
+
 /** Mute or unmute clicks without touching other sound on the bus. */
 export function setClicks(on: boolean) {
   clicksOn = on;
@@ -186,8 +202,9 @@ function loop() {
     live.resumed = false;
   } else live.seenAt ??= now;
   if (now - live.seenAt > STALL_MS) {
-    if (masterMuted) {
+    if (masterMuted || followerMode) {
       live.seenAt = now;
+      if (c.state !== "running") void c.resume().catch(() => {});
     } else if (live.resumed) {
       spent = true;
       const owner = state.owner;
@@ -200,11 +217,21 @@ function loop() {
       void c.resume().catch(() => {});
     }
   }
-  if (c.state !== "running") {
+  const runningAudio = c.state === "running";
+  if (!runningAudio && !followerMode && !masterMuted) {
     timer = setTimeout(loop, LOOKAHEAD_MS);
     return;
   }
-  const late = c.currentTime - live.next;
+  const wallNow = live.baseTime + (now - live.wallStartMs) / 1000;
+  if (runningAudio && live.usedWallClock) {
+    const delta = Math.max(0.02, live.next - wallNow);
+    live.next = c.currentTime + delta;
+    live.usedWallClock = false;
+  } else if (!runningAudio) {
+    live.usedWallClock = true;
+  }
+  const clockNow = runningAudio ? c.currentTime : wallNow;
+  const late = clockNow - live.next;
   if (late > LATE_S) {
     // Skip the clicks the jump swallowed instead of playing them in one burst. Ticks count
     // on by the skipped clicks, so the bar position (and the accent) stays where time puts it.
@@ -215,11 +242,13 @@ function loop() {
     live.tick += missed;
     live.next += missed * period;
   }
-  while (live.next < c.currentTime + AHEAD_S) {
+  while (live.next < clockNow + AHEAD_S) {
     if (live.count != null && live.tick >= live.count) return;
     const step = clickStep(live.tick, state.beats, state.sub);
     const time = live.next;
-    click(c, time, step.accent ? "accent" : step.downbeat ? "beat" : "sub");
+    if (runningAudio) {
+      click(c, time, step.accent ? "accent" : step.downbeat ? "beat" : "sub");
+    }
     if (step.downbeat) emit({ beat: step.beatIndex });
     live.onClick?.({ tick: live.tick, time, accent: step.accent, downbeat: step.downbeat, beatIndex: step.beatIndex });
     if (run !== live) return;
@@ -231,12 +260,14 @@ function loop() {
 
 /** Make `opts.owner` the only sound owner and start its clicks. */
 export function start(opts: PulseStart) {
-  const c = unlock();
+  const c = followerMode ? audio() : unlock();
   if (!c) return false;
   stop(undefined, "replaced");
   const beats = Math.max(1, opts.beats ?? 4);
   const sub = Math.max(1, opts.sub ?? 1);
-  run = { ...opts, next: opts.at ?? c.currentTime + 0.05, tick: 0 };
+  const baseTime = c.currentTime;
+  const wallStartMs = Date.now();
+  run = { ...opts, next: opts.at ?? baseTime + 0.05, tick: 0, baseTime, wallStartMs };
   clicksOn = true;
   output();
   emit({ owner: opts.owner, running: true, bpm: Math.max(1, opts.bpm), beats, sub, beat: -1 });

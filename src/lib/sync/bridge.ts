@@ -5,15 +5,29 @@ import {
   getPlanClock,
   pauseBlockRemote,
   resumeBlockRemote,
+  setPlanBpm,
   setPlanBroadcastHook,
   setPlanMetroRemote,
   startPlanMetroRemote,
   stopPlanMetroRemote,
   stopPlanRemote,
 } from "@/lib/plan-clock";
-import { setMasterMuted } from "@/lib/pulse";
+import { setFollowerMode, setMasterMuted } from "@/lib/pulse";
 import { broadcastSync, getSyncState, onSyncPayload, subscribeSyncState } from "./room";
 import type { SyncPayload } from "./types";
+
+export type SightAction = "generate" | "togglePlay" | "toggleMetro" | "again";
+
+declare global {
+  interface Window {
+    MusikkSync?: {
+      isController: () => boolean;
+      isAudioActive: () => boolean;
+      sightAction: (action: SightAction) => void;
+      setTempo: (bpm: number) => void;
+    };
+  }
+}
 
 let initialized = false;
 let routerNavigate: ((to: string) => void) | null = null;
@@ -22,27 +36,61 @@ export function registerSyncNavigator(navigate: (to: string) => void) {
   routerNavigate = navigate;
 }
 
-function runSightAction(action: "generate" | "togglePlay", attempt = 0) {
+const SIGHT_BTN_MAP: Record<SightAction, string> = {
+  generate: "#malletsight-root #btnGenerate",
+  togglePlay: "#malletsight-root #btnPlay",
+  toggleMetro: "#malletsight-root #btnMetro",
+  again: "#malletsight-root #btnAgain",
+};
+
+export function runSightAction(action: SightAction, attempt = 0) {
   if (typeof window === "undefined") return;
-  const ms = window.MalletSight as
-    | {
-        generate?: () => void;
-        togglePlay?: () => void;
-      }
-    | undefined;
-  if (ms && typeof ms[action] === "function") {
-    ms[action]!();
+  const ms = window.MalletSight;
+  const btn = typeof document !== "undefined" ? (document.querySelector(SIGHT_BTN_MAP[action]) as HTMLElement | null) : null;
+  const ready = ms?.isReady ? ms.isReady() : Boolean(btn);
+
+  if (!ready) {
+    if (attempt < 30) {
+      window.setTimeout(() => runSightAction(action, attempt + 1), 100);
+    }
     return;
   }
-  if (attempt < 6) {
-    window.setTimeout(() => runSightAction(action, attempt + 1), 120);
+
+  if (action === "togglePlay" || action === "again") {
+    stopPlanMetroRemote();
+  }
+
+  const fn = ms?.[action];
+  if (typeof fn === "function") {
+    const ok = fn();
+    if (ok !== false) return;
+  }
+
+  if (btn) {
+    btn.click();
+    return;
+  }
+
+  if (attempt < 30) {
+    window.setTimeout(() => runSightAction(action, attempt + 1), 100);
   }
 }
 
-function applyRemoteSightTempo(bpm: number) {
+function applyRemoteSightTempo(bpm: number, attempt = 0) {
   if (typeof window === "undefined") return;
-  const ms = window.MalletSight as { setTempo?: (bpm: number) => void } | undefined;
-  ms?.setTempo?.(bpm);
+  const ms = window.MalletSight;
+  if (ms && typeof ms.setTempo === "function") {
+    const ok = ms.setTempo(bpm);
+    if (ok !== false) return;
+  }
+  if (attempt < 20) {
+    window.setTimeout(() => applyRemoteSightTempo(bpm, attempt + 1), 100);
+  }
+}
+
+function stopRemoteSightPlayback() {
+  if (typeof window === "undefined") return;
+  window.MalletSight?.stopAll?.();
 }
 
 export function broadcastControllerSnapshot() {
@@ -93,6 +141,28 @@ export function initSyncBridge() {
   if (initialized) return;
   initialized = true;
 
+  if (typeof window !== "undefined") {
+    window.MusikkSync = {
+      isController: () => {
+        const s = getSyncState();
+        return s.connected && s.role === "controller";
+      },
+      isAudioActive: () => {
+        const s = getSyncState();
+        return !s.connected || s.audioActive;
+      },
+      sightAction: (action: SightAction) => {
+        const s = getSyncState();
+        if (s.connected && s.role === "controller") {
+          broadcastSync({ type: "SIGHT_ACTION", action });
+        }
+      },
+      setTempo: (bpm: number) => {
+        setPlanBpm(bpm, true);
+      },
+    };
+  }
+
   // Register broadcast hook so controller broadcasts all block lifecycle actions automatically
   setPlanBroadcastHook({
     shouldNavigateLocally: () => {
@@ -139,15 +209,18 @@ export function initSyncBridge() {
     onMetroStop: () => syncMetroStop(),
   });
 
-  // Sync audio mute state with pulse core
-  subscribeSyncState(() => {
+  // Sync audio mute and follower state with pulse core
+  const syncPulseFlags = () => {
     const state = getSyncState();
+    setFollowerMode(state.connected && state.role === "display");
     if (state.connected) {
       setMasterMuted(!state.audioActive);
     } else {
       setMasterMuted(false);
     }
-  });
+  };
+  subscribeSyncState(syncPulseFlags);
+  syncPulseFlags();
 
   // Handle incoming remote sync messages
   onSyncPayload((payload: SyncPayload) => {
@@ -165,6 +238,9 @@ export function initSyncBridge() {
 
     switch (payload.type) {
       case "PLAN_START": {
+        if (payload.blockId !== "srf") {
+          stopRemoteSightPlayback();
+        }
         beginBlockRemote(
           payload.blockId as BlockId,
           payload.mins,
@@ -184,6 +260,9 @@ export function initSyncBridge() {
       }
 
       case "PLAN_ARM": {
+        if (payload.blockId !== "srf") {
+          stopRemoteSightPlayback();
+        }
         armBlockRemote(
           payload.blockId as BlockId,
           payload.mins,
@@ -204,6 +283,7 @@ export function initSyncBridge() {
       }
 
       case "PLAN_PAUSE": {
+        stopRemoteSightPlayback();
         pauseBlockRemote(payload.remainMs);
         break;
       }
@@ -214,6 +294,7 @@ export function initSyncBridge() {
       }
 
       case "PLAN_STOP": {
+        stopRemoteSightPlayback();
         stopPlanRemote(payload.chime);
         if (routerNavigate) {
           routerNavigate("/oveplan");
@@ -368,7 +449,7 @@ export function syncMetroStop() {
   });
 }
 
-export function syncSightAction(action: "generate" | "togglePlay") {
+export function syncSightAction(action: SightAction) {
   const state = getSyncState();
   if (state.connected && state.role === "controller") {
     broadcastSync({

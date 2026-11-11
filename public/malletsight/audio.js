@@ -56,8 +56,9 @@
   function loadInstrument(instId) {
     const folder = sampleFolder(instId);
     if (Array.isArray(sampleBank[folder])) return Promise.resolve(sampleBank[folder]);
-    if (sampleBank[folder]) return sampleBank[folder];
     const c = ac();
+    if (!c || c.state !== "running") return Promise.resolve([]);
+    if (sampleBank[folder]) return sampleBank[folder];
     const p = Promise.all(
       Object.keys(NOTE_MIDI).map((name) =>
         fetch("/malletsight/sample-" + folder + "-" + name + ".mp3")
@@ -68,7 +69,8 @@
       )
     ).then((list) => {
       const ready = list.filter(Boolean).sort((a, b) => a.midi - b.midi);
-      sampleBank[folder] = ready;
+      if (ready.length) sampleBank[folder] = ready;
+      else delete sampleBank[folder];
       return ready;
     });
     sampleBank[folder] = p;
@@ -259,7 +261,8 @@
       sub: subdiv,
       onClick: (click) => {
         if (!click.downbeat || !onBeat) return;
-        const wait = Math.max(0, (click.time - ac().currentTime) * 1000);
+        const c = ac();
+        const wait = c && c.state === "running" ? Math.max(0, Math.min(150, (click.time - c.currentTime) * 1000)) : 0;
         setTimeout(() => {
           if (metroOn && onBeat) onBeat(click.beatIndex, beatsPerBar, true);
         }, wait);
@@ -299,7 +302,8 @@
     stopPlayback();
     opts = opts || {};
     const token = playToken;
-    Pulse.unlock();
+    playing = true;
+    ac();
     const quarterBpm = Number(opts.quarterBpm) || tempo || 80;
     const clickBpm = Number(opts.clickBpm) || quarterBpm;
     const beats = Math.max(1, opts.beatsPerBar || 4);
@@ -310,10 +314,13 @@
     const qTicks = quarterTicks();
     const qSec = 60 / quarterBpm;
 
+    let kicked = false;
     const kick = () => {
-      if (token !== playToken) return;
+      if (kicked || token !== playToken || !playing) return;
+      kicked = true;
       const c = ac();
       if (!score || !score.measures) {
+        playing = false;
         const cb = onPlayDone;
         onPlayDone = null;
         if (cb) cb();
@@ -332,7 +339,8 @@
       const beatSec = (clickTicks / qTicks) * qSec;
       const musicSec = (tickPos / qTicks) * qSec;
       const musicClicks = Math.max(1, Math.round(tickPos / clickTicks));
-      const t0 = c.currentTime + 0.07;
+      const baseTime = c ? c.currentTime : 0;
+      const t0 = baseTime + 0.07;
       const countBeats = countIn * beats;
       const musicAt = t0 + countBeats * beatSec;
       const steps = subdiv === 2 || subdiv === 4 ? subdiv : 1;
@@ -355,7 +363,7 @@
             beats: beats,
             musicBeats: musicClicks,
           };
-          const wait = Math.max(0, (click.time - c.currentTime) * 1000);
+          const wait = c && c.state === "running" ? Math.max(0, Math.min(150, (click.time - c.currentTime) * 1000)) : 0;
           setTimeout(() => {
             if (token === playToken && playing) onCue(cue);
           }, wait);
@@ -371,20 +379,21 @@
         },
       });
       playOwned = true;
-      items.forEach((item, idx) => {
-        const ev = item.ev;
-        const when = musicAt + (item.tick / qTicks) * qSec;
-        if (!ev.rest && ev.pitches && ev.pitches.length) {
-          const prev = idx > 0 ? items[idx - 1].ev : null;
-          ev.pitches.forEach((p) => {
-            if (isTiedInto(prev, p)) return;
-            const dur = Math.max(0.05, (heldTicks(items, idx, p) / qTicks) * qSec);
-            try { scheduleNote(when, p, dur, instId, !!ev.roll); } catch (err) { /* best effort */ }
-          });
-        }
-      });
-      const playEnd = musicAt + musicSec + 0.08;
-      playing = true;
+      if (c && c.state === "running") {
+        items.forEach((item, idx) => {
+          const ev = item.ev;
+          const when = musicAt + (item.tick / qTicks) * qSec;
+          if (!ev.rest && ev.pitches && ev.pitches.length) {
+            const prev = idx > 0 ? items[idx - 1].ev : null;
+            ev.pitches.forEach((p) => {
+              if (isTiedInto(prev, p)) return;
+              const dur = Math.max(0.05, (heldTicks(items, idx, p) / qTicks) * qSec);
+              try { scheduleNote(when, p, dur, instId, !!ev.roll); } catch (err) { /* best effort */ }
+            });
+          }
+        });
+      }
+      const totalDurationMs = Math.max(0, (0.07 + countBeats * beatSec + musicSec + 0.08) * 1000);
       playEndTimer = setTimeout(() => {
         if (token !== playToken) return;
         playToken++;
@@ -394,13 +403,19 @@
         onPlayDone = null;
         Pulse.stop("bladlesing");
         if (cb) cb();
-      }, Math.max(0, (playEnd - c.currentTime) * 1000));
+      }, totalDurationMs);
     };
 
-    const go = () => {
-      loadInstrument(instId).then(() => { if (token === playToken) kick(); }).catch(() => { if (token === playToken) kick(); });
-    };
-    go();
+    const timeout = setTimeout(kick, 250);
+    loadInstrument(instId)
+      .then(() => {
+        clearTimeout(timeout);
+        kick();
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        kick();
+      });
   }
 
   function setClicks(on) {

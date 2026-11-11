@@ -5,6 +5,7 @@
   const LEGACY = "mallet-sr-settings-v3";
   let host = document.getElementById("malletsight-root") || document;
   let wired = false;
+  let remoteCall = false;
   let onResize = null;
   let onKey = null;
   let offPulse = null;
@@ -779,6 +780,9 @@
       $("#tempoRead").textContent = settings.tempo;
       if (typeof metroBpm === "function") AudioEngine.setTempo(metroBpm());
       saveSettings();
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+        window.MusikkSync.setTempo(settings.tempo);
+      }
     }
 
     $("#tempo").addEventListener("input", () => {
@@ -805,6 +809,9 @@
     });
     function generateFresh() {
       openSettings(false);
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+        window.MusikkSync.sightAction("generate");
+      }
       requestAnimationFrame(() => requestAnimationFrame(generate));
     }
     $("#btnGenerate").addEventListener("click", generateFresh);
@@ -880,6 +887,9 @@
     }
 
     $("#btnMetro").addEventListener("click", () => {
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+        window.MusikkSync.sightAction("toggleMetro");
+      }
       if (AudioEngine.isPlaying()) {
         const on = !$("#btnMetro").classList.contains("on");
         $("#btnMetro").classList.toggle("on", on);
@@ -927,6 +937,10 @@
     }
 
     $("#btnPlay").addEventListener("click", () => {
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+        if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
+        window.MusikkSync.sightAction("togglePlay");
+      }
       if (AudioEngine.isPlaying()) {
         const resume = metroBeforePlay;
         AudioEngine.stopPlayback();
@@ -970,13 +984,23 @@
     });
 
     $("#btnAgain").addEventListener("click", () => {
+      if (!currentScore) generate();
       if (!currentScore) return;
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+        if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
+        window.MusikkSync.sightAction("again");
+      }
       if (AudioEngine.isPlaying()) {
         AudioEngine.stopPlayback();
         endPlay(false);
       }
-      applyTempo(settings.tempo - 10);
-      $("#btnPlay").click();
+      remoteCall = true;
+      try {
+        applyTempo(settings.tempo - 10);
+        $("#btnPlay").click();
+      } finally {
+        remoteCall = false;
+      }
     });
 
     $("#btnZoomOut").addEventListener("click", () => {
@@ -1005,7 +1029,7 @@
     $("#tempoRead").textContent = settings.tempo;
     syncRangeSliders();
 
-    requestAnimationFrame(generate);
+    generate();
     wired = true;
   }
 
@@ -1033,18 +1057,73 @@
       wire();
     },
     unmount,
+    isReady() {
+      return Boolean(wired && $("#btnPlay"));
+    },
     generate() {
-      if (!wired) return;
-      openSettings(false);
-      generate();
+      if (!wired) return false;
+      remoteCall = true;
+      try {
+        openSettings(false);
+        generate();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
     },
     togglePlay() {
-      if (!wired) return;
+      if (!wired) return false;
       const btn = $("#btnPlay");
-      if (btn) btn.click();
+      if (!btn) return false;
+      remoteCall = true;
+      try {
+        btn.click();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
+    toggleMetro() {
+      if (!wired) return false;
+      const btn = $("#btnMetro");
+      if (!btn) return false;
+      remoteCall = true;
+      try {
+        btn.click();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
+    again() {
+      if (!wired) return false;
+      const btn = $("#btnAgain");
+      if (!btn) return false;
+      remoteCall = true;
+      try {
+        btn.click();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
+    stopAll() {
+      if (!wired) return;
+      remoteCall = true;
+      try {
+        haltPlay();
+        if (typeof AudioEngine !== "undefined" && AudioEngine.isMetro()) {
+          AudioEngine.stopMetronome();
+          const metro = $("#btnMetro");
+          if (metro) metro.classList.remove("on");
+          if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
+        }
+      } finally {
+        remoteCall = false;
+      }
     },
     setTempo(bpm) {
-      if (!wired) return;
+      if (!wired) return false;
       const clamped = Math.max(40, Math.min(160, Math.round(bpm)));
       settings.tempo = clamped;
       if ($("#tempo")) $("#tempo").value = String(clamped);
@@ -1052,6 +1131,7 @@
       if ($("#tempoRead")) $("#tempoRead").textContent = String(clamped);
       if (typeof AudioEngine !== "undefined") AudioEngine.setTempo(clamped);
       saveSettings();
+      return true;
     },
   };
 })();

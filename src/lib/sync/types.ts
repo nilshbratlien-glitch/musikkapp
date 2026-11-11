@@ -40,7 +40,7 @@ export type SyncPayload =
   | { type: "METRO_STOP" }
   // Sight-Reading events
   | { type: "SIGHT_SET"; level?: number; seed?: number; instrument?: string }
-  | { type: "SIGHT_ACTION"; action: "generate" | "togglePlay" }
+  | { type: "SIGHT_ACTION"; action: "generate" | "togglePlay" | "toggleMetro" | "again" }
   // State synchronization request from a newly connected display
   | { type: "SYNC_REQUEST" };
 
