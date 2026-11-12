@@ -1099,7 +1099,7 @@
       if ($("#showStickingLabel")) {
         $("#showStickingLabel").textContent = currentProfile() === "trumpet" ? "Vis ventilgrep" : "Vis køllenummer";
       }
-      if (window.AudioEngine) {
+      if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
         AudioEngine.loadInstrument(settings.instrumentId);
       }
     },
@@ -1118,7 +1118,7 @@
           $("#showStickingLabel").textContent = currentProfile() === "trumpet" ? "Vis ventilgrep" : "Vis køllenummer";
         }
         generate();
-        if (window.AudioEngine) {
+        if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
           AudioEngine.loadInstrument(settings.instrumentId);
         }
       } finally {

@@ -558,6 +558,7 @@
   }
 
   global.AudioEngine = {
+    loadInstrument,
     startMetronome,
     stopMetronome,
     setTempo,
