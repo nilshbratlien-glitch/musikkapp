@@ -1758,10 +1758,19 @@
 
     const scale = T.diatonicPitches(concertKey, 24, 115);
 
-    // Find the ideal singing register for Trumpet (written C4-D5 -> sounding Bb3(58) to C5(72))
+    // Written and sounding ranges
+    const tptLow = rawSettings.duetRangeTptLow || rawSettings.rangeTptLow || 60;
+    const tptHigh = rawSettings.duetRangeTptHigh || rawSettings.rangeTptHigh || 74;
+    const tptSoundLow = tptLow - 2;
+    const tptSoundHigh = tptHigh - 2;
+
+    const malletLow = rawSettings.duetRangeMalletLow || (malletInst.low + (malletInst.writtenOff || 0));
+    const malletHigh = rawSettings.duetRangeMalletHigh || (malletInst.high + (malletInst.writtenOff || 0));
+
+    // Position tonic within the trumpet range
     let tonicPitch = concertKey.tonic + 60;
-    if (tonicPitch < 58) tonicPitch += 12;
-    if (tonicPitch > 70) tonicPitch -= 12;
+    while (tonicPitch < tptSoundLow + 2 && tonicPitch + 12 <= tptSoundHigh) tonicPitch += 12;
+    while (tonicPitch > tptSoundHigh - 3 && tonicPitch - 12 >= tptSoundLow) tonicPitch -= 12;
     let tIdx = scale.indexOf(tonicPitch);
     if (tIdx < 0) {
       let bestD = 999;
@@ -1915,6 +1924,11 @@
         targetIdx -= 7;
       }
 
+      const userSoundingLow = malletLow - (malletInst.writtenOff || 0);
+      const userSoundingHigh = malletHigh - (malletInst.writtenOff || 0);
+      while (scale[targetIdx] < userSoundingLow && targetIdx + 7 < scale.length) targetIdx += 7;
+      while (scale[targetIdx] > userSoundingHigh && targetIdx - 7 >= 0) targetIdx -= 7;
+
       return scale[targetIdx];
     }
 
@@ -1927,7 +1941,66 @@
       let targetMidi = tptSoundingMidi + octOffset;
       while (targetMidi < malletInst.low) targetMidi += 12;
       while (targetMidi > malletInst.high) targetMidi -= 12;
+
+      const userSoundingLow = malletLow - (malletInst.writtenOff || 0);
+      const userSoundingHigh = malletHigh - (malletInst.writtenOff || 0);
+      while (targetMidi < userSoundingLow && targetMidi + 12 <= malletInst.high) targetMidi += 12;
+      while (targetMidi > userSoundingHigh && targetMidi - 12 >= malletInst.low) targetMidi -= 12;
+
       return targetMidi;
+    }
+
+    // Active rhythm features based on user settings:
+    const allowedRhythms = new Set(rawSettings.rhythms || ["w", "h", "hd", "q", "qd", "8"]);
+    const has16 = allowedRhythms.has("16");
+    const hasTriplets = allowedRhythms.has("8t") || allowedRhythms.has("qt");
+    const hasDotted8 = allowedRhythms.has("8d");
+
+    function subdivideCell(cell, isFinalCell) {
+      if (isFinalCell) return null;
+      const deg = cell[0];
+      const durId = cell[1];
+
+      if (durId === "q") {
+        if (hasTriplets && Math.random() < 0.35) {
+          const dir = Math.random() < 0.5 ? 1 : -1;
+          return [
+            { deg: deg, dur: d("8t"), tuplet: "start" },
+            { deg: deg + dir, dur: d("8t"), tuplet: null },
+            { deg: deg, dur: d("8t"), tuplet: "end" },
+          ];
+        }
+        if (has16 && Math.random() < 0.45) {
+          const r = Math.random();
+          if (hasDotted8 && r < 0.35) {
+            return [
+              { deg: deg, dur: d("8d"), tuplet: null },
+              { deg: deg + 1, dur: d("16"), tuplet: null },
+            ];
+          } else if (r < 0.70) {
+            return [
+              { deg: deg, dur: d("16"), tuplet: null },
+              { deg: deg + 1, dur: d("16"), tuplet: null },
+              { deg: deg + 2, dur: d("16"), tuplet: null },
+              { deg: deg + 1, dur: d("16"), tuplet: null },
+            ];
+          } else {
+            return [
+              { deg: deg, dur: d("16"), tuplet: null },
+              { deg: deg + 1, dur: d("16"), tuplet: null },
+              { deg: deg, dur: d("8"), tuplet: null },
+            ];
+          }
+        }
+      } else if (durId === "8") {
+        if (has16 && Math.random() < 0.28) {
+          return [
+            { deg: deg, dur: d("16"), tuplet: null },
+            { deg: deg + 1, dur: d("16"), tuplet: null },
+          ];
+        }
+      }
+      return null;
     }
 
     const trumpetMeasures = [];
@@ -1953,19 +2026,37 @@
         const isMalletSolo = !isCadencePhrase && (m % 4 === 2 || m % 4 === 3);
 
         if (isTptSolo) {
-          barNotes.forEach((item) => {
-            const deg = item[0];
-            const dur = d(item[1]);
-            const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
-            const writtenTpt = tptSounding + 2;
-            tptEvents.push({
-              rest: false,
-              dur: dur,
-              pitches: [writtenTpt],
-              mallets: [],
-              sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
-            });
-            malletEvents.push({ rest: true, dur: dur, pitches: [], mallets: [] });
+          barNotes.forEach((item, ni) => {
+            const isLastInBar = (ni === barNotes.length - 1);
+            const sub = subdivideCell(item, isFinalBar && isLastInBar);
+            if (!sub) {
+              const deg = item[0];
+              const dur = d(item[1]);
+              const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+              const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
+              tptEvents.push({
+                rest: false,
+                dur: dur,
+                pitches: [writtenTpt],
+                mallets: [],
+                sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+              });
+              malletEvents.push({ rest: true, dur: dur, pitches: [], mallets: [] });
+            } else {
+              sub.forEach((sn) => {
+                const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+                const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
+                tptEvents.push({
+                  rest: false,
+                  dur: sn.dur,
+                  tuplet: sn.tuplet || null,
+                  pitches: [writtenTpt],
+                  mallets: [],
+                  sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+                });
+                malletEvents.push({ rest: true, dur: sn.dur, tuplet: sn.tuplet || null, pitches: [], mallets: [] });
+              });
+            }
           });
           callTptEvents[m % 4] = tptEvents.slice();
         } else if (isMalletSolo) {
@@ -1973,11 +2064,12 @@
           if (echoRef && echoRef.length) {
             echoRef.forEach((refEv) => {
               const dur = refEv.dur;
-              tptEvents.push({ rest: true, dur: dur, pitches: [], mallets: [] });
+              const tuplet = refEv.tuplet || null;
+              tptEvents.push({ rest: true, dur: dur, tuplet: tuplet, pitches: [], mallets: [] });
               const refTptWritten = refEv.pitches[0];
               const refTptSounding = refTptWritten - 2;
               const malPitch = getEchoPitch(refTptSounding);
-              malletEvents.push({ rest: false, dur: dur, pitches: [malPitch], mallets: [1] });
+              malletEvents.push({ rest: false, dur: dur, tuplet: tuplet, pitches: [malPitch], mallets: [1] });
             });
           } else {
             barNotes.forEach((item) => {
@@ -1992,11 +2084,12 @@
         } else {
           // Cadence bars: play together in harmony!
           barNotes.forEach((item, ni) => {
-            const isLastNote = isFinalBar && (ni === barNotes.length - 1);
-            const deg = item[0];
+            const isLastInBar = (ni === barNotes.length - 1);
+            const isLastNote = isFinalBar && isLastInBar;
+            const deg = isLastNote ? 0 : item[0];
             const dur = d(item[1]);
             const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
-            const writtenTpt = tptSounding + 2;
+            const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
             const malPitch = getMalletPitch(tptSounding, isLastNote);
 
             tptEvents.push({
@@ -2010,19 +2103,36 @@
           });
         }
       } else if (style === "melody_comp") {
-        barNotes.forEach((item) => {
-          const deg = item[0];
-          const dur = d(item[1]);
-          const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
-          const writtenTpt = tptSounding + 2;
+        barNotes.forEach((item, ni) => {
+          const isLastInBar = (ni === barNotes.length - 1);
+          const sub = subdivideCell(item, isFinalBar && isLastInBar);
+          if (!sub) {
+            const deg = item[0];
+            const dur = d(item[1]);
+            const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+            const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
 
-          tptEvents.push({
-            rest: false,
-            dur: dur,
-            pitches: [writtenTpt],
-            mallets: [],
-            sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
-          });
+            tptEvents.push({
+              rest: false,
+              dur: dur,
+              pitches: [writtenTpt],
+              mallets: [],
+              sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+            });
+          } else {
+            sub.forEach((sn) => {
+              const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+              const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
+              tptEvents.push({
+                rest: false,
+                dur: sn.dur,
+                tuplet: sn.tuplet || null,
+                pitches: [writtenTpt],
+                mallets: [],
+                sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+              });
+            });
+          }
         });
 
         const chord = CHORDS_8[m % 8];
@@ -2099,28 +2209,104 @@
           });
         }
       } else {
-        // "harmony": pure parallel & consonant diatonic 3rds (and 10ths)
+        // "harmony": pure parallel & consonant diatonic 3rds (and 10ths) with musical dialogue
         barNotes.forEach((item, ni) => {
-          const isLastNote = isFinalBar && (ni === barNotes.length - 1);
-          const deg = item[0];
-          const dur = d(item[1]);
-          const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
-          const writtenTpt = tptSounding + 2;
-          const malPitch = getMalletPitch(tptSounding, isLastNote);
+          const isLastInBar = (ni === barNotes.length - 1);
+          const isLastNote = isFinalBar && isLastInBar;
+          const deg = isLastNote ? 0 : item[0];
+          const origDur = d(item[1]);
 
-          tptEvents.push({
-            rest: false,
-            dur: dur,
-            pitches: [writtenTpt],
-            mallets: [],
-            sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
-          });
-          malletEvents.push({
-            rest: false,
-            dur: dur,
-            pitches: [malPitch],
-            mallets: [1],
-          });
+          const sub = isLastNote ? null : subdivideCell(item, isFinalBar);
+
+          if (!sub) {
+            const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+            const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
+            const malPitch = getMalletPitch(tptSounding, isLastNote);
+
+            tptEvents.push({
+              rest: false,
+              dur: origDur,
+              pitches: [writtenTpt],
+              mallets: [],
+              sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+            });
+            malletEvents.push({
+              rest: false,
+              dur: origDur,
+              pitches: [malPitch],
+              mallets: [1],
+            });
+          } else {
+            const textureRoll = Math.random();
+            if (textureRoll < 0.40) {
+              // Both play the flourish in parallel
+              sub.forEach((sn) => {
+                const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+                const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
+                const malPitch = getMalletPitch(tptSounding, false);
+
+                tptEvents.push({
+                  rest: false,
+                  dur: sn.dur,
+                  tuplet: sn.tuplet || null,
+                  pitches: [writtenTpt],
+                  mallets: [],
+                  sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+                });
+                malletEvents.push({
+                  rest: false,
+                  dur: sn.dur,
+                  tuplet: sn.tuplet || null,
+                  pitches: [malPitch],
+                  mallets: [1],
+                });
+              });
+            } else if (textureRoll < 0.70) {
+              // Dialogue: Trumpet flourish, Mallet holds sustained note
+              sub.forEach((sn) => {
+                const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+                const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
+                tptEvents.push({
+                  rest: false,
+                  dur: sn.dur,
+                  tuplet: sn.tuplet || null,
+                  pitches: [writtenTpt],
+                  mallets: [],
+                  sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+                });
+              });
+              const baseTptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+              const malPitch = getMalletPitch(baseTptSounding, false);
+              malletEvents.push({
+                rest: false,
+                dur: origDur,
+                pitches: [malPitch],
+                mallets: [1],
+              });
+            } else {
+              // Dialogue: Trumpet holds sustained note, Mallet plays flourish
+              const baseTptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+              const writtenTpt = T.clamp(baseTptSounding + 2, tptLow, tptHigh);
+              tptEvents.push({
+                rest: false,
+                dur: origDur,
+                pitches: [writtenTpt],
+                mallets: [],
+                sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+              });
+              sub.forEach((sn) => {
+                const harmSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+                const malPitch = getMalletPitch(harmSounding, false);
+                malletEvents.push({
+                  rest: false,
+                  dur: sn.dur,
+                  tuplet: sn.tuplet || null,
+                  pitches: [malPitch],
+                  mallets: [1],
+                });
+              });
+            }
+          }
         });
       }
 

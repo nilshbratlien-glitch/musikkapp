@@ -142,3 +142,45 @@ test("Generator.generateDuet works across all melodic percussion instruments", (
     });
   }
 });
+
+test("Generator.generateDuet respects custom trumpet and mallet register ranges", () => {
+  const { Generator } = load(777);
+  const duet = Generator.generateDuet(settings({
+    keyId: "C",
+    measures: 8,
+    style: "harmony",
+    malletInstrument: "xylo",
+    duetRangeTptLow: 60, // C4
+    duetRangeTptHigh: 67, // G4 (beginner trumpet range)
+    duetRangeMalletLow: 60, // C4 written
+    duetRangeMalletHigh: 76, // E5 written
+  }));
+
+  const tptPitches = duet.trumpetMeasures.flatMap((m) => m.events.flatMap((e) => e.pitches));
+  const malPitches = duet.malletMeasures.flatMap((m) => m.events.flatMap((e) => e.pitches));
+
+  tptPitches.forEach((p) => {
+    assert.ok(p >= 60 && p <= 67, `Trumpet written pitch ${p} outside custom bounds [60, 67]`);
+  });
+  malPitches.forEach((p) => {
+    // Xylo written is p - 12
+    const written = p - 12;
+    assert.ok(written >= 60 && written <= 76, `Xylo written pitch ${written} outside custom bounds [60, 76]`);
+  });
+});
+
+test("Generator.generateDuet generates sixteenth notes and triplets when enabled in rhythms", () => {
+  const { Generator } = load(888);
+  const duet = Generator.generateDuet(settings({
+    keyId: "C",
+    measures: 8,
+    style: "harmony",
+    malletInstrument: "mar43",
+    rhythms: ["w", "h", "q", "8", "16", "8t", "8d"],
+  }));
+
+  const allDurIds = duet.trumpetMeasures.flatMap((m) => m.events.map((e) => e.dur.id));
+  const has16thOrTriplet = allDurIds.some((id) => id === "16" || id === "8t" || id === "8d");
+  assert.ok(has16thOrTriplet, "Should generate advanced rhythms (16th, triplet or dotted) when enabled");
+});
+

@@ -72,6 +72,10 @@
     duetViewPart: "score",
     duetPlayTrumpet: true,
     duetPlayMallets: true,
+    duetRangeTptLow: 60,
+    duetRangeTptHigh: 74,
+    duetRangeMalletLow: 60,
+    duetRangeMalletHigh: 84,
   };
 
   const TRUMPET_DEFAULTS = Object.assign({}, DEFAULTS, {
@@ -588,11 +592,41 @@
 
     if ($("#duetEnabled")) $("#duetEnabled").checked = !!settings.duetEnabled;
     if ($("#duetMalletInstrument")) $("#duetMalletInstrument").value = settings.duetMalletInstrument || "xylo";
+    if ($("#duetToolbarMalletSelect")) $("#duetToolbarMalletSelect").value = settings.duetMalletInstrument || "xylo";
     if ($("#duetStyle")) $("#duetStyle").value = settings.duetStyle || "harmony";
     if ($("#duetViewSelect")) $("#duetViewSelect").value = settings.duetViewPart || "score";
     if ($("#duetPlayTrumpet")) $("#duetPlayTrumpet").checked = settings.duetPlayTrumpet !== false;
     if ($("#duetPlayMallets")) $("#duetPlayMallets").checked = settings.duetPlayMallets !== false;
     if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", !!settings.duetEnabled);
+
+    const isDuet = Boolean(settings.duetEnabled);
+    if ($("#soloRangeControls")) $("#soloRangeControls").hidden = isDuet;
+    if ($("#duetRangeControls")) $("#duetRangeControls").hidden = !isDuet;
+
+    const tptLow = settings.duetRangeTptLow || 60;
+    const tptHigh = settings.duetRangeTptHigh || 74;
+    const malLow = settings.duetRangeMalletLow || 60;
+    const malHigh = settings.duetRangeMalletHigh || 84;
+
+    if ($("#rangeTptLow")) $("#rangeTptLow").value = tptLow;
+    if ($("#duetRangeTptLow")) $("#duetRangeTptLow").value = tptLow;
+    if ($("#rangeTptLowLbl")) $("#rangeTptLowLbl").textContent = midiLabel(tptLow);
+    if ($("#duetRangeTptLowLbl")) $("#duetRangeTptLowLbl").textContent = midiLabel(tptLow);
+
+    if ($("#rangeTptHigh")) $("#rangeTptHigh").value = tptHigh;
+    if ($("#duetRangeTptHigh")) $("#duetRangeTptHigh").value = tptHigh;
+    if ($("#rangeTptHighLbl")) $("#rangeTptHighLbl").textContent = midiLabel(tptHigh);
+    if ($("#duetRangeTptHighLbl")) $("#duetRangeTptHighLbl").textContent = midiLabel(tptHigh);
+
+    if ($("#rangeMalletLow")) $("#rangeMalletLow").value = malLow;
+    if ($("#duetRangeMalletLow")) $("#duetRangeMalletLow").value = malLow;
+    if ($("#rangeMalletLowLbl")) $("#rangeMalletLowLbl").textContent = midiLabel(malLow);
+    if ($("#duetRangeMalletLowLbl")) $("#duetRangeMalletLowLbl").textContent = midiLabel(malLow);
+
+    if ($("#rangeMalletHigh")) $("#rangeMalletHigh").value = malHigh;
+    if ($("#duetRangeMalletHigh")) $("#duetRangeMalletHigh").value = malHigh;
+    if ($("#rangeMalletHighLbl")) $("#rangeMalletHighLbl").textContent = midiLabel(malHigh);
+    if ($("#duetRangeMalletHighLbl")) $("#duetRangeMalletHighLbl").textContent = midiLabel(malHigh);
 
     buildRhythmToggles($("#rhythms"), "rhythms", settings.rhythms);
     buildRhythmToggles($("#rests"), "rests", settings.rests);
@@ -713,11 +747,16 @@
       if (el) settings[k] = el.checked;
     });
     if ($("#duetEnabled")) settings.duetEnabled = $("#duetEnabled").checked;
-    if ($("#duetMalletInstrument")) settings.duetMalletInstrument = $("#duetMalletInstrument").value;
+    if ($("#duetToolbarMalletSelect")) settings.duetMalletInstrument = $("#duetToolbarMalletSelect").value;
+    else if ($("#duetMalletInstrument")) settings.duetMalletInstrument = $("#duetMalletInstrument").value;
     if ($("#duetStyle")) settings.duetStyle = $("#duetStyle").value;
     if ($("#duetViewSelect")) settings.duetViewPart = $("#duetViewSelect").value;
     if ($("#duetPlayTrumpet")) settings.duetPlayTrumpet = $("#duetPlayTrumpet").checked;
     if ($("#duetPlayMallets")) settings.duetPlayMallets = $("#duetPlayMallets").checked;
+    if ($("#rangeTptLow")) settings.duetRangeTptLow = Number($("#rangeTptLow").value);
+    if ($("#rangeTptHigh")) settings.duetRangeTptHigh = Number($("#rangeTptHigh").value);
+    if ($("#rangeMalletLow")) settings.duetRangeMalletLow = Number($("#rangeMalletLow").value);
+    if ($("#rangeMalletHigh")) settings.duetRangeMalletHigh = Number($("#rangeMalletHigh").value);
     if (settings.rangeLow > settings.rangeHigh) {
       const t = settings.rangeLow;
       settings.rangeLow = settings.rangeHigh;
@@ -971,6 +1010,8 @@
         settings.duetEnabled = !settings.duetEnabled;
         if ($("#duetEnabled")) $("#duetEnabled").checked = settings.duetEnabled;
         $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
+        if ($("#soloRangeControls")) $("#soloRangeControls").hidden = settings.duetEnabled;
+        if ($("#duetRangeControls")) $("#duetRangeControls").hidden = !settings.duetEnabled;
         saveSettings();
         generate();
       });
@@ -979,15 +1020,55 @@
       $("#duetEnabled").addEventListener("change", () => {
         settings.duetEnabled = $("#duetEnabled").checked;
         if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
+        if ($("#soloRangeControls")) $("#soloRangeControls").hidden = settings.duetEnabled;
+        if ($("#duetRangeControls")) $("#duetRangeControls").hidden = !settings.duetEnabled;
         saveSettings();
+      });
+    }
+    const onMalletInstChange = (newVal) => {
+      settings.duetMalletInstrument = newVal;
+      if ($("#duetMalletInstrument")) $("#duetMalletInstrument").value = newVal;
+      if ($("#duetToolbarMalletSelect")) $("#duetToolbarMalletSelect").value = newVal;
+      saveSettings();
+      AudioEngine.loadInstrument(newVal);
+      if (settings.duetEnabled) generate();
+    };
+    if ($("#duetToolbarMalletSelect")) {
+      $("#duetToolbarMalletSelect").addEventListener("change", () => {
+        onMalletInstChange($("#duetToolbarMalletSelect").value);
       });
     }
     if ($("#duetMalletInstrument")) {
       $("#duetMalletInstrument").addEventListener("change", () => {
-        settings.duetMalletInstrument = $("#duetMalletInstrument").value;
-        saveSettings();
+        onMalletInstChange($("#duetMalletInstrument").value);
       });
     }
+
+    [
+      { id: "rangeTptLow", pair: "duetRangeTptLow", lbl: "rangeTptLowLbl", pairLbl: "duetRangeTptLowLbl", key: "duetRangeTptLow" },
+      { id: "rangeTptHigh", pair: "duetRangeTptHigh", lbl: "rangeTptHighLbl", pairLbl: "duetRangeTptHighLbl", key: "duetRangeTptHigh" },
+      { id: "rangeMalletLow", pair: "duetRangeMalletLow", lbl: "rangeMalletLowLbl", pairLbl: "duetRangeMalletLowLbl", key: "duetRangeMalletLow" },
+      { id: "rangeMalletHigh", pair: "duetRangeMalletHigh", lbl: "rangeMalletHighLbl", pairLbl: "duetRangeMalletHighLbl", key: "duetRangeMalletHigh" },
+    ].forEach((cfg) => {
+      [cfg.id, cfg.pair].forEach((domId) => {
+        const el = $("#" + domId);
+        if (!el) return;
+        el.addEventListener("input", () => {
+          const val = Number(el.value);
+          settings[cfg.key] = val;
+          const pairEl = $("#" + (domId === cfg.id ? cfg.pair : cfg.id));
+          if (pairEl) pairEl.value = val;
+          const lblA = $("#" + cfg.lbl);
+          const lblB = $("#" + cfg.pairLbl);
+          if (lblA) lblA.textContent = midiLabel(val);
+          if (lblB) lblB.textContent = midiLabel(val);
+          saveSettings();
+        });
+        el.addEventListener("change", () => {
+          if (settings.duetEnabled) generate();
+        });
+      });
+    });
     if ($("#duetStyle")) {
       $("#duetStyle").addEventListener("change", () => {
         settings.duetStyle = $("#duetStyle").value;
