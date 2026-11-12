@@ -46,6 +46,7 @@
     vibes: "vibraphone",
     mar43: "marimba",
     mar50: "marimba",
+    trumpet: "trumpet",
   };
   const sampleBank = {};
 
@@ -54,7 +55,6 @@
   }
 
   function loadInstrument(instId) {
-    if (instId === "trumpet") return Promise.resolve([]);
     const folder = sampleFolder(instId);
     if (Array.isArray(sampleBank[folder])) return Promise.resolve(sampleBank[folder]);
     const c = ac();
@@ -188,12 +188,45 @@
     trackNode(strike);
   }
 
-  /* Warm sustained B-trumpet synth: sounds 2 semitones below written pitch (Bb transposition). */
-  function scheduleTrumpetNote(time, writtenMidi, durSec) {
+  function playTrumpetSample(time, soundMidi, durSec) {
+    const folder = "trumpet";
+    const list = sampleBank[folder];
+    if (!Array.isArray(list) || !list.length) return false;
+    let best = list[0];
+    for (let i = 1; i < list.length; i++) {
+      if (Math.abs(list[i].midi - soundMidi) < Math.abs(best.midi - soundMidi)) best = list[i];
+    }
     const c = ac();
     if (time < c.currentTime) time = c.currentTime;
+    const src = c.createBufferSource();
+    src.buffer = best.buffer;
+    src.playbackRate.value = midiToFreq(soundMidi) / midiToFreq(best.midi);
+    const g = c.createGain();
+    const hold = Math.max(0.1, durSec * 0.94);
+    const stopAt = time + hold + 0.08;
+    g.gain.setValueAtTime(0.001, time);
+    g.gain.linearRampToValueAtTime(1.2, time + 0.025);
+    g.gain.setValueAtTime(1.0, time + hold);
+    g.gain.exponentialRampToValueAtTime(0.001, stopAt);
+    src.connect(g);
+    g.connect(scoreOut());
+    src.start(time);
+    src.stop(stopAt + 0.02);
+    trackNode(src);
+    return true;
+  }
+
+  /* Authentic sampled B-trumpet: sounds 2 semitones below written pitch (Bb transposition). */
+  function scheduleTrumpetNote(time, writtenMidi, durSec) {
     const sOff = global.Theory && global.Theory.soundOff ? global.Theory.soundOff("trumpet") : -2;
     const soundMidi = writtenMidi + sOff;
+
+    if (playTrumpetSample(time, soundMidi, durSec)) {
+      return;
+    }
+
+    const c = ac();
+    if (time < c.currentTime) time = c.currentTime;
     const f0 = midiToFreq(soundMidi);
     const dest = scoreOut();
     const hold = Math.max(0.07, durSec * 0.92);

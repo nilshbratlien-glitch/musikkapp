@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { getProfile, getProfileVersion, subscribeProfile } from "@/lib/profile";
 import "@/lib/pulse";
 
-const ASSET_VER = "v6";
+const ASSET_VER = "v7";
 const SCRIPTS = [
   `/malletsight/abcjs.js?${ASSET_VER}`,
   `/malletsight/theory.js?${ASSET_VER}`,
@@ -43,6 +44,12 @@ declare global {
 
 export function Malletsight() {
   const host = useRef<HTMLDivElement>(null);
+  useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
+  const profile = getProfile();
+
+  useEffect(() => {
+    window.MalletSight?.setProfile?.(profile);
+  }, [profile]);
 
   useEffect(() => {
     const root = host.current;
@@ -63,6 +70,7 @@ export function Malletsight() {
         if (cancelled) return;
       }
       window.MalletSight?.mount(root);
+      window.MalletSight?.setProfile?.(profile);
     })();
     return () => {
       cancelled = true;
