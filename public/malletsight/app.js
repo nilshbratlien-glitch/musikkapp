@@ -115,6 +115,11 @@
         if (isTrumpet) {
           merged.instrumentId = "trumpet";
           merged.clef = "treble";
+          merged.mallets = 1;
+          merged.texture = "melody";
+          merged.rolls = "off";
+          merged.chordChance = 0;
+          merged.doubleStopChance = 0;
         }
         const valid = new Set(T.KEYS.map((k) => k.id));
         if (!Array.isArray(parsed.keyIds)) {
@@ -514,7 +519,11 @@
   }
 
   function bindUI() {
-    fillSelect($("#instrument"), T.INSTRUMENTS, settings.instrumentId);
+    const isTrumpet = currentProfile() === "trumpet";
+    const availableInstruments = isTrumpet
+      ? T.INSTRUMENTS.filter((i) => i.id === "trumpet")
+      : T.INSTRUMENTS.filter((i) => i.id !== "trumpet");
+    fillSelect($("#instrument"), availableInstruments, settings.instrumentId);
     buildKeyToggles();
     fillSelect(
       $("#time"),
@@ -602,17 +611,35 @@
   }
 
   function updateMalletHints() {
-    const multi = settings.mallets >= 3 && settings.texture !== "melody" && settings.texture !== "mixed";
+    const isTrumpet = currentProfile() === "trumpet";
+    const malletsRow = $("#malletsRow");
+    if (malletsRow) malletsRow.hidden = isTrumpet;
+    const multi = !isTrumpet && settings.mallets >= 3 && settings.texture !== "melody" && settings.texture !== "mixed";
     $all(".multi-only").forEach((el) => {
       el.hidden = !multi;
     });
     const textureRow = $("#textureRow");
-    if (textureRow) textureRow.hidden = false;
-    const twoStop = settings.mallets === 2 && (settings.texture === "mixed" || settings.texture === "doublestops");
+    if (textureRow) textureRow.hidden = isTrumpet;
+    const twoStop = !isTrumpet && settings.mallets === 2 && (settings.texture === "mixed" || settings.texture === "doublestops");
     const mix = $("#chordChanceRow");
-    if (mix) mix.hidden = !(settings.texture === "mixed" || settings.texture === "doublestops");
+    if (mix) mix.hidden = isTrumpet || !(settings.texture === "mixed" || settings.texture === "doublestops");
     const ds = $("#doubleStopRow");
-    if (ds) ds.hidden = !twoStop;
+    if (ds) ds.hidden = isTrumpet || !twoStop;
+    const clefRow = $("#clefRow");
+    if (clefRow) clefRow.hidden = isTrumpet;
+    const rollsRow = $("#rollsRow");
+    if (rollsRow) rollsRow.hidden = isTrumpet;
+
+    if ($("#brandTitle")) {
+      $("#brandTitle").textContent = isTrumpet ? "Trompet Bladlesing" : "Mallet Sight Reader";
+    }
+    if ($("#brandSubtitle")) {
+      $("#brandSubtitle").textContent = isTrumpet ? "Trompet i B" : "v1.4 · 2–4 køller";
+    }
+    if ($("#showStickingLabel")) {
+      $("#showStickingLabel").textContent = isTrumpet ? "Vis ventilgrep" : "Vis køllenummer";
+    }
+
     if ($("#chordChanceTitle")) {
       $("#chordChanceTitle").textContent = "Akkorder i linjen";
     }
@@ -622,7 +649,7 @@
         : "Melodien fortsetter, og akkorder kommer på noen av de lengre tonene.";
     }
     const inst = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
-    const lockTreble = inst && inst.defaultClef === "treble";
+    const lockTreble = (inst && inst.defaultClef === "treble") || isTrumpet;
     if ($("#clef")) {
       $("#clef").disabled = !!lockTreble;
       if (lockTreble) {
@@ -633,10 +660,11 @@
   }
 
   function readInputs() {
-    settings.instrumentId = $("#instrument").value;
-    settings.mallets = parseInt($("#mallets").value, 10);
-    settings.texture = $("#texture").value;
-    settings.clef = $("#clef").value;
+    const isTrumpet = currentProfile() === "trumpet";
+    settings.instrumentId = isTrumpet ? "trumpet" : $("#instrument").value;
+    settings.mallets = isTrumpet ? 1 : parseInt($("#mallets").value, 10);
+    settings.texture = isTrumpet ? "melody" : $("#texture").value;
+    settings.clef = isTrumpet ? "treble" : $("#clef").value;
     const instClef = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
     if (instClef && instClef.defaultClef === "treble") settings.clef = "treble";
     settings.timeId = $("#time").value;
@@ -650,9 +678,9 @@
     settings.maxGripShift = parseInt($("#gripShift").value, 10);
     if ($("#voicing")) settings.voicing = $("#voicing").value;
     if ($("#blockSize")) settings.blockSize = $("#blockSize").value;
-    settings.rolls = $("#rolls").value;
+    settings.rolls = isTrumpet ? "off" : $("#rolls").value;
     settings.annotate = $("#annotate").value;
-    if ($("#chordChance")) settings.chordChance = parseInt($("#chordChance").value, 10) / 100;
+    if ($("#chordChance")) settings.chordChance = isTrumpet ? 0 : parseInt($("#chordChance").value, 10) / 100;
     if ($("#stopPlace")) settings.stopPlace = $("#stopPlace").value;
     [
       "allowRests",
@@ -726,7 +754,7 @@
         idx >= 0 ? "Nivå " + (idx + 1) : "Egendefinert",
         currentScore.key && currentScore.key.name,
         currentScore.time && currentScore.time.id,
-        inst ? inst.name : "Køller",
+        inst ? inst.name : (currentProfile() === "trumpet" ? "Trompet (B)" : "Køller"),
       ].filter(Boolean).join(" · ");
     }
   }

@@ -260,10 +260,11 @@
           : sOff === -2
             ? " · klinger i B"
             : "";
-    const malletPart =
-      inst && inst.monophonic
-        ? ""
-        : " · " + score.settingsSnapshot.mallets + " køller";
+    const isTrumpet =
+      (inst && (inst.monophonic || inst.id === "trumpet")) ||
+      (score.settingsSnapshot &&
+        (score.settingsSnapshot.instrument === "trumpet" || score.settingsSnapshot.instrumentId === "trumpet"));
+    const malletPart = isTrumpet ? "" : " · " + score.settingsSnapshot.mallets + " køller";
     const title =
       (inst ? inst.name : "Køller") +
       trans +
