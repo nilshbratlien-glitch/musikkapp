@@ -1,34 +1,36 @@
+import { getProfile, type InstrumentProfile } from "./profile.ts";
+
 export const TOOLS = [
   {
     id: "bladlesing",
     label: "Bladlesing",
     to: "/",
-    body: "Bladlesing for malletinstrumenter. Noter, nivåer og avspilling kommer her.",
+    body: "Bladlesing for køller og trompet. Noter, nivåer og avspilling kommer her.",
   },
   {
     id: "metronom",
     label: "Metronom",
     to: "/metronom",
-    body: "Progressiv metronom og rudimenter. Tempo, sticking og beste-tider kommer her.",
+    body: "Progressiv metronom og teknikk. Tempo, underdeling og beste-tider kommer her.",
   },
   {
     id: "oveplan",
     label: "Øveplan",
     to: "/oveplan",
-    body: "Øveplan for xylo og mallets. Økter, tidtaking og lagrede planer kommer her.",
+    body: "Øveplan for køller og trompet. Økter, tidtaking og lagrede planer kommer her.",
   },
   {
     id: "notekort",
     label: "Notekort",
     to: "/notekort",
-    body: "Notekort for nøkler og register. Kort, utvalg og treff kommer her.",
+    body: "Notekort for nøkler, register og ventilgrep. Kort, utvalg og treff kommer her.",
   },
 ] as const;
 
 export type ToolId = (typeof TOOLS)[number]["id"];
 
-export function toolNamespace(id: ToolId) {
-  return `musikkapp.${id}`;
+export function toolNamespace(id: ToolId, profile: InstrumentProfile = getProfile()) {
+  return profile === "trumpet" ? `musikkapp.trumpet.${id}` : `musikkapp.${id}`;
 }
 
 export function toolForPath(pathname: string) {
@@ -43,11 +45,11 @@ function browserStorage(): Storage | null {
   }
 }
 
-export function readToolStore(id: ToolId): Record<string, unknown> {
+export function readToolStore(id: ToolId, profile: InstrumentProfile = getProfile()): Record<string, unknown> {
   const storage = browserStorage();
   if (!storage) return {};
   try {
-    const raw = storage.getItem(toolNamespace(id));
+    const raw = storage.getItem(toolNamespace(id, profile));
     if (!raw) return {};
     const parsed = JSON.parse(raw) as unknown;
     return parsed && typeof parsed === "object" && !Array.isArray(parsed)
@@ -58,11 +60,15 @@ export function readToolStore(id: ToolId): Record<string, unknown> {
   }
 }
 
-export function writeToolStore(id: ToolId, value: Record<string, unknown>): boolean {
+export function writeToolStore(
+  id: ToolId,
+  value: Record<string, unknown>,
+  profile: InstrumentProfile = getProfile(),
+): boolean {
   const storage = browserStorage();
   if (!storage) return false;
   try {
-    storage.setItem(toolNamespace(id), JSON.stringify(value));
+    storage.setItem(toolNamespace(id, profile), JSON.stringify(value));
     return true;
   } catch {
     return false;

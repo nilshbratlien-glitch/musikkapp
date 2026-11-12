@@ -11,6 +11,8 @@ import {
   poolOf,
   saveNoteState,
   selectionForInstrument,
+  TRUMPET_INSTRUMENTS,
+  valveForIdx,
   viewBoxFor,
   worstNotes,
   yFor,
@@ -27,6 +29,19 @@ describe("notekort", () => {
     assert.equal(letterName(6, "no"), "H");
     assert.equal(letterName(6, "en"), "B");
     assert.equal(fullName(28, "no"), "C4");
+  });
+
+  it("maps written B-trumpet diatonic indices to standard valve combinations", () => {
+    assert.equal(valveForIdx(28), "0"); // C4
+    assert.equal(valveForIdx(29), "1-3"); // D4
+    assert.equal(valveForIdx(30), "1-2"); // E4
+    assert.equal(valveForIdx(31), "1"); // F4
+    assert.equal(valveForIdx(32), "0"); // G4
+    assert.equal(valveForIdx(33), "1-2"); // A4
+    assert.equal(valveForIdx(34), "2"); // H4
+    assert.equal(valveForIdx(35), "0"); // C5
+    assert.equal(valveForIdx(36), "1"); // D5
+    assert.ok(TRUMPET_INSTRUMENTS.length >= 3);
   });
 
   it("puts low instrument notes in bass and the rest in treble", () => {
@@ -82,11 +97,12 @@ describe("notekort", () => {
         setItem: (key: string, value: string) => data.set(key, value),
       },
     });
-    assert.equal(saveNoteState({ sel: { treble: [30], bass: [] }, lang: "en", stats: { "treble:30": { r: 1, w: 0 } } }), true);
+    assert.equal(saveNoteState({ sel: { treble: [30], bass: [] }, lang: "en", mode: "valves", stats: { "treble:30": { r: 1, w: 0 } } }), true);
     assert.equal(data.has("musikkapp.notekort"), true);
     const loaded = loadNoteState();
     assert.deepEqual(loaded.sel.treble, [30]);
     assert.equal(loaded.lang, "en");
+    assert.equal(loaded.mode, "valves");
     assert.deepEqual(loaded.stats["treble:30"], { r: 1, w: 0 });
     assert.deepEqual(parseNoteState("nope").sel, { treble: [], bass: [] });
   });

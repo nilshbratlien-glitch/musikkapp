@@ -46,6 +46,7 @@
     vibes: "vibraphone",
     mar43: "marimba",
     mar50: "marimba",
+    trumpet: "trumpet",
   };
   const sampleBank = {};
 
@@ -78,6 +79,7 @@
   }
 
   function playSample(time, midi, instId) {
+    if (instId === "trumpet") return false;
     const folder = sampleFolder(instId);
     const list = sampleBank[folder];
     if (!Array.isArray(list) || !list.length) return false;
@@ -186,7 +188,112 @@
     trackNode(strike);
   }
 
+  function playTrumpetSample(time, soundMidi, durSec) {
+    const folder = "trumpet";
+    const list = sampleBank[folder];
+    if (!Array.isArray(list) || !list.length) return false;
+    let best = list[0];
+    for (let i = 1; i < list.length; i++) {
+      if (Math.abs(list[i].midi - soundMidi) < Math.abs(best.midi - soundMidi)) best = list[i];
+    }
+    const c = ac();
+    if (time < c.currentTime) time = c.currentTime;
+    const src = c.createBufferSource();
+    src.buffer = best.buffer;
+    src.playbackRate.value = midiToFreq(soundMidi) / midiToFreq(best.midi);
+    const g = c.createGain();
+    const hold = Math.max(0.1, durSec * 0.94);
+    const stopAt = time + hold + 0.08;
+    g.gain.setValueAtTime(0.001, time);
+    g.gain.linearRampToValueAtTime(1.2, time + 0.025);
+    g.gain.setValueAtTime(1.0, time + hold);
+    g.gain.exponentialRampToValueAtTime(0.001, stopAt);
+    src.connect(g);
+    g.connect(scoreOut());
+    src.start(time);
+    src.stop(stopAt + 0.02);
+    trackNode(src);
+    return true;
+  }
+
+  /* Authentic sampled B-trumpet: sounds 2 semitones below written pitch (Bb transposition). */
+  function scheduleTrumpetNote(time, writtenMidi, durSec) {
+    const sOff = global.Theory && global.Theory.soundOff ? global.Theory.soundOff("trumpet") : -2;
+    const soundMidi = writtenMidi + sOff;
+
+    if (playTrumpetSample(time, soundMidi, durSec)) {
+      return;
+    }
+
+    const c = ac();
+    if (time < c.currentTime) time = c.currentTime;
+    const f0 = midiToFreq(soundMidi);
+    const dest = scoreOut();
+    const hold = Math.max(0.07, durSec * 0.92);
+    const stopAt = time + hold + 0.07;
+
+    /* Gentle lip/breath articulation transient ("tu") */
+    const breath = c.createBufferSource();
+    breath.buffer = getClickBuf(c);
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = Math.min(4500, f0 * 2.6);
+    bp.Q.value = 1.8;
+    const bg = c.createGain();
+    bg.gain.setValueAtTime(0.04, time);
+    bg.gain.exponentialRampToValueAtTime(0.001, time + 0.028);
+    breath.connect(bp);
+    bp.connect(bg);
+    bg.connect(dest);
+    breath.start(time);
+    breath.stop(time + 0.035);
+    trackNode(breath);
+
+    /* Brass low-pass filter with attack bloom */
+    const lp = c.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.Q.value = 2.0;
+    const startCut = Math.min(2800, f0 * 1.8);
+    const peakCut = Math.min(5200, f0 * 5.0);
+    const sustainCut = Math.min(3800, f0 * 3.5);
+    lp.frequency.setValueAtTime(startCut, time);
+    lp.frequency.exponentialRampToValueAtTime(peakCut, time + 0.04);
+    lp.frequency.exponentialRampToValueAtTime(sustainCut, time + Math.min(hold, 0.14));
+
+    const env = c.createGain();
+    env.gain.setValueAtTime(0.0001, time);
+    env.gain.linearRampToValueAtTime(0.28, time + 0.026);
+    env.gain.linearRampToValueAtTime(0.22, time + Math.min(hold, 0.09));
+    env.gain.setValueAtTime(0.22, time + hold);
+    env.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+
+    lp.connect(env);
+    env.connect(dest);
+
+    const voices = [
+      { type: "sawtooth", detune: 1.0, gain: 0.55 },
+      { type: "triangle", detune: 1.0, gain: 0.45 },
+      { type: "sawtooth", detune: 1.0022, gain: 0.22 },
+    ];
+    voices.forEach((v) => {
+      const o = c.createOscillator();
+      const vg = c.createGain();
+      o.type = v.type;
+      o.frequency.setValueAtTime(f0 * v.detune, time);
+      vg.gain.value = v.gain;
+      o.connect(vg);
+      vg.connect(lp);
+      o.start(time);
+      o.stop(stopAt + 0.01);
+      trackNode(o);
+    });
+  }
+
   function scheduleNote(time, midi, durSec, instId, roll) {
+    if (instId === "trumpet") {
+      scheduleTrumpetNote(time, midi, durSec);
+      return;
+    }
     const c = ac();
     if (time < c.currentTime) time = c.currentTime;
     const spec = MALLET_VOICE[instId] || MALLET_VOICE.mar50;
@@ -451,6 +558,7 @@
   }
 
   global.AudioEngine = {
+    loadInstrument,
     startMetronome,
     stopMetronome,
     setTempo,

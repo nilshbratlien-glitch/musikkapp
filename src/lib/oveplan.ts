@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { getProfile, type InstrumentProfile } from "./profile.ts";
 import { readToolStore, writeToolStore } from "./tools.ts";
 
 export const BLOCKS = [
@@ -7,6 +8,13 @@ export const BLOCKS = [
   { id: "srf", name: "Bladlesing" },
   { id: "rep", name: "Repertoar" },
 ] as const;
+
+export const TRUMPET_BLOCK_NAMES: Record<BlockId, string> = {
+  twomallet: "Oppvarming",
+  fourmallet: "Teknikk & skala",
+  srf: "Bladlesing",
+  rep: "Korpslekse",
+};
 
 export type BlockId = (typeof BLOCKS)[number]["id"];
 
@@ -40,6 +48,50 @@ export const DEFAULT_MINS: Record<BlockId, number> = {
   srf: 12,
   rep: 15,
 };
+
+export const TRUMPET_DEFAULT_MINS: Record<BlockId, number> = {
+  twomallet: 3,
+  fourmallet: 4,
+  srf: 4,
+  rep: 5,
+};
+
+export const TRUMPET_DEFAULT_PRESETS: PlanPreset[] = [
+  {
+    id: "trumpet-quick",
+    name: "Kjapp 10 min",
+    blocks: [
+      { id: "twomallet", mins: 2 },
+      { id: "fourmallet", mins: 3 },
+      { id: "srf", mins: 2 },
+      { id: "rep", mins: 3 },
+    ],
+  },
+  {
+    id: "trumpet-standard",
+    name: "Korpsøkt 16 min",
+    blocks: [
+      { id: "twomallet", mins: 3 },
+      { id: "fourmallet", mins: 4 },
+      { id: "srf", mins: 4 },
+      { id: "rep", mins: 5 },
+    ],
+  },
+  {
+    id: "trumpet-super",
+    name: "Superøkt 25 min",
+    blocks: [
+      { id: "twomallet", mins: 4 },
+      { id: "fourmallet", mins: 6 },
+      { id: "srf", mins: 6 },
+      { id: "rep", mins: 9 },
+    ],
+  },
+];
+
+export function defaultMinsFor(profile: InstrumentProfile = getProfile()): Record<BlockId, number> {
+  return profile === "trumpet" ? TRUMPET_DEFAULT_MINS : DEFAULT_MINS;
+}
 
 /** The tool a block opens when it starts: 2- and 4-mallet practise with the metronome, SRF is sight-reading. */
 const BLOCK_TOOLS: Partial<Record<BlockId, string>> = {
@@ -80,7 +132,10 @@ export function playsMetronome(id: string | null) {
   return id === "twomallet" || id === "fourmallet";
 }
 
-export function blockName(id: string) {
+export function blockName(id: string, profile: InstrumentProfile = getProfile()) {
+  if (profile === "trumpet" && id in TRUMPET_BLOCK_NAMES) {
+    return TRUMPET_BLOCK_NAMES[id as BlockId];
+  }
   return BLOCKS.find((block) => block.id === id)?.name ?? id;
 }
 
@@ -117,7 +172,8 @@ function isBlockId(value: unknown): value is BlockId {
   return BLOCKS.some((block) => block.id === value);
 }
 
-export function ensureItems(raw: unknown): PlanItem[] {
+export function ensureItems(raw: unknown, profile: InstrumentProfile = getProfile()): PlanItem[] {
+  const minsMap = defaultMinsFor(profile);
   const have = new Map<string, PlanItem>();
   if (Array.isArray(raw)) {
     for (const item of raw) {
@@ -127,7 +183,7 @@ export function ensureItems(raw: unknown): PlanItem[] {
       have.set(row.id, {
         id: row.id,
         on: typeof row.on === "boolean" ? row.on : true,
-        mins: typeof row.mins === "number" && row.mins > 0 ? row.mins : DEFAULT_MINS[row.id],
+        mins: typeof row.mins === "number" && row.mins > 0 ? row.mins : minsMap[row.id],
         skipped: !!row.skipped,
       });
     }
@@ -135,7 +191,7 @@ export function ensureItems(raw: unknown): PlanItem[] {
   return BLOCKS.map((block) => {
     const prev = have.get(block.id);
     return (
-      prev ?? { id: block.id, on: true, mins: DEFAULT_MINS[block.id], skipped: false }
+      prev ?? { id: block.id, on: true, mins: minsMap[block.id], skipped: false }
     );
   });
 }
@@ -158,22 +214,30 @@ export function bumpItem(item: PlanItem, dir: number): PlanItem | null {
   return { ...item, mins, on: true, skipped: false };
 }
 
-export function applyPreset(preset: PlanPreset): PlanItem[] {
+export function applyPreset(preset: PlanPreset, profile: InstrumentProfile = getProfile()): PlanItem[] {
+  const minsMap = defaultMinsFor(profile);
   const chosen = new Map(preset.blocks.map((block) => [block.id, block.mins]));
   return BLOCKS.map((block) => ({
     id: block.id,
     on: chosen.has(block.id),
-    mins: chosen.get(block.id) ?? DEFAULT_MINS[block.id],
+    mins: chosen.get(block.id) ?? minsMap[block.id],
     skipped: false,
   }));
 }
 
-export function emptyPlanStore(): PlanStore {
+export function emptyPlanStore(profile: InstrumentProfile = getProfile()): PlanStore {
   return {
-    items: ensureItems([]),
+    items: ensureItems([], profile),
     done: [],
     log: [],
-    presets: [],
+    presets:
+      profile === "trumpet"
+        ? TRUMPET_DEFAULT_PRESETS.map((p) => ({
+            id: p.id,
+            name: p.name,
+            blocks: p.blocks.map((b) => ({ ...b })),
+          }))
+        : [],
     sessionDate: "",
     bpmMap: {},
     bpm: 80,
@@ -182,11 +246,11 @@ export function emptyPlanStore(): PlanStore {
   };
 }
 
-export function parsePlanStore(raw: unknown): PlanStore {
-  const base = emptyPlanStore();
+export function parsePlanStore(raw: unknown, profile: InstrumentProfile = getProfile()): PlanStore {
+  const base = emptyPlanStore(profile);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return base;
   const record = raw as Record<string, unknown>;
-  base.items = ensureItems(record.items);
+  base.items = ensureItems(record.items, profile);
   if (Array.isArray(record.done)) base.done = record.done.filter((id): id is string => typeof id === "string");
   base.done = base.done.filter((id) => base.items.some((item) => item.id === id));
   if (Array.isArray(record.log)) {
@@ -233,20 +297,24 @@ export function rollSession(store: PlanStore, today = todayStamp()) {
   };
 }
 
-export function loadPlanStore() {
-  return rollSession(parsePlanStore(readToolStore("oveplan")));
+export function loadPlanStore(now = new Date(), profile: InstrumentProfile = getProfile()) {
+  return rollSession(parsePlanStore(readToolStore("oveplan", profile), profile), todayStamp(now));
 }
 
-export function savePlanStore(store: PlanStore) {
-  return writeToolStore("oveplan", {
-    items: store.items,
-    done: store.done,
-    log: store.log,
-    presets: store.presets,
-    sessionDate: store.sessionDate,
-    bpmMap: store.bpmMap,
-    bpm: store.bpm,
-    beats: store.beats,
-    sub: store.sub,
-  });
+export function savePlanStore(store: PlanStore, profile: InstrumentProfile = getProfile()) {
+  return writeToolStore(
+    "oveplan",
+    {
+      items: store.items,
+      done: store.done,
+      log: store.log,
+      presets: store.presets,
+      sessionDate: store.sessionDate,
+      bpmMap: store.bpmMap,
+      bpm: store.bpm,
+      beats: store.beats,
+      sub: store.sub,
+    },
+    profile,
+  );
 }

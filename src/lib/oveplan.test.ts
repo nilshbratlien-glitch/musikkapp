@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import {
   applyPreset,
+  blockName,
   bpmFromTaps,
   bumpItem,
   ensureItems,
@@ -32,6 +33,26 @@ describe("oveplan", () => {
     assert.equal(playingSum(items), 12 + 8 + 12 + 15);
     const off = items.map((item) => (item.id === "rep" ? { ...item, on: false } : item));
     assert.equal(liveItems(off).some((item) => item.id === "rep"), false);
+  });
+
+  it("provides child-friendly Trumpet block names, durations (16 min total), and presets", () => {
+    assert.equal(blockName("twomallet", "trumpet"), "Oppvarming");
+    assert.equal(blockName("fourmallet", "trumpet"), "Teknikk & skala");
+    assert.equal(blockName("srf", "trumpet"), "Bladlesing");
+    assert.equal(blockName("rep", "trumpet"), "Korpslekse");
+    const trumpetItems = ensureItems([], "trumpet");
+    assert.equal(playingSum(trumpetItems), 3 + 4 + 4 + 5);
+    const data = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => data.get(key) ?? null,
+        setItem: (key: string, value: string) => data.set(key, value),
+      },
+    });
+    const store = loadPlanStore(new Date(), "trumpet");
+    assert.equal(store.presets.length, 3);
+    assert.equal(store.presets[0]?.name, "Kjapp 10 min");
   });
 
   it("bumps minutes inside 1–90 and finds the next undone block", () => {

@@ -1,7 +1,6 @@
 /* global Theory, AudioEngine, ScoreRenderer -- set by the sibling MalletSight scripts */
 (function () {
   const T = Theory;
-  const STORAGE = "musikkapp.bladlesing";
   const LEGACY = "mallet-sr-settings-v3";
   let host = document.getElementById("malletsight-root") || document;
   let wired = false;
@@ -9,6 +8,21 @@
   let onResize = null;
   let onKey = null;
   let offPulse = null;
+
+  function currentProfile() {
+    if (typeof window !== "undefined" && window.MusikkProfile && typeof window.MusikkProfile.get === "function") {
+      return window.MusikkProfile.get();
+    }
+    try {
+      const p = localStorage.getItem("musikkapp.profile");
+      if (p === "trumpet" || p === "mallets") return p;
+    } catch { /* best effort */ }
+    return "mallets";
+  }
+
+  function storageKey() {
+    return currentProfile() === "trumpet" ? "musikkapp.trumpet.bladlesing" : "musikkapp.bladlesing";
+  }
 
   const DEFAULTS = {
     instrumentId: "mar50",
@@ -53,6 +67,20 @@
     blockSize: "mix",
   };
 
+  const TRUMPET_DEFAULTS = Object.assign({}, DEFAULTS, {
+    instrumentId: "trumpet",
+    clef: "treble",
+    rangeLow: 60,
+    rangeHigh: 72,
+    maxLeap: 4,
+    tempo: 76,
+    showSticking: true,
+    texture: "melody",
+    rolls: "off",
+    chordChance: 0,
+    doubleStopChance: 0,
+  });
+
   let settings = loadSettings();
   let currentScore = null;
   let currentVisual = null;
@@ -67,19 +95,26 @@
   }
 
   function loadSettings() {
+    const isTrumpet = currentProfile() === "trumpet";
+    const key = storageKey();
+    const fallback = isTrumpet ? TRUMPET_DEFAULTS : DEFAULTS;
     try {
-      let raw = localStorage.getItem(STORAGE);
+      let raw = localStorage.getItem(key);
       let parsed = raw ? JSON.parse(raw) : null;
       const empty = !parsed || (typeof parsed === "object" && !parsed.instrumentId);
-      if (empty) {
+      if (empty && !isTrumpet) {
         const legacy = localStorage.getItem(LEGACY);
         if (legacy) {
           parsed = JSON.parse(legacy);
-          try { localStorage.setItem(STORAGE, JSON.stringify(parsed)); } catch (err) { /* best effort */ }
+          try { localStorage.setItem(key, JSON.stringify(parsed)); } catch (err) { /* best effort */ }
         }
       }
       if (parsed) {
-        const merged = Object.assign({}, DEFAULTS, parsed);
+        const merged = Object.assign({}, fallback, parsed);
+        if (isTrumpet) {
+          merged.instrumentId = "trumpet";
+          merged.clef = "treble";
+        }
         const valid = new Set(T.KEYS.map((k) => k.id));
         if (!Array.isArray(parsed.keyIds)) {
           merged.keyIds = migrateKeyIds(parsed.keyId);
@@ -90,11 +125,11 @@
         return merged;
       }
     } catch (e) { /* best effort */ }
-    return Object.assign({}, DEFAULTS);
+    return Object.assign({}, fallback);
   }
 
   function saveSettings() {
-    try { localStorage.setItem(STORAGE, JSON.stringify(settings)); } catch (e) { /* best effort */ }
+    try { localStorage.setItem(storageKey(), JSON.stringify(settings)); } catch (e) { /* best effort */ }
   }
 
   function $(sel) {
@@ -276,6 +311,11 @@
     settings.ties = p.ties;
     settings.accidentals = p.accidentals;
     settings.dynamics = p.dynamics;
+    if (settings.instrumentId === "trumpet") {
+      settings.rangeLow = n <= 4 ? 60 : n <= 6 ? 58 : 55;
+      settings.rangeHigh = n <= 2 ? 67 : n <= 4 ? 72 : n <= 6 ? 74 : 79;
+      syncRangeSliders();
+    }
     if ($("#maxLeap")) $("#maxLeap").value = String(p.maxLeap);
     if ($("#density")) $("#density").value = String(p.rhythmDensity);
     if ($("#measures")) $("#measures").value = String(p.measures);
@@ -1054,11 +1094,37 @@
     mount(root) {
       host = root || document.getElementById("malletsight-root") || document;
       if (wired) return;
+      settings = loadSettings();
       wire();
+      if ($("#showStickingLabel")) {
+        $("#showStickingLabel").textContent = currentProfile() === "trumpet" ? "Vis ventilgrep" : "Vis køllenummer";
+      }
+      if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
+        AudioEngine.loadInstrument(settings.instrumentId);
+      }
     },
     unmount,
     isReady() {
       return Boolean(wired && $("#btnPlay"));
+    },
+    setProfile() {
+      settings = loadSettings();
+      if (!wired) return true;
+      remoteCall = true;
+      try {
+        haltPlay();
+        bindUI();
+        if ($("#showStickingLabel")) {
+          $("#showStickingLabel").textContent = currentProfile() === "trumpet" ? "Vis ventilgrep" : "Vis køllenummer";
+        }
+        generate();
+        if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
+          AudioEngine.loadInstrument(settings.instrumentId);
+        }
+      } finally {
+        remoteCall = false;
+      }
+      return true;
     },
     generate() {
       if (!wired) return false;

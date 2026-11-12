@@ -16,3 +16,21 @@ test("browser globals load and generate a deterministic score without a build", 
   assert.equal(JSON.stringify(a), JSON.stringify(b));
   assert.equal(a.measures.length, 8);
 });
+
+test("AudioEngine exposes loadInstrument and all playback methods expected by app.js", () => {
+  const vm = require("node:vm");
+  const ctx = vm.createContext({
+    MusikkPulse: {
+      audio: () => null,
+      output: () => ({}),
+      start: () => {},
+      stop: () => {},
+      setClicks: () => {},
+    },
+  });
+  ctx.window = ctx;
+  vm.runInContext(fs.readFileSync("audio.js", "utf8"), ctx, { filename: "audio.js" });
+  assert.equal(typeof ctx.AudioEngine.loadInstrument, "function");
+  assert.equal(typeof ctx.AudioEngine.playScore, "function");
+  assert.equal(typeof ctx.AudioEngine.playAlong, "function");
+});

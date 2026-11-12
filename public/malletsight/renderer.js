@@ -59,8 +59,12 @@
     if (ev.articulations && ev.articulations.indexOf("staccato") >= 0) body = "." + body;
     if (ev.articulations && ev.articulations.indexOf("a") >= 0) body = "!>!" + body;
     if (ev.roll) body = "!///!" + body;
-    if (options.showSticking && ev.mallets && ev.mallets.length) {
-      body = '"' + ev.mallets.join("") + '"' + body;
+    if (options.showSticking) {
+      if (score.settingsSnapshot.instrument === "trumpet" && pitches.length) {
+        body = '"^' + T.trumpetValve(pitches[0]) + '"' + body;
+      } else if (ev.mallets && ev.mallets.length) {
+        body = '"' + ev.mallets.join("") + '"' + body;
+      }
     }
     return body;
   }
@@ -245,13 +249,24 @@
   function scoreToAbc(score, options) {
     const inst = T.INSTRUMENTS.find((i) => i.id === score.settingsSnapshot.instrument);
     const off = inst && inst.writtenOff ? inst.writtenOff : 0;
-    const trans = off === -12 ? " · klinger 8va" : off === -24 ? " · klinger 15ma" : "";
+    const sOff = inst && inst.soundOff ? inst.soundOff : 0;
+    const trans =
+      off === -12
+        ? " · klinger 8va"
+        : off === -24
+          ? " · klinger 15ma"
+          : sOff === -2
+            ? " · klinger i B"
+            : "";
+    const malletPart =
+      inst && inst.monophonic
+        ? ""
+        : " · " + score.settingsSnapshot.mallets + " køller";
     const title =
       (inst ? inst.name : "Køller") +
       trans +
+      malletPart +
       " · " +
-      score.settingsSnapshot.mallets +
-      " køller · " +
       score.key.name;
     let clef = staffClef(score);
     if (inst && inst.defaultClef === "treble") clef = "treble";

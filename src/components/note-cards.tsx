@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Bass, Treble } from "@/components/staff-clefs";
 import {
   CLEFS,
   INSTRUMENTS,
   LETTERS,
   STAFF,
+  TRUMPET_INSTRUMENTS,
+  VALVE_COMBOS,
   drawCard,
   fullName,
   ledgerSteps,
@@ -12,13 +14,19 @@ import {
   loadNoteState,
   poolOf,
   saveNoteState,
+  selectionForInstrument,
+  valveForIdx,
   viewBoxFor,
   worstNotes,
   type Clef,
+  type DrillMode,
   type Lang,
   type NoteSelection,
   type NoteState,
+  type ValveCombo,
 } from "@/lib/notekort";
+import { getProfile, getProfileVersion, subscribeProfile } from "@/lib/profile";
+import { readToolStore } from "@/lib/tools";
 
 type Tab = "drill" | "deck";
 
@@ -92,6 +100,10 @@ function yOf(clef: Clef, idx: number) {
 }
 
 export function NoteCards() {
+  useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
+  const profile = getProfile();
+  const isTrumpet = profile === "trumpet";
+
   const model = useRef<Model>({
     stored: { sel: { treble: [], bass: [] }, lang: "no", stats: {} },
     draft: { treble: new Set(), bass: new Set() },
@@ -146,12 +158,9 @@ export function NoteCards() {
     redraw();
   }
 
-  function answer(letterIdx: number) {
+  function recordOutcome(correct: boolean, okFeedback: string, wrongFeedback: string) {
     const cur = model.current;
-    if (cur.tab !== "drill" || cur.session.locked || !cur.session.card) return;
-    cur.session.locked = true;
-    const idx = Number(cur.session.card.split(":")[1]);
-    const correct = idx % 7 === letterIdx;
+    if (!cur.session.card) return;
     const prev = cur.stored.stats[cur.session.card] ?? { r: 0, w: 0 };
     cur.stored = {
       ...cur.stored,
@@ -164,14 +173,14 @@ export function NoteCards() {
       cur.session.right += 1;
       cur.session.streak += 1;
       cur.session.best = Math.max(cur.session.best, cur.session.streak);
-      cur.session.feedback = `${letterName(idx, cur.stored.lang)} — riktig`;
+      cur.session.feedback = okFeedback;
       cur.session.kind = "ok";
       persist();
       cur.timer = window.setTimeout(nextCard, 420);
     } else {
       cur.session.wrong += 1;
       cur.session.streak = 0;
-      cur.session.feedback = `Det var ${fullName(idx, cur.stored.lang)}`;
+      cur.session.feedback = wrongFeedback;
       cur.session.kind = "no";
       persist();
       cur.timer = window.setTimeout(() => {
@@ -182,18 +191,65 @@ export function NoteCards() {
     }
     redraw();
   }
+
+  function answer(letterIdx: number) {
+    const cur = model.current;
+    if (cur.tab !== "drill" || cur.session.locked || !cur.session.card) return;
+    cur.session.locked = true;
+    const idx = Number(cur.session.card.split(":")[1]);
+    const correct = idx % 7 === letterIdx;
+    recordOutcome(
+      correct,
+      `${letterName(idx, cur.stored.lang)} — riktig`,
+      `Det var ${fullName(idx, cur.stored.lang)}`,
+    );
+  }
   answerRef.current = answer;
+
+  function answerValve(combo: ValveCombo) {
+    const cur = model.current;
+    if (cur.tab !== "drill" || cur.session.locked || !cur.session.card) return;
+    cur.session.locked = true;
+    const idx = Number(cur.session.card.split(":")[1]);
+    const expected = valveForIdx(idx);
+    const correct = combo === expected;
+    const noteLabel = fullName(idx, cur.stored.lang);
+    recordOutcome(
+      correct,
+      `${expected === "0" ? "0 (åpen)" : expected} · ${noteLabel} — riktig`,
+      `Det var ${expected === "0" ? "0 (åpen)" : expected} (${noteLabel})`,
+    );
+  }
+
+  function setDrillMode(mode: DrillMode) {
+    const cur = model.current;
+    cur.stored = { ...cur.stored, mode };
+    persist();
+    redraw();
+  }
 
   useEffect(() => {
     const cur = model.current;
-    const loaded = loadNoteState();
+    clearContinue();
+    const rawStore = readToolStore("notekort");
+    let loaded = loadNoteState();
+    // For a fresh trumpet profile with no saved selection yet, pre-populate C4–C5 so the player can drill immediately.
+    if (isTrumpet && !("sel" in rawStore) && !poolOf(loaded.sel).length) {
+      const defaultSel = selectionForInstrument(28, 35);
+      loaded = { ...loaded, sel: defaultSel, mode: "valves" };
+      saveNoteState(loaded);
+    }
     cur.stored = loaded;
     cur.draft = { treble: new Set(loaded.sel.treble), bass: new Set(loaded.sel.bass) };
+    if (isTrumpet) cur.clef = "treble";
     const pool = poolOf(loaded.sel);
     cur.tab = pool.length ? "drill" : "deck";
     cur.session = freshSession();
     if (pool.length) cur.session.card = drawCard(pool, null);
     redraw();
+  }, [profile, isTrumpet]);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const live = model.current;
       if (live.tab !== "drill" || live.session.locked || !live.session.card) return;
@@ -220,6 +276,8 @@ export function NoteCards() {
   const total = cur.session.right + cur.session.wrong;
   const card = cur.session.card?.split(":") ?? null;
   const rows = worstNotes(cur.stored.stats);
+  const activeMode: DrillMode = isTrumpet ? (cur.stored.mode ?? "valves") : "names";
+  const presetList = isTrumpet ? TRUMPET_INSTRUMENTS : INSTRUMENTS;
 
   // Fanebytte avbryter ikke svartimeren. nextCard() nullstiller locked når timeren går ut,
   // slik at kortet ikke henger hvis man forlater Øv før 420 ms.
@@ -263,6 +321,30 @@ export function NoteCards() {
       {cur.tab === "drill" ? (
         pool.length && card ? (
           <>
+            {isTrumpet ? (
+              <div className="mb-3 grid grid-cols-2 gap-1.5" role="group" aria-label="Øvingsmodus for trompet">
+                {(
+                  [
+                    ["valves", "🎺 Ventilgrep (0, 1, 1-2…)"],
+                    ["names", "🎵 Notenavn (C–H)"],
+                  ] as const
+                ).map(([m, label]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    aria-pressed={activeMode === m}
+                    onClick={() => setDrillMode(m)}
+                    className={
+                      activeMode === m
+                        ? "min-h-10 rounded-lg bg-accent px-2 text-xs font-semibold text-bg"
+                        : "min-h-10 rounded-lg border border-line px-2 text-xs font-medium text-muted"
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="mb-2.5 flex items-center justify-between text-sm text-muted">
               <p>
                 <b className="font-semibold text-fg">{cur.session.right}</b> riktig · {cur.session.wrong} feil
@@ -276,6 +358,7 @@ export function NoteCards() {
             <StaffCard clef={card[0] === "bass" ? "bass" : "treble"} idx={Number(card[1])} pool={pool} />
             <p className="mt-2.5 text-center text-xs tracking-wider text-muted uppercase">
               {CLEFS[card[0] === "bass" ? "bass" : "treble"].label}
+              {isTrumpet ? " · B-trompet" : ""}
             </p>
             <p
               className={
@@ -288,19 +371,35 @@ export function NoteCards() {
             >
               {cur.session.feedback || "\u00a0"}
             </p>
-            <div className="answer-row">
-              {LETTERS.map((letter, index) => (
-                <button
-                  key={letter}
-                  type="button"
-                  disabled={cur.session.locked}
-                  onClick={() => answer(index)}
-                  className="answer-key text-lg"
-                >
-                  {letter === "B" && cur.stored.lang === "no" ? "H" : letter}
-                </button>
-              ))}
-            </div>
+            {activeMode === "valves" ? (
+              <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
+                {VALVE_COMBOS.map((combo) => (
+                  <button
+                    key={combo}
+                    type="button"
+                    disabled={cur.session.locked}
+                    onClick={() => answerValve(combo)}
+                    className="answer-key min-h-12 text-base font-bold"
+                  >
+                    {combo}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="answer-row">
+                {LETTERS.map((letter, index) => (
+                  <button
+                    key={letter}
+                    type="button"
+                    disabled={cur.session.locked}
+                    onClick={() => answer(index)}
+                    className="answer-key text-lg"
+                  >
+                    {letter === "B" && cur.stored.lang === "no" ? "H" : letter}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         ) : (
           <div className="rounded-card border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
@@ -311,12 +410,14 @@ export function NoteCards() {
       ) : (
         <div className="grid gap-3">
           <div className="rounded-card border border-line bg-surface p-4">
-            <h2 className="text-sm font-semibold">Instrument</h2>
+            <h2 className="text-sm font-semibold">{isTrumpet ? "Trompet-register" : "Instrument"}</h2>
             <p className="mt-1 mb-2.5 text-sm text-muted">
-              Setter utvalget til instrumentets noterte register. Noter under G-nøkkelens område legges i F-nøkkel.
+              {isTrumpet
+                ? "Velg hvor høyt og lavt du vil øve på B-trompeten (skrevet G-nøkkel)."
+                : "Setter utvalget til instrumentets noterte register. Noter under G-nøkkelens område legges i F-nøkkel."}
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {INSTRUMENTS.map(([label, lo, hi]) => (
+              {presetList.map(([label, lo, hi]) => (
                 <button
                   key={label}
                   type="button"
@@ -335,26 +436,30 @@ export function NoteCards() {
 
           <div className="rounded-card border border-line bg-surface p-4">
             <h2 className="text-sm font-semibold">Nøkkel</h2>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {(["treble", "bass"] as const).map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={cur.clef === id}
-                  onClick={() => {
-                    model.current.clef = id;
-                    redraw();
-                  }}
-                  className={
-                    cur.clef === id
-                      ? "min-h-11 rounded-lg bg-accent text-sm font-semibold text-bg"
-                      : "min-h-11 rounded-lg border border-line text-sm text-muted"
-                  }
-                >
-                  {CLEFS[id].label}
-                </button>
-              ))}
-            </div>
+            {isTrumpet ? (
+              <p className="mt-1 text-sm font-medium text-accent">G-nøkkel (Trompet i B)</p>
+            ) : (
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                {(["treble", "bass"] as const).map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={cur.clef === id}
+                    onClick={() => {
+                      model.current.clef = id;
+                      redraw();
+                    }}
+                    className={
+                      cur.clef === id
+                        ? "min-h-11 rounded-lg bg-accent text-sm font-semibold text-bg"
+                        : "min-h-11 rounded-lg border border-line text-sm text-muted"
+                    }
+                  >
+                    {CLEFS[id].label}
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="mt-3 text-sm text-muted">
               {clefSpec.label}: notene du huker av trekkes tilfeldig. Tallet er oktaven — C4 er enstrøken C.
             </p>
@@ -530,10 +635,11 @@ function selectionFor(lo: number, hi: number): NoteSelection {
   return sel;
 }
 
-function octaveGroups(clef: Clef) {
+function octaveGroups(clef: Clef, maxOverride?: number) {
   const spec = CLEFS[clef];
+  const hi = maxOverride != null ? Math.min(spec.max, maxOverride) : spec.max;
   const groups: { octave: number; notes: number[] }[] = [];
-  for (let idx = spec.min; idx <= spec.max; idx++) {
+  for (let idx = spec.min; idx <= hi; idx++) {
     const octave = Math.floor(idx / 7);
     const last = groups[groups.length - 1];
     if (!last || last.octave !== octave) groups.push({ octave, notes: [idx] });

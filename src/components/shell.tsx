@@ -12,6 +12,15 @@ import {
   subscribePlanClock,
   togglePlanClock,
 } from "@/lib/plan-clock";
+import {
+  PROFILE_META,
+  getProfile,
+  getProfileVersion,
+  hasChosenProfile,
+  setProfile,
+  subscribeProfile,
+  type InstrumentProfile,
+} from "@/lib/profile";
 import { unlock } from "@/lib/pulse";
 import { initSyncBridge, registerSyncNavigator } from "@/lib/sync/bridge";
 import { autoReconnectIfConfigured, getSyncState } from "@/lib/sync/room";
@@ -76,6 +85,7 @@ function useInstall() {
 
 function PlanHeaderTimer() {
   useSyncExternalStore(subscribePlanClock, getPlanClockVersion, getPlanClockVersion);
+  useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
   const clock = getPlanClock();
   if (!clock.activeId) return null;
   const paused = clock.blockPaused || clock.timer == null;
@@ -101,13 +111,100 @@ function PlanHeaderTimer() {
   );
 }
 
+function InstrumentModal({
+  open,
+  active,
+  onSelect,
+  onClose,
+}: {
+  open: boolean;
+  active: InstrumentProfile;
+  onSelect: (profile: InstrumentProfile) => void;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="instrument-modal-title"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 text-center">
+            <p className="text-xs font-semibold tracking-wider text-accent uppercase">Velg instrumentprofil</p>
+            <h2 id="instrument-modal-title" className="mt-1 text-xl font-bold tracking-tight text-fg">
+              Hva skal du øve på i dag?
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Hver profil har sin egen øveplan, notekort og bladlesing.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Lukk"
+            className="metro-press -mr-2 -mt-2 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted hover:text-fg"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="grid gap-3">
+          {(["mallets", "trumpet"] as const).map((id) => {
+            const meta = PROFILE_META[id];
+            const selected = active === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onSelect(id)}
+                className={
+                  selected
+                    ? "metro-press flex items-start gap-3.5 rounded-xl border-2 border-accent bg-accent/10 p-4 text-left transition"
+                    : "metro-press flex items-start gap-3.5 rounded-xl border border-line bg-header p-4 text-left transition hover:border-accent/60"
+                }
+              >
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-surface text-2xl shadow-xs">
+                  {meta.emoji}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-lg font-bold text-fg">{meta.label}</span>
+                    {selected ? (
+                      <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-bg">
+                        Aktiv
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-xs font-medium text-accent">{meta.subtitle}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted">{meta.description}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Shell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tool = toolForPath(pathname);
   const install = useInstall();
   const navigate = useNavigate();
   const sync = useSync();
+  useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
+  const profile = getProfile();
+  const profileMeta = PROFILE_META[profile];
   const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   useEffect(() => {
     bindPlanNavigate((to) => {
@@ -144,9 +241,19 @@ export function Shell() {
   useEffect(() => {
     ensureToolNamespaces();
     ensurePlanClock();
+    if (!hasChosenProfile()) {
+      setProfileModalOpen(true);
+    }
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
   }, []);
+
+  function chooseProfile(next: InstrumentProfile) {
+    unlock();
+    setProfile(next);
+    ensureToolNamespaces();
+    setProfileModalOpen(false);
+  }
 
   const sheet = tool.id === "bladlesing";
 
@@ -156,10 +263,25 @@ export function Shell() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
-            <p className="truncate text-sm text-muted">{tool.label}</p>
+            <p className="truncate text-sm text-muted">
+              {tool.label} · {profileMeta.label}
+            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <PlanHeaderTimer />
+            <button
+              type="button"
+              onClick={() => {
+                unlock();
+                setProfileModalOpen(true);
+              }}
+              aria-label={`Bytt instrument (nå: ${profileMeta.label})`}
+              title={`Aktiv profil: ${profileMeta.label} — trykk for å bytte mellom Køller og Trompet`}
+              className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg hover:border-accent/60"
+            >
+              <span aria-hidden="true" className="text-base leading-none">{profileMeta.emoji}</span>
+              <span>{profileMeta.label}</span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -192,6 +314,15 @@ export function Shell() {
         </div>
         {install.message ? <p className="mt-2 text-sm text-muted">{install.message}</p> : null}
       </header>
+      <InstrumentModal
+        open={profileModalOpen}
+        active={profile}
+        onSelect={chooseProfile}
+        onClose={() => {
+          if (!hasChosenProfile()) chooseProfile(profile);
+          else setProfileModalOpen(false);
+        }}
+      />
       <SyncModal open={syncModalOpen} onClose={() => setSyncModalOpen(false)} />
       <main
         className={

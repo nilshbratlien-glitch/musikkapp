@@ -17,6 +17,7 @@ import {
   type BlockId,
   BLOCK_COLOR,
 } from "./oveplan.ts";
+import { subscribeProfile } from "./profile.ts";
 import { chime, getState as pulseState, type PulseStart, setBpm as pulseBpm, setMeter as pulseMeter, onStall, start as pulseStart, stop as pulseStop, subscribe as subscribePulse } from "./pulse.ts";
 
 export type PlanClock = {
@@ -112,6 +113,20 @@ export function touchPlanClock() {
   for (const listener of listeners) listener();
 }
 
+export function reloadPlanClockForProfile() {
+  stopPlanMetro(false);
+  clearClock();
+  clock.activeId = null;
+  clock.forceSetup = false;
+  clock.metroHeld = false;
+  clock.startLabel = "Start";
+  clock.live = "Klar";
+  clock.store = loadPlanStore();
+  savePlanStore(clock.store);
+  syncWake();
+  touchPlanClock();
+}
+
 export function ensurePlanClock() {
   if (ready) return clock;
   ready = true;
@@ -119,6 +134,9 @@ export function ensurePlanClock() {
   savePlanStore(clock.store);
   if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
   subscribePulse(followPulse);
+  subscribeProfile(() => {
+    reloadPlanClockForProfile();
+  });
   // The pulse gave up (its audio clock stood still), whoever played: pause the block like the pause button
   // does, keep the time left, and let the next Start/Play carry on (the plan's own metronome again).
   onStall((owner) => {
@@ -278,7 +296,7 @@ function buzz() {
 }
 
 function saveSession(note: string) {
-  const doneNames = clock.store.done.map(blockName);
+  const doneNames = clock.store.done.map((id) => blockName(id));
   if (!doneNames.length && !note) return;
   const entry: PlanLog = {
     t: Date.now(),
