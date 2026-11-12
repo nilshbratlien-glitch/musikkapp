@@ -76,6 +76,7 @@
     duetRangeTptHigh: 74,
     duetRangeMalletLow: 60,
     duetRangeMalletHigh: 84,
+    duetMallets: 2,
   };
 
   const TRUMPET_DEFAULTS = Object.assign({}, DEFAULTS, {
@@ -710,6 +711,9 @@
     if ($("#duetEnabled")) $("#duetEnabled").checked = !!settings.duetEnabled;
     if ($("#duetMalletInstrument")) $("#duetMalletInstrument").value = settings.duetMalletInstrument || "xylo";
     if ($("#duetToolbarMalletSelect")) $("#duetToolbarMalletSelect").value = settings.duetMalletInstrument || "xylo";
+    const mCnt = String(settings.duetMallets || settings.mallets || 2);
+    if ($("#duetToolbarMalletCount")) $("#duetToolbarMalletCount").value = mCnt;
+    if ($("#duetMallets")) $("#duetMallets").value = mCnt;
     if ($("#duetStyle")) $("#duetStyle").value = settings.duetStyle || "harmony";
     if ($("#duetViewSelect")) $("#duetViewSelect").value = settings.duetViewPart || "score";
     if ($("#duetPlayTrumpet")) $("#duetPlayTrumpet").checked = settings.duetPlayTrumpet !== false;
@@ -755,7 +759,11 @@
   function updateMalletHints() {
     const isTrumpet = currentProfile() === "trumpet";
     const malletsRow = $("#malletsRow");
-    if (malletsRow) malletsRow.hidden = isTrumpet;
+    if (malletsRow) {
+      malletsRow.hidden = isTrumpet && !settings.duetEnabled;
+      const lbl = malletsRow.querySelector("label");
+      if (lbl) lbl.textContent = settings.duetEnabled ? "Køller (slagverk)" : "Køller";
+    }
     const multi = !isTrumpet && settings.mallets >= 3 && settings.texture !== "melody" && settings.texture !== "mixed";
     $all(".multi-only").forEach((el) => {
       el.hidden = !multi;
@@ -804,7 +812,13 @@
   function readInputs() {
     const isTrumpet = currentProfile() === "trumpet";
     settings.instrumentId = isTrumpet ? "trumpet" : $("#instrument").value;
-    settings.mallets = isTrumpet ? 1 : parseInt($("#mallets").value, 10);
+    if (settings.duetEnabled) {
+      const dm = parseInt(($("#duetToolbarMalletCount") && $("#duetToolbarMalletCount").value) || ($("#duetMallets") && $("#duetMallets").value) || ($("#mallets") && $("#mallets").value) || "2", 10);
+      settings.duetMallets = dm;
+      settings.mallets = dm;
+    } else {
+      settings.mallets = isTrumpet ? 1 : parseInt($("#mallets").value, 10);
+    }
     settings.texture = isTrumpet ? "melody" : $("#texture").value;
     settings.clef = isTrumpet ? "treble" : $("#clef").value;
     const instClef = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
@@ -1028,6 +1042,9 @@
 
     $("#mallets").addEventListener("change", () => {
       settings.mallets = parseInt($("#mallets").value, 10);
+      settings.duetMallets = settings.mallets;
+      if ($("#duetToolbarMalletCount")) $("#duetToolbarMalletCount").value = String(settings.mallets);
+      if ($("#duetMallets")) $("#duetMallets").value = String(settings.mallets);
       settings.texture = settings.mallets === 4 ? "block" : "mixed";
       syncTexture();
       updateMalletHints();
@@ -1039,6 +1056,7 @@
         if ($("#clef")) $("#clef").value = "grand";
       }
       saveSettings();
+      if (settings.duetEnabled) generate();
     });
 
     $("#texture").addEventListener("change", () => {
@@ -1160,6 +1178,28 @@
     if ($("#duetMalletInstrument")) {
       $("#duetMalletInstrument").addEventListener("change", () => {
         onMalletInstChange($("#duetMalletInstrument").value);
+      });
+    }
+
+    const onDuetMalletCountChange = (cnt) => {
+      const val = parseInt(cnt, 10) || 2;
+      settings.mallets = val;
+      settings.duetMallets = val;
+      if ($("#mallets")) $("#mallets").value = String(val);
+      if ($("#duetToolbarMalletCount")) $("#duetToolbarMalletCount").value = String(val);
+      if ($("#duetMallets")) $("#duetMallets").value = String(val);
+      updateMalletHints();
+      saveSettings();
+      if (settings.duetEnabled) generate();
+    };
+    if ($("#duetToolbarMalletCount")) {
+      $("#duetToolbarMalletCount").addEventListener("change", () => {
+        onDuetMalletCountChange($("#duetToolbarMalletCount").value);
+      });
+    }
+    if ($("#duetMallets")) {
+      $("#duetMallets").addEventListener("change", () => {
+        onDuetMalletCountChange($("#duetMallets").value);
       });
     }
 

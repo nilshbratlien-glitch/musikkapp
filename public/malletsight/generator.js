@@ -1754,6 +1754,7 @@
     const malletInstId = rawSettings.malletInstrument || rawSettings.duetMalletInstrument || "xylo";
     const malletInst = T.INSTRUMENTS.find((i) => i.id === malletInstId) || T.INSTRUMENTS.find((i) => i.id === "xylo");
     const style = rawSettings.style || rawSettings.duetStyle || "harmony"; // "harmony", "call_response", "melody_comp"
+    const malletCount = Math.max(2, Math.min(4, parseInt(rawSettings.duetMallets || rawSettings.mallets, 10) || 2));
     const numMeasures = Math.max(4, parseInt(rawSettings.measures, 10) || 8);
 
     const scale = T.diatonicPitches(concertKey, 24, 115);
@@ -2136,76 +2137,113 @@
         });
 
         const chord = CHORDS_8[m % 8];
+        const rootDeg = chord.rootDeg;
+        const thirdDeg = chord.thirdDeg;
+        const fifthDeg = chord.fifthDeg;
+
+        let rootPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + rootDeg))];
+        let thirdPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + thirdDeg))];
+        let fifthPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + fifthDeg))];
+
+        let bassPitch = rootPitch;
+        if (isHighPercussion) {
+          bassPitch = malletInstId === "glock" ? bassPitch + 24 : bassPitch + 12;
+          thirdPitch = malletInstId === "glock" ? thirdPitch + 24 : thirdPitch + 12;
+          fifthPitch = malletInstId === "glock" ? fifthPitch + 24 : fifthPitch + 12;
+        } else {
+          while (bassPitch - 12 >= malletInst.low) bassPitch -= 12;
+        }
+        bassPitch = T.clamp(bassPitch, malletInst.low, malletInst.high);
+        thirdPitch = T.clamp(thirdPitch, malletInst.low, malletInst.high);
+        fifthPitch = T.clamp(fifthPitch, malletInst.low, malletInst.high);
+
         if (isFinalBar) {
           const finalDur = meterKey === "4/4" ? d("w") : meterKey === "3/4" ? d("hd") : d("h");
-          let compPitch = scale[tIdx];
-          if (isHighPercussion) {
-            compPitch = malletInstId === "glock" ? compPitch + 24 : compPitch + 12;
-          } else {
-            while (compPitch - 12 >= malletInst.low) compPitch -= 12;
+          let finalPitches = [bassPitch];
+          let finalMallets = [1];
+          if (malletCount === 3) {
+            finalPitches = [...new Set([bassPitch, thirdPitch, fifthPitch])].sort((a, b) => a - b);
+            finalMallets = [1, 2, 3].slice(0, finalPitches.length);
+          } else if (malletCount === 4) {
+            const oct = Math.min(malletInst.high, bassPitch + 12);
+            finalPitches = [...new Set([bassPitch, fifthPitch, thirdPitch, oct])].sort((a, b) => a - b);
+            finalMallets = [1, 2, 3, 4].slice(0, finalPitches.length);
           }
-          compPitch = T.clamp(compPitch, malletInst.low, malletInst.high);
           malletEvents.push({
             rest: false,
             dur: finalDur,
-            pitches: [compPitch],
-            mallets: [1],
+            pitches: finalPitches,
+            mallets: finalMallets,
           });
         } else if (meterKey === "3/4") {
-          const chordDegs = [chord.rootDeg, chord.thirdDeg, chord.fifthDeg];
-          chordDegs.forEach((degOff, bi) => {
-            let compPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + degOff))];
-            if (isHighPercussion) {
-              compPitch = malletInstId === "glock" ? compPitch + 24 : compPitch + 12;
-            } else if (bi === 0) {
-              while (compPitch - 12 >= malletInst.low) compPitch -= 12;
-            }
-            compPitch = T.clamp(compPitch, malletInst.low, malletInst.high);
-            malletEvents.push({
-              rest: false,
-              dur: d("q"),
-              pitches: [compPitch],
-              mallets: [1],
-            });
+          malletEvents.push({
+            rest: false,
+            dur: d("q"),
+            pitches: [bassPitch],
+            mallets: [1],
+          });
+          const upperPitches = malletCount >= 3
+            ? [...new Set([thirdPitch, fifthPitch])].sort((a, b) => a - b)
+            : [thirdPitch];
+          const upperMallets = malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2];
+          malletEvents.push({
+            rest: false,
+            dur: d("q"),
+            pitches: upperPitches,
+            mallets: upperMallets,
+          });
+          malletEvents.push({
+            rest: false,
+            dur: d("q"),
+            pitches: upperPitches,
+            mallets: upperMallets,
           });
         } else if (meterKey === "2/4") {
-          const chordDegs = [chord.rootDeg, chord.fifthDeg];
-          chordDegs.forEach((degOff, bi) => {
-            let compPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + degOff))];
-            if (isHighPercussion) {
-              compPitch = malletInstId === "glock" ? compPitch + 24 : compPitch + 12;
-            } else if (bi === 0) {
-              while (compPitch - 12 >= malletInst.low) compPitch -= 12;
-            }
-            compPitch = T.clamp(compPitch, malletInst.low, malletInst.high);
-            malletEvents.push({
-              rest: false,
-              dur: d("q"),
-              pitches: [compPitch],
-              mallets: [1],
-            });
+          malletEvents.push({
+            rest: false,
+            dur: d("q"),
+            pitches: [bassPitch],
+            mallets: [1],
+          });
+          const upperPitches = malletCount >= 3
+            ? [...new Set([thirdPitch, fifthPitch])].sort((a, b) => a - b)
+            : [fifthPitch];
+          const upperMallets = malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2];
+          malletEvents.push({
+            rest: false,
+            dur: d("q"),
+            pitches: upperPitches,
+            mallets: upperMallets,
           });
         } else {
-          // 4/4: Root bass (half note), Third (quarter), Fifth (quarter)
-          const pattern = [
-            { degOff: chord.rootDeg, dur: d("h"), isBass: true },
-            { degOff: chord.thirdDeg, dur: d("q"), isBass: false },
-            { degOff: chord.fifthDeg, dur: d("q"), isBass: false },
-          ];
-          pattern.forEach((p) => {
-            let compPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + p.degOff))];
-            if (isHighPercussion) {
-              compPitch = malletInstId === "glock" ? compPitch + 24 : compPitch + 12;
-            } else if (p.isBass) {
-              while (compPitch - 12 >= malletInst.low) compPitch -= 12;
-            }
-            compPitch = T.clamp(compPitch, malletInst.low, malletInst.high);
-            malletEvents.push({
-              rest: false,
-              dur: p.dur,
-              pitches: [compPitch],
-              mallets: [1],
-            });
+          // 4/4
+          let bassP = [bassPitch];
+          let bassM = [1];
+          if (malletCount === 4 && bassPitch + 7 <= malletInst.high) {
+            bassP = [bassPitch, bassPitch + 7];
+            bassM = [1, 2];
+          }
+          malletEvents.push({
+            rest: false,
+            dur: d("h"),
+            pitches: bassP,
+            mallets: bassM,
+          });
+          const chordP1 = malletCount >= 3
+            ? [...new Set([thirdPitch, fifthPitch])].sort((a, b) => a - b)
+            : [thirdPitch];
+          const chordM1 = malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2];
+          malletEvents.push({
+            rest: false,
+            dur: d("q"),
+            pitches: chordP1,
+            mallets: chordM1,
+          });
+          malletEvents.push({
+            rest: false,
+            dur: d("q"),
+            pitches: chordP1,
+            mallets: chordM1,
           });
         }
       } else {
@@ -2345,6 +2383,8 @@
       settingsSnapshot: {
         instrument: "duet",
         duetMalletInstrument: malletInst.id,
+        duetMallets: malletCount,
+        mallets: malletCount,
         duetStyle: style,
         tempo: rawSettings.tempo || 80,
         legato: !!rawSettings.legato,

@@ -184,3 +184,73 @@ test("Generator.generateDuet generates sixteenth notes and triplets when enabled
   assert.ok(has16thOrTriplet, "Should generate advanced rhythms (16th, triplet or dotted) when enabled");
 });
 
+test("ScoreRenderer.duetToAbc renders proper key signature without natural cancellation signs in score view", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const vm = require("node:vm");
+  const abcjsCode = fs.readFileSync(path.join(__dirname, "..", "abcjs.js"), "utf8");
+  const abcCtx = vm.createContext({ window: {} });
+  abcCtx.window = abcCtx;
+  vm.runInContext(abcjsCode, abcCtx);
+  const ABCJS = abcCtx.window.ABCJS;
+
+  const { Generator, ScoreRenderer } = load(555);
+  const duet = Generator.generateDuet(settings({
+    keyId: "C",
+    measures: 8,
+    style: "harmony",
+    malletInstrument: "xylo",
+  }));
+
+  const abc = ScoreRenderer.duetToAbc(duet, { viewPart: "score" });
+  assert.ok(abc.includes("[V:1] [K:D]"), "Trumpet line should specify K:D");
+  assert.ok(abc.includes("[V:2] [K:C"), "Mallet line should specify K:C");
+
+  const parsed = ABCJS.parseOnly(abc);
+  assert.equal(parsed[0].warnings, undefined, "ABCJS should have no parse warnings");
+
+  // Verify staff 0 (trumpet) has 2 sharps (f# and c#), NOT natural signs
+  const staff0Key = parsed[0].lines[0].staff[0].key;
+  assert.equal(staff0Key.root, "D");
+  assert.equal(staff0Key.accidentals.length, 2);
+  staff0Key.accidentals.forEach((acc) => {
+    assert.equal(acc.acc, "sharp", "Trumpet key signature must be sharps, never natural cancellations");
+  });
+});
+
+test("ScoreRenderer.duetToAbc dynamically switches Marimba clef to avoid excessive ledger lines", () => {
+  const { Generator, ScoreRenderer } = load(333);
+  const duet = Generator.generateDuet(settings({
+    keyId: "C",
+    measures: 8,
+    style: "melody_comp",
+    malletInstrument: "mar50",
+    duetRangeMalletLow: 36, // C2
+    duetRangeMalletHigh: 60, // C4
+  }));
+
+  const abc = ScoreRenderer.duetToAbc(duet, { viewPart: "score" });
+  assert.ok(abc.includes("clef=bass"), "Low marimba notes should trigger bass clef");
+});
+
+test("Generator.generateDuet supports 2, 3, and 4 mallets with appropriate chord voicings", () => {
+  const { Generator } = load(444);
+  for (const mCount of [2, 3, 4]) {
+    const duet = Generator.generateDuet(settings({
+      keyId: "C",
+      measures: 8,
+      style: "melody_comp",
+      malletInstrument: "mar43",
+      duetMallets: mCount,
+      mallets: mCount,
+    }));
+
+    assert.equal(duet.settingsSnapshot.duetMallets, mCount);
+    const maxPitchesInEvent = Math.max(...duet.malletMeasures.flatMap((m) => m.events.map((e) => (e.pitches ? e.pitches.length : 0))));
+    if (mCount >= 3) {
+      assert.ok(maxPitchesInEvent >= 2, `With ${mCount} mallets, should produce multi-note voicings (got max ${maxPitchesInEvent})`);
+    }
+  }
+});
+
+

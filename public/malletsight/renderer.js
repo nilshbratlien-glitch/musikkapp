@@ -278,35 +278,69 @@
 
     const tptKeyId = score.trumpetKey ? score.trumpetKey.id : "D";
     const concertKeyId = score.key ? score.key.id : "C";
-    const malletClef = score.malletClef || "treble";
 
     const tptScore = Object.assign({}, score, { key: score.trumpetKey || score.key, settingsSnapshot: Object.assign({}, score.settingsSnapshot, { instrument: "trumpet" }) });
     const tptBars = (score.trumpetMeasures || []).map((m) => measureAbc(m, tptScore, options, score.time));
 
     const malletScore = Object.assign({}, score, { key: score.key, settingsSnapshot: Object.assign({}, score.settingsSnapshot, { instrument: score.malletInstrumentId || "xylo" }) });
-    const malletBars = (score.malletMeasures || []).map((m) => measureAbc(m, malletScore, options, score.time));
+
+    // Compute dynamic clef per measure for mallet instruments that support auto clef (Marimba 4.3 & 5.0)
+    let prevMalletClef = null;
+    const malletBarData = (score.malletMeasures || []).map((m) => {
+      const c = (malletInst.defaultClef === "auto")
+        ? measureClef(m, 0, prevMalletClef)
+        : (score.malletClef || "treble");
+      const changed = prevMalletClef != null && c !== prevMalletClef;
+      prevMalletClef = c;
+      const barScore = Object.assign({}, malletScore, { clef: c });
+      return {
+        clef: c,
+        changed: changed,
+        music: measureAbc(m, barScore, options, score.time),
+      };
+    });
+
+    const initialMalletClef = malletBarData.length ? malletBarData[0].clef : "treble";
+    const width = options.staffWidth || 640;
+    const per = width < 520 ? 2 : width < 860 ? 3 : 4;
 
     if (viewPart === "trumpet") {
       lines.push("K:" + tptKeyId + " clef=treble");
-      lines.push(tptBars.join(" | ") + " |]");
+      for (let i = 0; i < tptBars.length; i += per) {
+        const chunk = tptBars.slice(i, i + per);
+        const isEnd = i + per >= tptBars.length;
+        lines.push(chunk.join(" | ") + (isEnd ? " |]" : " |"));
+      }
     } else if (viewPart === "mallets") {
-      lines.push("K:" + concertKeyId + " clef=" + malletClef);
-      lines.push(malletBars.join(" | ") + " |]");
+      lines.push("K:" + concertKeyId + " clef=" + initialMalletClef);
+      for (let i = 0; i < malletBarData.length; i += per) {
+        const chunk = malletBarData.slice(i, i + per);
+        const isEnd = i + per >= malletBarData.length;
+        const body = chunk
+          .map((b, bi) => (b.changed && !(i === 0 && bi === 0) ? "[K:" + concertKeyId + " clef=" + b.clef + "] " : "") + b.music)
+          .join(" | ");
+        lines.push(body + (isEnd ? " |]" : " |"));
+      }
     } else {
       lines.push("%%staves {(1) (2)}");
       lines.push('V:1 clef=treble name="Trompet (B)" snm="Tpt"');
-      lines.push("K:" + tptKeyId);
-      lines.push('V:2 clef=' + malletClef + ' name="' + malletInst.name + ' (C)" snm="' + malletInst.name.slice(0, 3) + '"');
-      lines.push("K:" + concertKeyId);
+      lines.push('V:2 clef=' + initialMalletClef + ' name="' + malletInst.name + ' (C)" snm="' + malletInst.name.slice(0, 3) + '"');
+      lines.push("K:none");
 
-      const width = options.staffWidth || 640;
-      const per = width < 520 ? 2 : width < 860 ? 3 : 4;
       for (let i = 0; i < tptBars.length; i += per) {
         const tptChunk = tptBars.slice(i, i + per);
-        const malletChunk = malletBars.slice(i, i + per);
+        const malletChunk = malletBarData.slice(i, i + per);
         const isEnd = i + per >= tptBars.length;
-        lines.push("[V:1] " + tptChunk.join(" | ") + (isEnd ? " |]" : " |"));
-        lines.push("[V:2] " + malletChunk.join(" | ") + (isEnd ? " |]" : " |"));
+
+        // Voice 1 (Trumpet): always in treble, key tptKeyId on each line
+        lines.push("[V:1] [K:" + tptKeyId + "] " + tptChunk.join(" | ") + (isEnd ? " |]" : " |"));
+
+        // Voice 2 (Mallets): starts with clef of first bar in this chunk
+        const startClef = malletChunk[0].clef;
+        const malletBody = malletChunk
+          .map((b, bi) => (b.changed && bi > 0 ? "[K:" + concertKeyId + " clef=" + b.clef + "] " : "") + b.music)
+          .join(" | ");
+        lines.push("[V:2] [K:" + concertKeyId + " clef=" + startClef + "] " + malletBody + (isEnd ? " |]" : " |"));
       }
     }
 
