@@ -1,8 +1,8 @@
 <div class="app">
     <header class="topbar">
       <div class="brand">
-        <strong>Mallet Sight Reader</strong>
-        <span>v1.4 · 2–4 køller</span>
+        <strong id="brandTitle">Mallet Sight Reader</strong>
+        <span id="brandSubtitle">v1.4 · 2–4 køller</span>
       </div>
       <div class="spacer"></div>
       <div class="level-step" title="Nivå">
@@ -60,8 +60,8 @@
       <div class="settings-panel" data-settings-panel="instrument" hidden>
         <button type="button" class="settings-back" data-settings-back>Tilbake</button>
         <h3 class="settings-title">Instrument</h3>
-        <div class="row"><label>Instrument</label><select id="instrument"></select></div>
-        <div class="row"><label>Køller</label>
+        <div class="row" id="instrumentRow"><label>Instrument</label><select id="instrument"></select></div>
+        <div class="row" id="malletsRow"><label>Køller</label>
           <select id="mallets">
             <option value="2">2</option>
             <option value="3">3</option>
@@ -85,7 +85,7 @@
             </select>
           </div>
         </div>
-        <div class="row"><label>Notesystem</label><select id="clef"></select></div>
+        <div class="row" id="clefRow"><label>Notesystem</label><select id="clef"></select></div>
       </div>
 
       <div class="settings-panel" data-settings-panel="rytme" hidden>
