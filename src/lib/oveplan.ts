@@ -93,15 +93,47 @@ export function defaultMinsFor(profile: InstrumentProfile = getProfile()): Recor
   return profile === "trumpet" ? TRUMPET_DEFAULT_MINS : DEFAULT_MINS;
 }
 
-/** The tool a block opens when it starts: 2- and 4-mallet practise with the metronome, SRF is sight-reading. */
-const BLOCK_TOOLS: Partial<Record<BlockId, string>> = {
-  twomallet: "/metronom",
-  fourmallet: "/metronom",
-  srf: "/",
+export type ExerciseCard = {
+  title: string;
+  items: string[];
 };
 
-export function blockTool(id: BlockId) {
-  return BLOCK_TOOLS[id] ?? null;
+export const TRUMPET_EXERCISES: Record<BlockId, ExerciseCard> = {
+  twomallet: {
+    title: "Oppvarming",
+    items: [
+      "Spill på munnstykke. Lag sirene-lyd eller spill et morsomt stykke.",
+      "Spill lange toner. Hold hver tone i åtte slag, med åtte slag pause i mellom! Husk god pust!",
+    ],
+  },
+  fourmallet: {
+    title: "Teknikk og skalaer",
+    items: [
+      "Lip slurs. Skift toner uten å bruke ventiler. C – G – C. Jobb deg stegvis nedover.",
+      "Femtoneskala: Spill C – D – E – F – G – F – E – D – C. Sakte i starten. Øk tempo gradvis når teknikken sitter.",
+      "Spill skalaen både legato og staccato.",
+    ],
+  },
+  rep: {
+    title: "Korpslekse",
+    items: [
+      "Øv på det vanskelige i små biter. For eksempel én takt av gangen. Begynn sakte, så kommer tempoet av seg selv!",
+    ],
+  },
+  srf: {
+    title: "Bladlesing",
+    items: [
+      "Se igjennom notene før du spiller. Sjekk toneart, taktart og rytmer!",
+    ],
+  },
+};
+
+/** The tool a block opens when it starts: 2- and 4-mallet practise with the metronome, SRF is sight-reading, and trumpet Korpslekse opens metronome with exercise instructions. */
+export function blockTool(id: BlockId, profile: InstrumentProfile = getProfile()) {
+  if (id === "twomallet" || id === "fourmallet") return "/metronom";
+  if (id === "srf") return "/";
+  if (id === "rep" && profile === "trumpet") return "/metronom";
+  return null;
 }
 
 /** Each block's colour token; the plan list, the header pill and the Metronom chip share it. */

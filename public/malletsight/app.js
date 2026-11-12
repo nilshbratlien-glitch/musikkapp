@@ -50,6 +50,7 @@
     endTonic: true,
     accents: false,
     staccato: false,
+    legato: false,
     dynamics: false,
     rolls: "off",
     showSticking: false,
@@ -267,6 +268,8 @@
       if (!!p.ties !== !!settings.ties) continue;
       if (!!p.accidentals !== !!settings.accidentals) continue;
       if (!!p.dynamics !== !!settings.dynamics) continue;
+      const expectedLegato = settings.instrumentId === "trumpet" ? i + 1 >= 3 : false;
+      if (!!settings.legato !== expectedLegato) continue;
       return i;
     }
     return -1;
@@ -312,14 +315,17 @@
     settings.accidentals = p.accidentals;
     settings.dynamics = p.dynamics;
     if (settings.instrumentId === "trumpet") {
+      settings.legato = n >= 3;
       settings.rangeLow = n <= 4 ? 60 : n <= 6 ? 58 : 55;
       settings.rangeHigh = n <= 2 ? 67 : n <= 4 ? 72 : n <= 6 ? 74 : 79;
       syncRangeSliders();
+    } else {
+      settings.legato = false;
     }
     if ($("#maxLeap")) $("#maxLeap").value = String(p.maxLeap);
     if ($("#density")) $("#density").value = String(p.rhythmDensity);
     if ($("#measures")) $("#measures").value = String(p.measures);
-    ["allowRests", "syncopation", "ties", "accidentals", "dynamics"].forEach((k) => {
+    ["allowRests", "syncopation", "ties", "accidentals", "dynamics", "legato"].forEach((k) => {
       const el = $("#" + k);
       if (el) el.checked = !!settings[k];
     });
@@ -557,6 +563,7 @@
       "endTonic",
       "accents",
       "staccato",
+      "legato",
       "dynamics",
       "showSticking",
     ].forEach((k) => {
@@ -656,6 +663,7 @@
       "endTonic",
       "accents",
       "staccato",
+      "legato",
       "dynamics",
       "showSticking",
     ].forEach((k) => {

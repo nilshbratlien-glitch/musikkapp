@@ -188,7 +188,7 @@
     trackNode(strike);
   }
 
-  function playTrumpetSample(time, soundMidi, durSec) {
+  function playTrumpetSample(time, soundMidi, durSec, isSlurred) {
     const folder = "trumpet";
     const list = sampleBank[folder];
     if (!Array.isArray(list) || !list.length) return false;
@@ -204,8 +204,13 @@
     const g = c.createGain();
     const hold = Math.max(0.1, durSec * 0.94);
     const stopAt = time + hold + 0.08;
-    g.gain.setValueAtTime(0.001, time);
-    g.gain.linearRampToValueAtTime(1.2, time + 0.025);
+    if (isSlurred) {
+      g.gain.setValueAtTime(0.35, time);
+      g.gain.linearRampToValueAtTime(1.05, time + 0.015);
+    } else {
+      g.gain.setValueAtTime(0.001, time);
+      g.gain.linearRampToValueAtTime(1.2, time + 0.025);
+    }
     g.gain.setValueAtTime(1.0, time + hold);
     g.gain.exponentialRampToValueAtTime(0.001, stopAt);
     src.connect(g);
@@ -217,11 +222,11 @@
   }
 
   /* Authentic sampled B-trumpet: sounds 2 semitones below written pitch (Bb transposition). */
-  function scheduleTrumpetNote(time, writtenMidi, durSec) {
+  function scheduleTrumpetNote(time, writtenMidi, durSec, isSlurred) {
     const sOff = global.Theory && global.Theory.soundOff ? global.Theory.soundOff("trumpet") : -2;
     const soundMidi = writtenMidi + sOff;
 
-    if (playTrumpetSample(time, soundMidi, durSec)) {
+    if (playTrumpetSample(time, soundMidi, durSec, isSlurred)) {
       return;
     }
 
@@ -232,37 +237,47 @@
     const hold = Math.max(0.07, durSec * 0.92);
     const stopAt = time + hold + 0.07;
 
-    /* Gentle lip/breath articulation transient ("tu") */
-    const breath = c.createBufferSource();
-    breath.buffer = getClickBuf(c);
-    const bp = c.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = Math.min(4500, f0 * 2.6);
-    bp.Q.value = 1.8;
-    const bg = c.createGain();
-    bg.gain.setValueAtTime(0.04, time);
-    bg.gain.exponentialRampToValueAtTime(0.001, time + 0.028);
-    breath.connect(bp);
-    bp.connect(bg);
-    bg.connect(dest);
-    breath.start(time);
-    breath.stop(time + 0.035);
-    trackNode(breath);
+    /* Gentle lip/breath articulation transient ("tu") - omitted on slurred/legato notes */
+    if (!isSlurred) {
+      const breath = c.createBufferSource();
+      breath.buffer = getClickBuf(c);
+      const bp = c.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = Math.min(4500, f0 * 2.6);
+      bp.Q.value = 1.8;
+      const bg = c.createGain();
+      bg.gain.setValueAtTime(0.04, time);
+      bg.gain.exponentialRampToValueAtTime(0.001, time + 0.028);
+      breath.connect(bp);
+      bp.connect(bg);
+      bg.connect(dest);
+      breath.start(time);
+      breath.stop(time + 0.035);
+      trackNode(breath);
+    }
 
     /* Brass low-pass filter with attack bloom */
     const lp = c.createBiquadFilter();
     lp.type = "lowpass";
     lp.Q.value = 2.0;
-    const startCut = Math.min(2800, f0 * 1.8);
+    const startCut = Math.min(2800, f0 * (isSlurred ? 2.5 : 1.8));
     const peakCut = Math.min(5200, f0 * 5.0);
     const sustainCut = Math.min(3800, f0 * 3.5);
     lp.frequency.setValueAtTime(startCut, time);
-    lp.frequency.exponentialRampToValueAtTime(peakCut, time + 0.04);
+    lp.frequency.exponentialRampToValueAtTime(peakCut, time + (isSlurred ? 0.02 : 0.04));
     lp.frequency.exponentialRampToValueAtTime(sustainCut, time + Math.min(hold, 0.14));
 
     const env = c.createGain();
-    env.gain.setValueAtTime(0.0001, time);
-    env.gain.linearRampToValueAtTime(0.28, time + 0.026);
+    if (isSlurred) {
+      env.gain.setValueAtTime(0.12, time);
+      env.gain.linearRampToValueAtTime(0.24, time + 0.015);
+    } else {
+      env.gain.setValueAtTime(0.0001, time);
+      env.gain.linearRampToValueAtTime(0.28, time + 0.026);
+    }
+    env.gain.linearRampToValueAtTime(0.22, time + Math.min(hold, 0.09));
+    env.gain.setValueAtTime(0.22, time + hold);
+    env.gain.exponentialRampToValueAtTime(0.0001, stopAt);
     env.gain.linearRampToValueAtTime(0.22, time + Math.min(hold, 0.09));
     env.gain.setValueAtTime(0.22, time + hold);
     env.gain.exponentialRampToValueAtTime(0.0001, stopAt);
@@ -289,9 +304,9 @@
     });
   }
 
-  function scheduleNote(time, midi, durSec, instId, roll) {
+  function scheduleNote(time, midi, durSec, instId, roll, isSlurred) {
     if (instId === "trumpet") {
-      scheduleTrumpetNote(time, midi, durSec);
+      scheduleTrumpetNote(time, midi, durSec, isSlurred);
       return;
     }
     const c = ac();
@@ -495,7 +510,7 @@
             ev.pitches.forEach((p) => {
               if (isTiedInto(prev, p)) return;
               const dur = Math.max(0.05, (heldTicks(items, idx, p) / qTicks) * qSec);
-              try { scheduleNote(when, p, dur, instId, !!ev.roll); } catch (err) { /* best effort */ }
+              try { scheduleNote(when, p, dur, instId, !!ev.roll, !!ev.slurred); } catch (err) { /* best effort */ }
             });
           }
         });

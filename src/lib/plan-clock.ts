@@ -17,7 +17,7 @@ import {
   type BlockId,
   BLOCK_COLOR,
 } from "./oveplan.ts";
-import { subscribeProfile } from "./profile.ts";
+import { getProfile, subscribeProfile } from "./profile.ts";
 import { chime, getState as pulseState, type PulseStart, setBpm as pulseBpm, setMeter as pulseMeter, onStall, start as pulseStart, stop as pulseStop, subscribe as subscribePulse } from "./pulse.ts";
 
 export type PlanClock = {
@@ -666,9 +666,9 @@ function onVisible() {
   if (clock.activeId && !clock.blockPaused && clock.timer != null) tick();
 }
 
-/** A 2- or 4-mallet block is active (running or paused): the Metronom tab is the plan's. */
+/** A 2- or 4-mallet block is active (running or paused), or trumpet Korpslekse: the Metronom tab is the plan's. */
 export function planMalletBlock() {
-  return !!clock.activeId && playsMetronome(clock.activeId);
+  return !!clock.activeId && (playsMetronome(clock.activeId) || (getProfile() === "trumpet" && clock.activeId === "rep"));
 }
 
 /** Metronom's Start: in a 2-/4-mallet block it resumes the block at the block's tempo, otherwise `local` starts. */

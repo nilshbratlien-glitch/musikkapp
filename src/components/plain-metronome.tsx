@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { METERS, SUBDIVISIONS, beatsInMeter, meterForBeats, type Meter, type Subdivision } from "@/lib/metronome";
-import { BLOCK_COLOR, blockStyle, type BlockId } from "@/lib/oveplan";
+import { BLOCK_COLOR, blockStyle, TRUMPET_EXERCISES, type BlockId } from "@/lib/oveplan";
 import {
   getPlanClock,
   getPlanClockVersion,
@@ -219,6 +219,29 @@ export function PlainMetronome() {
           </button>
         </div>
       </div>
+      {plan && clock.activeId && profile === "trumpet" && TRUMPET_EXERCISES[block] && (
+        <aside
+          className="mt-4 hidden sm:block rounded-card border border-line bg-surface p-5 shadow-sm"
+          style={blockStyle(block)}
+          aria-label={TRUMPET_EXERCISES[block].title}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <span className="plan-chip text-xs font-semibold" style={blockStyle(block)}>
+              <span className="plan-chip-dot" aria-hidden="true" />
+              {TRUMPET_EXERCISES[block].title}
+            </span>
+            <span className="text-xs text-muted font-medium">Instruksjoner for denne blokka</span>
+          </div>
+          <ul className="space-y-2.5 text-sm text-foreground/90">
+            {TRUMPET_EXERCISES[block].items.map((item, idx) => (
+              <li key={idx} className="flex items-start gap-2.5">
+                <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[var(--block,var(--color-accent))]" aria-hidden="true" />
+                <span className="leading-relaxed">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )}
     </div>
   );
 }

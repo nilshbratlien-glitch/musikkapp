@@ -3,6 +3,7 @@ import { afterEach, describe, it } from "node:test";
 import {
   applyPreset,
   blockName,
+  blockTool,
   bpmFromTaps,
   bumpItem,
   ensureItems,
@@ -15,6 +16,7 @@ import {
   rollSession,
   savePlanStore,
   todayStamp,
+  TRUMPET_EXERCISES,
   type PlanItem,
 } from "./oveplan.ts";
 
@@ -40,6 +42,17 @@ describe("oveplan", () => {
     assert.equal(blockName("fourmallet", "trumpet"), "Teknikk & skala");
     assert.equal(blockName("srf", "trumpet"), "Bladlesing");
     assert.equal(blockName("rep", "trumpet"), "Korpslekse");
+    assert.equal(blockTool("rep", "trumpet"), "/metronom");
+    assert.equal(blockTool("rep", "mallets"), null);
+    assert.equal(TRUMPET_EXERCISES.twomallet.title, "Oppvarming");
+    assert.ok(TRUMPET_EXERCISES.twomallet.items.some((i) => i.includes("munnstykke")));
+    assert.ok(TRUMPET_EXERCISES.twomallet.items.some((i) => i.includes("åtte slag")));
+    assert.equal(TRUMPET_EXERCISES.fourmallet.title, "Teknikk og skalaer");
+    assert.ok(TRUMPET_EXERCISES.fourmallet.items.some((i) => i.includes("Lip slurs")));
+    assert.ok(TRUMPET_EXERCISES.fourmallet.items.some((i) => i.includes("Femtoneskala")));
+    assert.ok(TRUMPET_EXERCISES.fourmallet.items.some((i) => i.includes("legato og staccato")));
+    assert.equal(TRUMPET_EXERCISES.rep.title, "Korpslekse");
+    assert.ok(TRUMPET_EXERCISES.rep.items.some((i) => i.includes("små biter")));
     const trumpetItems = ensureItems([], "trumpet");
     assert.equal(playingSum(trumpetItems), 3 + 4 + 4 + 5);
     const data = new Map<string, string>();
