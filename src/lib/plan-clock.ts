@@ -204,7 +204,7 @@ export function setPlanMeter(beats: number, sub: number, broadcast = true) {
 }
 
 export function stopTimer() {
-  if (clock.timer != null) window.clearInterval(clock.timer);
+  if (clock.timer != null) globalThis.clearInterval(clock.timer);
   clock.timer = null;
 }
 
@@ -218,7 +218,7 @@ function wantAwake() {
 
 export function syncWake() {
   const on = wantAwake();
-  if (!navigator.wakeLock) return;
+  if (typeof navigator === "undefined" || !navigator.wakeLock) return;
   if (!on) {
     const lock = clock.wake;
     clock.wake = null;
@@ -271,7 +271,7 @@ function markDone(id: string) {
 
 function buzz() {
   try {
-    navigator.vibrate?.([40, 80, 120]);
+    if (typeof navigator !== "undefined") navigator.vibrate?.([40, 80, 120]);
   } catch {
     /* ignore */
   }
@@ -373,7 +373,7 @@ function tick() {
 /** Idempotent: there is only ever one countdown interval, and it reads time from blockEndsAt. */
 function startTimer() {
   stopTimer();
-  clock.timer = window.setInterval(tick, 200);
+  clock.timer = globalThis.setInterval(tick, 200) as unknown as number;
 }
 
 export function beginBlock(next: PlanItem, quiet = false) {
@@ -387,7 +387,7 @@ export function beginBlock(next: PlanItem, quiet = false) {
   applyBlockBpm(next.id, false);
   if (!quiet) {
     try {
-      navigator.vibrate?.(25);
+      if (typeof navigator !== "undefined") navigator.vibrate?.(25);
     } catch {
       /* ignore */
     }
