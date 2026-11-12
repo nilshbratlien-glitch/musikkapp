@@ -101,7 +101,7 @@ test("ScoreRenderer.duetToAbc formats ABC for score, trumpet, and mallets views"
   }));
 
   const fullScoreAbc = ScoreRenderer.duetToAbc(duet, { viewPart: "score" });
-  assert.ok(fullScoreAbc.includes("%%staves {(1) (2)}"), "Full score should have dual staves");
+  assert.ok(fullScoreAbc.includes("%%staves"), "Full score should have dual staves");
   assert.ok(fullScoreAbc.includes('V:1 clef=treble name="Trompet (B)"'), "V:1 should be Trumpet in B");
   assert.ok(fullScoreAbc.includes("K:C"), "Trumpet voice should be in C-dur");
   assert.ok(fullScoreAbc.includes('V:2 clef=treble name="Xylofon (C)"'), "V:2 should be Xylophone in C");
@@ -203,19 +203,34 @@ test("ScoreRenderer.duetToAbc renders proper key signature without natural cance
   }));
 
   const abc = ScoreRenderer.duetToAbc(duet, { viewPart: "score" });
-  assert.ok(abc.includes("[V:1] [K:D]"), "Trumpet line should specify K:D");
-  assert.ok(abc.includes("[V:2] [K:C"), "Mallet line should specify K:C");
+  assert.ok(abc.includes("[K:D]"), "Trumpet line should specify K:D");
+  assert.ok(abc.includes("[K:C"), "Mallet line should specify K:C");
 
   const parsed = ABCJS.parseOnly(abc);
   assert.equal(parsed[0].warnings, undefined, "ABCJS should have no parse warnings");
 
-  // Verify staff 0 (trumpet) has 2 sharps (f# and c#), NOT natural signs
+  // Verify titles on line 0
+  assert.equal(parsed[0].lines[0].staff[0].title[0], "Trompet (B)");
+  assert.equal(parsed[0].lines[0].staff[1].title[0], "Xylofon (C)");
+
+  // Verify staff 0 (trumpet) has 2 sharps (f# and c#), NOT natural signs on line 0
   const staff0Key = parsed[0].lines[0].staff[0].key;
   assert.equal(staff0Key.root, "D");
   assert.equal(staff0Key.accidentals.length, 2);
   staff0Key.accidentals.forEach((acc) => {
     assert.equal(acc.acc, "sharp", "Trumpet key signature must be sharps, never natural cancellations");
   });
+
+  // Verify line 1 (bar 5) preserves titles and has no natural cancellation signs
+  if (parsed[0].lines.length > 1) {
+    assert.equal(parsed[0].lines[1].staff[0].title[0], "Tpt");
+    assert.equal(parsed[0].lines[1].staff[1].title[0], "Xyl");
+    const staff0KeyL1 = parsed[0].lines[1].staff[0].key;
+    assert.equal(staff0KeyL1.accidentals.length, 2);
+    staff0KeyL1.accidentals.forEach((acc) => {
+      assert.equal(acc.acc, "sharp", "Trumpet line 2 must not have natural cancellation signs");
+    });
+  }
 });
 
 test("ScoreRenderer.duetToAbc dynamically switches Marimba clef to avoid excessive ledger lines", () => {

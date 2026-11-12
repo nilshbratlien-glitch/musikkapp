@@ -274,6 +274,7 @@
       "L:1/16",
       "Q:1/4=" + (score.settingsSnapshot.tempo || 80),
       "%%stretchlast 0",
+      "%%keywarn 0",
     ];
 
     const tptKeyId = score.trumpetKey ? score.trumpetKey.id : "C";
@@ -322,10 +323,10 @@
         lines.push(body + (isEnd ? " |]" : " |"));
       }
     } else {
-      lines.push("%%staves {(1) (2)}");
+      lines.push("K:" + tptKeyId);
+      lines.push("%%staves [(1) (2)]");
       lines.push('V:1 clef=treble name="Trompet (B)" snm="Tpt"');
       lines.push('V:2 clef=' + initialMalletClef + ' name="' + malletInst.name + ' (C)" snm="' + malletInst.name.slice(0, 3) + '"');
-      lines.push("K:none");
 
       for (let i = 0; i < tptBars.length; i += per) {
         const tptChunk = tptBars.slice(i, i + per);
@@ -333,14 +334,16 @@
         const isEnd = i + per >= tptBars.length;
 
         // Voice 1 (Trumpet): always in treble, key tptKeyId on each line
-        lines.push("[V:1] [K:" + tptKeyId + "] " + tptChunk.join(" | ") + (isEnd ? " |]" : " |"));
+        lines.push("V:1");
+        lines.push("[K:" + tptKeyId + "] " + tptChunk.join(" | ") + (isEnd ? " |]" : " |"));
 
         // Voice 2 (Mallets): starts with clef of first bar in this chunk
         const startClef = malletChunk[0].clef;
         const malletBody = malletChunk
           .map((b, bi) => (b.changed && bi > 0 ? "[K:" + concertKeyId + " clef=" + b.clef + "] " : "") + b.music)
           .join(" | ");
-        lines.push("[V:2] [K:" + concertKeyId + " clef=" + startClef + "] " + malletBody + (isEnd ? " |]" : " |"));
+        lines.push("V:2");
+        lines.push("[K:" + concertKeyId + " clef=" + startClef + "] " + malletBody + (isEnd ? " |]" : " |"));
       }
     }
 
