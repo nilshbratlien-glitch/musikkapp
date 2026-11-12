@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
+import { setProfile } from "./profile.ts";
 import { TOOLS, readToolStore, toolForPath, toolNamespace, writeToolStore } from "./tools.ts";
 
 type MemoryStorage = Storage & { failNext: boolean };
@@ -42,9 +43,10 @@ describe("tool namespaces and routes", () => {
     Object.defineProperty(globalThis, "localStorage", { value: previous, configurable: true });
   });
 
-  it("gives each tool its own key", () => {
+  it("gives each tool its own key and separates mallets vs trumpet profile namespaces", () => {
     for (const tool of TOOLS) {
-      assert.equal(toolNamespace(tool.id), `musikkapp.${tool.id}`);
+      assert.equal(toolNamespace(tool.id, "mallets"), `musikkapp.${tool.id}`);
+      assert.equal(toolNamespace(tool.id, "trumpet"), `musikkapp.trumpet.${tool.id}`);
     }
   });
 
@@ -65,5 +67,17 @@ describe("tool namespaces and routes", () => {
     storage.failNext = true;
     assert.equal(writeToolStore("metronom", { bests: { singles: 140 } }), false);
     assert.deepEqual(readToolStore("metronom"), { bests: { singles: 100 } });
+  });
+
+  it("keeps mallets and trumpet tool data isolated when switching profiles", () => {
+    storage = memoryStorage();
+    Object.defineProperty(globalThis, "localStorage", { value: storage, configurable: true });
+    setProfile("mallets");
+    writeToolStore("oveplan", { bpm: 92 });
+    setProfile("trumpet");
+    writeToolStore("oveplan", { bpm: 76 });
+    assert.deepEqual(readToolStore("oveplan", "mallets"), { bpm: 92 });
+    assert.deepEqual(readToolStore("oveplan", "trumpet"), { bpm: 76 });
+    setProfile("mallets");
   });
 });

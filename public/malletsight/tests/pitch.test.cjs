@@ -63,3 +63,34 @@ test("ABC matches MIDI with instrument octave offsets, triplets, ties and grand 
     assertWrittenPitches(context, score, `${instrument.id}, seed ${seed}`);
   }
 });
+
+test("trumpet generates strictly monophonic melody, renders valve fingerings, and sounds 2 semitones below written pitch", () => {
+  const context = load(7);
+  assert.equal(context.Theory.soundOff("trumpet"), -2);
+  assert.equal(context.Theory.trumpetValve(60), "0");
+  assert.equal(context.Theory.trumpetValve(62), "1-3");
+  assert.equal(context.Theory.trumpetValve(64), "1-2");
+  assert.equal(context.Theory.trumpetValve(65), "1");
+  assert.equal(context.Theory.trumpetValve(67), "0");
+  const score = context.Generator.generate(settings({
+    ...levels[8],
+    instrumentId: "trumpet",
+    rangeLow: 60,
+    rangeHigh: 72,
+    mallets: 4,
+    texture: "block",
+    rolls: true,
+    showSticking: true,
+  }));
+  for (const measure of score.measures) {
+    for (const event of measure.events) {
+      if (!event.rest) {
+        assert.equal(event.pitches.length, 1, "trumpet event must be monophonic");
+        assert.equal(Boolean(event.roll), false, "trumpet event must not have mallet rolls");
+      }
+    }
+  }
+  const abc = context.ScoreRenderer.scoreToAbc(score, { showSticking: true });
+  assert.match(abc, /klinger i B/);
+  assert.match(abc, /"\^[0123-]+"/);
+});

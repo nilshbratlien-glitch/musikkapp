@@ -1395,7 +1395,12 @@
     return out;
   }
 
-  function generate(settings) {
+  function generate(rawSettings) {
+    const instSpec = T.INSTRUMENTS.find((i) => i.id === rawSettings.instrumentId);
+    const settings =
+      instSpec && instSpec.monophonic
+        ? Object.assign({}, rawSettings, { mallets: 1, texture: "melody", rolls: "off", clef: "treble" })
+        : rawSettings;
     const key = resolveKey(settings);
     const time =
       settings.timeId === "random"

@@ -2,6 +2,10 @@ import { readToolStore, writeToolStore } from "./tools.ts";
 
 export const LETTERS = ["C", "D", "E", "F", "G", "A", "B"] as const;
 
+export const VALVE_COMBOS = ["0", "1", "2", "1-2", "2-3", "1-3", "1-2-3"] as const;
+export type ValveCombo = (typeof VALVE_COMBOS)[number];
+export type DrillMode = "names" | "valves";
+
 export type Clef = "treble" | "bass";
 export type Lang = "no" | "en";
 
@@ -13,6 +17,7 @@ export type NoteState = {
   sel: NoteSelection;
   lang: Lang;
   stats: Record<string, NoteStats>;
+  mode?: DrillMode;
 };
 
 export const CLEFS: Record<
@@ -52,6 +57,46 @@ export const INSTRUMENTS: [string, number, number][] = [
   ["Marimba 4,5", 17, 49],
   ["Marimba 5", 14, 49],
 ];
+
+export const TRUMPET_INSTRUMENTS: [string, number, number][] = [
+  ["Nybegynner (C4–G4)", 28, 32],
+  ["Korps (C4–D5)", 28, 36],
+  ["Utvidet (G3–G5)", 25, 39],
+];
+
+const NATURAL_VALVE_BY_IDX: Record<number, ValveCombo> = {
+  24: "1-2-3", // F3
+  25: "1-3",   // G3
+  26: "1-2",   // A3
+  27: "2",     // B3 / H3
+  28: "0",     // C4
+  29: "1-3",   // D4
+  30: "1-2",   // E4
+  31: "1",     // F4
+  32: "0",     // G4
+  33: "1-2",   // A4
+  34: "2",     // B4 / H4
+  35: "0",     // C5
+  36: "1",     // D5
+  37: "0",     // E5
+  38: "1",     // F5
+  39: "0",     // G5
+  40: "1-2",   // A5
+  41: "2",     // B5 / H5
+  42: "0",     // C6
+};
+
+export function valveForIdx(idx: number): ValveCombo {
+  if (idx in NATURAL_VALVE_BY_IDX) {
+    return NATURAL_VALVE_BY_IDX[idx]!;
+  }
+  const mod = idx % 7;
+  if (mod === 0 || mod === 4) return "0";
+  if (mod === 3) return "1";
+  if (mod === 6) return "2";
+  if (mod === 2 || mod === 5) return "1-2";
+  return "1-3";
+}
 
 export const STAFF = { gap: 14, bottom: 155, noteX: 152 };
 
@@ -140,6 +185,7 @@ export function parseNoteState(raw: unknown): NoteState {
     base.sel = { treble: numberList(choice.treble), bass: numberList(choice.bass) };
   }
   if (record.lang === "en" || record.lang === "no") base.lang = record.lang;
+  if (record.mode === "names" || record.mode === "valves") base.mode = record.mode;
   if (record.stats && typeof record.stats === "object" && !Array.isArray(record.stats)) {
     for (const [key, value] of Object.entries(record.stats)) {
       if (!value || typeof value !== "object" || Array.isArray(value)) continue;
@@ -157,11 +203,13 @@ export function loadNoteState() {
 }
 
 export function saveNoteState(state: NoteState) {
-  return writeToolStore("notekort", {
+  const payload: Record<string, unknown> = {
     sel: state.sel,
     lang: state.lang,
     stats: state.stats,
-  });
+  };
+  if (state.mode) payload.mode = state.mode;
+  return writeToolStore("notekort", payload);
 }
 
 export function selectionForInstrument(lo: number, hi: number): NoteSelection {

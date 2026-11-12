@@ -96,6 +96,7 @@ function stopRemoteSightPlayback() {
 export function broadcastControllerSnapshot() {
   const state = getSyncState();
   if (!state.connected || state.role !== "controller") return;
+  broadcastSync({ type: "PROFILE_SET", profile: getProfile() });
   const clock = getPlanClock();
   if (clock.activeId) {
     const item = clock.store.items.find((i) => i.id === clock.activeId);
@@ -140,6 +141,13 @@ export function broadcastControllerSnapshot() {
 export function initSyncBridge() {
   if (initialized) return;
   initialized = true;
+
+  setProfileBroadcastHook((profile) => {
+    const s = getSyncState();
+    if (s.connected && s.role === "controller") {
+      broadcastSync({ type: "PROFILE_SET", profile });
+    }
+  });
 
   if (typeof window !== "undefined") {
     window.MusikkSync = {
@@ -237,6 +245,11 @@ export function initSyncBridge() {
     if (state.role !== "display") return;
 
     switch (payload.type) {
+      case "PROFILE_SET": {
+        setProfile(payload.profile, { broadcast: false });
+        break;
+      }
+
       case "PLAN_START": {
         if (payload.blockId !== "srf") {
           stopRemoteSightPlayback();

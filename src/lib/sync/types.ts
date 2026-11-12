@@ -41,6 +41,8 @@ export type SyncPayload =
   // Sight-Reading events
   | { type: "SIGHT_SET"; level?: number; seed?: number; instrument?: string }
   | { type: "SIGHT_ACTION"; action: "generate" | "togglePlay" | "toggleMetro" | "again" }
+  // Instrument profile switch
+  | { type: "PROFILE_SET"; profile: "mallets" | "trumpet" }
   // State synchronization request from a newly connected display
   | { type: "SYNC_REQUEST" };
 

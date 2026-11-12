@@ -8,6 +8,7 @@
     { id: "vibes", name: "Vibrafon", low: 53, high: 89, writtenOff: 0, defaultClef: "treble" },
     { id: "mar43", name: "Marimba 4.3", low: 45, high: 96, writtenOff: 0, defaultClef: "auto" },
     { id: "mar50", name: "Marimba 5.0", low: 36, high: 96, writtenOff: 0, defaultClef: "auto" },
+    { id: "trumpet", name: "Trompet (B)", low: 54, high: 84, writtenOff: 0, soundOff: -2, defaultClef: "treble", monophonic: true },
   ];
 
   const KEYS = [
@@ -283,6 +284,48 @@
     return n * 4 + sharp * 2 + minor;
   }
 
+  /* Standard B-trumpet valve fingerings indexed by written MIDI pitch (F#3=54 to C6=84). */
+  const TRUMPET_VALVES = {
+    54: "1-2-3", // F#3
+    55: "1-3",   // G3
+    56: "2-3",   // G#3 / Ab3
+    57: "1-2",   // A3
+    58: "1",     // Bb3
+    59: "2",     // B3 / H3
+    60: "0",     // C4
+    61: "1-2-3", // C#4 / Db4
+    62: "1-3",   // D4
+    63: "2-3",   // D#4 / Eb4
+    64: "1-2",   // E4
+    65: "1",     // F4
+    66: "2",     // F#4 / Gb4
+    67: "0",     // G4
+    68: "2-3",   // G#4 / Ab4
+    69: "1-2",   // A4
+    70: "1",     // Bb4
+    71: "2",     // B4 / H4
+    72: "0",     // C5
+    73: "1-2",   // C#5 / Db5
+    74: "1",     // D5
+    75: "2",     // D#5 / Eb5
+    76: "0",     // E5
+    77: "1",     // F5
+    78: "2",     // F#5 / Gb5
+    79: "0",     // G5
+    80: "2-3",   // G#5 / Ab5
+    81: "1-2",   // A5
+    82: "1",     // Bb5
+    83: "2",     // B5 / H5
+    84: "0",     // C6
+  };
+
+  function trumpetValve(writtenMidi) {
+    if (TRUMPET_VALVES[writtenMidi]) return TRUMPET_VALVES[writtenMidi];
+    const pc = ((writtenMidi % 12) + 12) % 12;
+    const byPc = ["0", "1-2", "1", "2", "0", "1", "2", "0", "2-3", "1-2", "1", "2"];
+    return byPc[pc] || "0";
+  }
+
   global.Theory = {
     INSTRUMENTS,
     KEYS,
@@ -308,9 +351,14 @@
     chordTonesFrom,
     diatonicQualities,
     PC,
+    trumpetValve,
     writtenOff: function (instrumentId) {
       const inst = INSTRUMENTS.find((i) => i.id === instrumentId);
       return inst && inst.writtenOff ? inst.writtenOff : 0;
+    },
+    soundOff: function (instrumentId) {
+      const inst = INSTRUMENTS.find((i) => i.id === instrumentId);
+      return inst && inst.soundOff ? inst.soundOff : 0;
     },
   };
 })(window);

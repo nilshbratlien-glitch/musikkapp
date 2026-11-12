@@ -276,6 +276,11 @@
     settings.ties = p.ties;
     settings.accidentals = p.accidentals;
     settings.dynamics = p.dynamics;
+    if (settings.instrumentId === "trumpet") {
+      settings.rangeLow = n <= 4 ? 60 : n <= 6 ? 58 : 55;
+      settings.rangeHigh = n <= 2 ? 67 : n <= 4 ? 72 : n <= 6 ? 74 : 79;
+      syncRangeSliders();
+    }
     if ($("#maxLeap")) $("#maxLeap").value = String(p.maxLeap);
     if ($("#density")) $("#density").value = String(p.rhythmDensity);
     if ($("#measures")) $("#measures").value = String(p.measures);
@@ -1054,11 +1059,25 @@
     mount(root) {
       host = root || document.getElementById("malletsight-root") || document;
       if (wired) return;
+      settings = loadSettings();
       wire();
     },
     unmount,
     isReady() {
       return Boolean(wired && $("#btnPlay"));
+    },
+    setProfile() {
+      settings = loadSettings();
+      if (!wired) return true;
+      remoteCall = true;
+      try {
+        haltPlay();
+        refreshFormFromSettings();
+        generate();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
     },
     generate() {
       if (!wired) return false;

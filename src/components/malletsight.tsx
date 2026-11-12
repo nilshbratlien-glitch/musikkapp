@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import "@/lib/pulse";
 
-const ASSET_VER = "v5";
+const ASSET_VER = "v6";
 const SCRIPTS = [
   `/malletsight/abcjs.js?${ASSET_VER}`,
   `/malletsight/theory.js?${ASSET_VER}`,
@@ -30,6 +30,7 @@ declare global {
       mount: (root: HTMLElement) => void;
       unmount: () => void;
       isReady?: () => boolean;
+      setProfile?: (profile?: string) => boolean;
       generate?: () => boolean;
       togglePlay?: () => boolean;
       toggleMetro?: () => boolean;

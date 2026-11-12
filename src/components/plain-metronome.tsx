@@ -11,6 +11,7 @@ import {
   stopFromMetronom,
   subscribePlanClock,
 } from "@/lib/plan-clock";
+import { getProfile, getProfileVersion, subscribeProfile } from "@/lib/profile";
 import { getState, setBpm as pulseBpm, setMeter as pulseMeter, stop as pulseStop, subscribe } from "@/lib/pulse";
 import { syncMetroSet, syncMetroStart, syncMetroStop } from "@/lib/sync/bridge";
 import { readToolStore, writeToolStore } from "@/lib/tools";
@@ -31,6 +32,8 @@ const SUB_LABELS: Record<Subdivision, string> = {
 };
 
 export function PlainMetronome() {
+  useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
+  const profile = getProfile();
   const [bpm, setBpm] = useState(80);
   const [meter, setMeter] = useState<Meter>("4/4");
   const [subdivision, setSubdivision] = useState<Subdivision>(1);
@@ -52,12 +55,13 @@ export function PlainMetronome() {
   useEffect(() => {
     const store = readToolStore("metronom");
     if (typeof store.bpm === "number" && store.bpm >= 40 && store.bpm <= 240) setBpm(store.bpm);
+    else setBpm(80);
     setMeter(savedMeter(store.meter));
     setSubdivision(savedSubdivision(store.subdiv));
     return () => {
       pulseStop("metronom");
     };
-  }, []);
+  }, [profile]);
 
   function remember() {
     const store = readToolStore("metronom");

@@ -32,6 +32,7 @@ import {
   togglePlanMetro,
   touchPlanClock,
 } from "@/lib/plan-clock";
+import { getProfileVersion, subscribeProfile } from "@/lib/profile";
 import { syncPlanPause, syncPlanResume, syncPlanStop, syncSightAction } from "@/lib/sync/bridge";
 
 type Clock = ReturnType<typeof getPlanClock>;
@@ -39,6 +40,7 @@ type Clock = ReturnType<typeof getPlanClock>;
 export function Oveplan() {
   const clock = { get current(): Clock { return getPlanClock(); } };
   useSyncExternalStore(subscribePlanClock, getPlanClockVersion, getPlanClockVersion);
+  useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
   const redraw = () => touchPlanClock();
 
   function persist() {
