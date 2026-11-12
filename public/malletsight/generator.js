@@ -1793,110 +1793,6 @@
       });
     }
 
-    // Four cohesive, lyrical singing themes for each meter:
-    const d = (id) => T.DURATIONS.find((x) => x.id === id) || T.DURATIONS[0];
-
-    const THEMES_BY_TIME = {
-      "4/4": [
-        // 1. "Solgløtt" - Nordic cantabile with lyrical question & answer
-        [
-          [[0, "q"], [1, "8"], [2, "8"], [4, "q"], [2, "q"]], // Bar 1: 1, 2-3, 5, 3
-          [[3, "q"], [2, "q"], [1, "h"]],                     // Bar 2: 4, 3, 2 (holds on 2)
-          [[2, "q"], [3, "8"], [4, "8"], [5, "q"], [4, "q"]], // Bar 3: 3, 4-5, 6, 5
-          [[3, "qd"], [2, "8"], [1, "h"]],                     // Bar 4: 4, 3, 2 (half cadence question)
-          [[0, "q"], [1, "8"], [2, "8"], [4, "q"], [2, "q"]], // Bar 5: 1, 2-3, 5, 3 (theme returns)
-          [[5, "qd"], [4, "8"], [3, "q"], [2, "q"]],          // Bar 6: 6, 5, 4, 3 (apex descent)
-          [[2, "q"], [1, "8"], [0, "8"], [-1, "q"], [1, "q"]],// Bar 7: 3, 2-1, 7_sub, 2 (cadence prep)
-          [[0, "w"]],                                         // Bar 8: 1 (peaceful tonic cadence)
-        ],
-        // 2. "Festmarsj" - Energetic triad fanfare & joyful marching tune
-        [
-          [[0, "q"], [2, "q"], [4, "qd"], [2, "8"]],          // Bar 1: 1, 3, 5, 3
-          [[3, "8"], [4, "8"], [5, "8"], [3, "8"], [4, "h"]], // Bar 2: 4-5-6-4, 5
-          [[4, "q"], [3, "8"], [2, "8"], [1, "q"], [3, "q"]], // Bar 3: 5, 4-3, 2, 4
-          [[2, "qd"], [1, "8"], [0, "h"]],                     // Bar 4: 3, 2, 1
-          [[0, "q"], [2, "q"], [4, "qd"], [2, "8"]],          // Bar 5: 1, 3, 5, 3
-          [[5, "q"], [4, "8"], [3, "8"], [2, "q"], [4, "q"]], // Bar 6: 6, 5-4, 3, 5
-          [[3, "q"], [2, "q"], [-1, "qd"], [1, "8"]],         // Bar 7: 4, 3, 7_sub, 2
-          [[0, "w"]],                                         // Bar 8: 1 (final arrival)
-        ],
-        // 3. "Hallingdans" - Sprightly folk dance with rhythmic bounce
-        [
-          [[0, "q"], [2, "8"], [2, "8"], [4, "q"], [2, "q"]], // Bar 1: 1, 3-3, 5, 3
-          [[3, "8"], [2, "8"], [1, "8"], [0, "8"], [1, "h"]], // Bar 2: 4-3-2-1, 2
-          [[1, "q"], [3, "8"], [3, "8"], [4, "q"], [2, "q"]], // Bar 3: 2, 4-4, 5, 3
-          [[3, "q"], [2, "q"], [1, "h"]],                     // Bar 4: 4, 3, 2
-          [[0, "q"], [2, "8"], [2, "8"], [4, "q"], [2, "q"]], // Bar 5: 1, 3-3, 5, 3
-          [[5, "q"], [4, "q"], [3, "8"], [2, "8"], [1, "q"]], // Bar 6: 6, 5, 4-3, 2
-          [[2, "q"], [1, "8"], [0, "8"], [-1, "q"], [1, "q"]],// Bar 7: 3, 2-1, 7_sub, 2
-          [[0, "w"]],                                         // Bar 8: 1
-        ],
-        // 4. "Kveldsro" - Peaceful legato cantabile
-        [
-          [[2, "h"], [1, "q"], [0, "q"]],                     // Bar 1: 3, 2, 1
-          [[1, "qd"], [2, "8"], [3, "h"]],                     // Bar 2: 2, 3, 4
-          [[4, "h"], [3, "q"], [2, "q"]],                     // Bar 3: 5, 4, 3
-          [[1, "w"]],                                         // Bar 4: 2 (half cadence)
-          [[2, "h"], [1, "q"], [0, "q"]],                     // Bar 5: 3, 2, 1
-          [[5, "h"], [4, "q"], [3, "q"]],                     // Bar 6: 6, 5, 4
-          [[2, "qd"], [1, "8"], [-1, "h"]],                    // Bar 7: 3, 2, 7_sub
-          [[0, "w"]],                                         // Bar 8: 1
-        ],
-      ],
-      "3/4": [
-        // 1. "Valsefantasi"
-        [
-          [[0, "q"], [2, "q"], [4, "q"]],
-          [[5, "h"], [4, "q"]],
-          [[3, "q"], [2, "q"], [1, "q"]],
-          [[2, "hd"]],
-          [[0, "q"], [2, "q"], [4, "q"]],
-          [[5, "h"], [6, "q"]],
-          [[4, "q"], [3, "q"], [1, "q"]],
-          [[0, "hd"]],
-        ],
-        // 2. "Sommervals"
-        [
-          [[2, "h"], [3, "q"]],
-          [[4, "h"], [2, "q"]],
-          [[1, "q"], [2, "q"], [3, "q"]],
-          [[2, "hd"]],
-          [[2, "h"], [4, "q"]],
-          [[5, "h"], [3, "q"]],
-          [[2, "q"], [1, "q"], [-1, "q"]],
-          [[0, "hd"]],
-        ],
-      ],
-      "2/4": [
-        // 1. "Trompetmarsj"
-        [
-          [[0, "8"], [2, "8"], [4, "q"]],
-          [[5, "8"], [4, "8"], [3, "q"]],
-          [[2, "8"], [3, "8"], [4, "8"], [2, "8"]],
-          [[1, "h"]],
-          [[0, "8"], [2, "8"], [4, "q"]],
-          [[5, "8"], [6, "8"], [4, "q"]],
-          [[3, "8"], [2, "8"], [-1, "8"], [1, "8"]],
-          [[0, "h"]],
-        ],
-        // 2. "Galopp"
-        [
-          [[0, "qd"], [2, "8"]],
-          [[4, "8"], [3, "8"], [2, "q"]],
-          [[1, "qd"], [3, "8"]],
-          [[2, "h"]],
-          [[0, "qd"], [2, "8"]],
-          [[4, "8"], [5, "8"], [6, "q"]],
-          [[4, "8"], [3, "8"], [1, "8"], [-1, "8"]],
-          [[0, "h"]],
-        ],
-      ],
-    };
-
-    const meterKey = time.id === "3/4" ? "3/4" : time.id === "2/4" ? "2/4" : "4/4";
-    const themesForMeter = THEMES_BY_TIME[meterKey] || THEMES_BY_TIME["4/4"];
-    const chosenTheme = T.pick(themesForMeter);
-
     // Harmonic chords per bar (scale degrees relative to tonic):
     const CHORDS_8 = [
       { name: "I",  rootDeg: 0, fifthDeg: 4, thirdDeg: 2 },
@@ -1908,6 +1804,137 @@
       { name: "V",  rootDeg: 4, fifthDeg: 1, thirdDeg: 6 },
       { name: "I",  rootDeg: 0, fifthDeg: 4, thirdDeg: 2 },
     ];
+
+    // Procedural theme generator: creates endless fresh, cantabile melodies
+    // with classical periodic form (antecedent & consequent / question & answer),
+    // strictly conforming to the user's selected rhythms and difficulty level.
+    const d = (id) => T.DURATIONS.find((x) => x.id === id) || T.DURATIONS[0];
+    const meterKey = time.id === "3/4" ? "3/4" : time.id === "2/4" ? "2/4" : time.id === "6/8" ? "6/8" : "4/4";
+
+    function generateDuetTheme() {
+      const allowed = new Set(rawSettings.rhythms || ["w", "h", "hd", "q", "qd", "8", "16"]);
+      const level = Math.max(1, Math.min(10, Number(rawSettings.level) || 3));
+
+      function getBarRhythm(m, isCadence) {
+        if (isCadence) {
+          if (meterKey === "4/4") {
+            return m === numMeasures - 1
+              ? (allowed.has("w") ? [["w", "w"]] : [["h", "h"], ["h", "h"]])
+              : (allowed.has("h") ? [["h", "h"], ["h", "h"]] : [["q", "q"], ["q", "q"], ["h", "h"]]);
+          }
+          if (meterKey === "3/4") {
+            return allowed.has("hd") ? [["hd", "hd"]] : [["h", "h"], ["q", "q"]];
+          }
+          if (meterKey === "2/4") {
+            return allowed.has("h") ? [["h", "h"]] : [["q", "q"], ["q", "q"]];
+          }
+          return [["hd", "hd"]];
+        }
+
+        const patterns = [];
+        if (meterKey === "4/4") {
+          if (allowed.has("q")) patterns.push([["q", "q"], ["q", "q"], ["q", "q"], ["q", "q"]]);
+          if (allowed.has("h") && allowed.has("q")) {
+            patterns.push([["h", "h"], ["q", "q"], ["q", "q"]]);
+            patterns.push([["q", "q"], ["q", "q"], ["h", "h"]]);
+            patterns.push([["q", "q"], ["h", "h"], ["q", "q"]]);
+          }
+          if (allowed.has("8") && allowed.has("q")) {
+            patterns.push([["q", "q"], ["8", "8"], ["8", "8"], ["q", "q"], ["q", "q"]]);
+            patterns.push([["8", "8"], ["8", "8"], ["q", "q"], ["q", "q"], ["q", "q"]]);
+            patterns.push([["q", "q"], ["q", "q"], ["8", "8"], ["8", "8"], ["q", "q"]]);
+            patterns.push([["q", "q"], ["8", "8"], ["8", "8"], ["h", "h"]]);
+            if (level >= 3) {
+              patterns.push([["8", "8"], ["8", "8"], ["8", "8"], ["8", "8"], ["h", "h"]]);
+            }
+          }
+          if (allowed.has("qd") && allowed.has("8") && allowed.has("q")) {
+            patterns.push([["qd", "qd"], ["8", "8"], ["q", "q"], ["q", "q"]]);
+            patterns.push([["q", "q"], ["q", "q"], ["qd", "qd"], ["8", "8"]]);
+          }
+          if (allowed.has("16") && allowed.has("8") && level >= 4) {
+            patterns.push([["q", "q"], ["16", "16"], ["16", "16"], ["16", "16"], ["16", "16"], ["q", "q"], ["q", "q"]]);
+            patterns.push([["8", "8"], ["16", "16"], ["16", "16"], ["q", "q"], ["h", "h"]]);
+          }
+          if (allowed.has("8t") && allowed.has("q") && level >= 5) {
+            patterns.push([["8t", "8t"], ["8t", "8t"], ["8t", "8t"], ["q", "q"], ["h", "h"]]);
+          }
+        } else if (meterKey === "3/4") {
+          if (allowed.has("q")) patterns.push([["q", "q"], ["q", "q"], ["q", "q"]]);
+          if (allowed.has("h") && allowed.has("q")) patterns.push([["h", "h"], ["q", "q"]], [["q", "q"], ["h", "h"]]);
+          if (allowed.has("8") && allowed.has("q")) {
+            patterns.push([["q", "q"], ["8", "8"], ["8", "8"], ["q", "q"]]);
+            patterns.push([["8", "8"], ["8", "8"], ["q", "q"], ["q", "q"]]);
+          }
+          if (allowed.has("qd") && allowed.has("8")) {
+            patterns.push([["qd", "qd"], ["8", "8"], ["q", "q"]]);
+          }
+        } else if (meterKey === "2/4") {
+          if (allowed.has("q")) patterns.push([["q", "q"], ["q", "q"]]);
+          if (allowed.has("8") && allowed.has("q")) {
+            patterns.push([["8", "8"], ["8", "8"], ["q", "q"]]);
+            patterns.push([["q", "q"], ["8", "8"], ["8", "8"]]);
+            if (level >= 3) patterns.push([["8", "8"], ["8", "8"], ["8", "8"], ["8", "8"]]);
+          }
+          if (allowed.has("16") && level >= 4) {
+            patterns.push([["16", "16"], ["16", "16"], ["16", "16"], ["16", "16"], ["q", "q"]]);
+          }
+        } else {
+          patterns.push([["qd", "qd"], ["qd", "qd"]]);
+          if (allowed.has("8")) {
+            patterns.push([["8", "8"], ["8", "8"], ["8", "8"], ["qd", "qd"]]);
+            patterns.push([["qd", "qd"], ["8", "8"], ["8", "8"], ["8", "8"]]);
+          }
+        }
+
+        return patterns.length ? T.pick(patterns) : (meterKey === "4/4" ? [["q", "q"], ["q", "q"], ["q", "q"], ["q", "q"]] : [["q", "q"], ["q", "q"]]);
+      }
+
+      const motifRhythm = getBarRhythm(0, false);
+      const bars = [];
+      let currentDeg = T.pick([0, 2, 4]); // Start on tonic triad tone (Do, Mi, Sol)
+      let dir = Math.random() < 0.5 ? 1 : -1;
+
+      for (let m = 0; m < numMeasures; m++) {
+        const isFinalBar = m === numMeasures - 1;
+        const isPhraseEnd = (m + 1) % 4 === 0 || isFinalBar;
+        const chord = CHORDS_8[m % 8];
+
+        let rhythm = (m === 4 && numMeasures === 8 && Math.random() < 0.7)
+          ? motifRhythm
+          : getBarRhythm(m, isPhraseEnd);
+
+        const notes = [];
+        rhythm.forEach((item, idx) => {
+          const durId = item[0];
+          const isLastInBar = (idx === rhythm.length - 1);
+
+          if (isFinalBar && isLastInBar) {
+            currentDeg = 0; // Tonic resolution (Do)
+          } else if (isPhraseEnd && isLastInBar) {
+            currentDeg = T.pick([1, 4, -1]); // Half cadence on Re, Sol, or Ti
+          } else if (idx === 0) {
+            const chordTones = [chord.rootDeg, chord.thirdDeg, chord.fifthDeg];
+            chordTones.sort((a, b) => Math.abs(a - currentDeg) - Math.abs(b - currentDeg));
+            currentDeg = chordTones[0];
+          } else {
+            const roll = Math.random();
+            if (roll < 0.75) {
+              currentDeg += dir;
+              if (currentDeg > 6 || currentDeg < -2) dir *= -1;
+            } else if (roll < 0.95) {
+              currentDeg += dir * 2;
+              dir *= -1;
+            }
+          }
+          notes.push([currentDeg, durId]);
+        });
+        bars.push(notes);
+      }
+      return bars;
+    }
+
+    const chosenTheme = generateDuetTheme();
 
     const isHighPercussion = malletInstId === "xylo" || malletInstId === "glock";
 
@@ -2088,13 +2115,7 @@
     const callTptEvents = [];
 
     for (let m = 0; m < numMeasures; m++) {
-      let barNotes;
-      if (numMeasures === 4) {
-        const map4 = [0, 1, 6, 7];
-        barNotes = chosenTheme[map4[m]];
-      } else {
-        barNotes = chosenTheme[m % 8];
-      }
+      const barNotes = chosenTheme[m % chosenTheme.length] || chosenTheme[0];
       const isFinalBar = m === numMeasures - 1;
       const isPhraseEnd = (m + 1) % 4 === 0 || isFinalBar;
 

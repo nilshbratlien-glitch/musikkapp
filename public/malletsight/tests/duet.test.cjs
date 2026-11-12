@@ -345,5 +345,24 @@ test("AudioEngine.playAlong preloads both trumpet and mallet instruments for due
   assert.ok(fetched.some((url) => url.includes("sample-marimba")), "Must preload mallet samples for duet playback");
 });
 
+test("Generator.generateDuet generates high variety of unique procedural melodies across multiple runs", () => {
+  const contours = new Set();
+  const totalRuns = 15;
+  for (let i = 0; i < totalRuns; i++) {
+    const { Generator } = load(100 + i);
+    const duet = Generator.generateDuet(settings({ keyId: "C", measures: 8, style: "harmony" }));
+    const pitches = [];
+    duet.trumpetMeasures.forEach((m) => {
+      m.events.forEach((ev) => {
+        if (!ev.rest && ev.pitches.length) pitches.push(ev.pitches[0]);
+      });
+    });
+    contours.add(pitches.join("-"));
+  }
+  // With algorithmic periodic generation, different seeds must produce different melodic contours
+  assert.ok(contours.size >= 12, `Expected at least 12 unique melodic contours out of 15 runs, got ${contours.size}`);
+});
+
+
 
 
