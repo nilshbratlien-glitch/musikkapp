@@ -173,24 +173,30 @@
   function syncRangeSliders() {
     const off = writeOff();
     const inst = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
-    const wlo = T.clamp(settings.rangeLow + off, SLIDER_LO, SLIDER_HI);
-    const whi = T.clamp(settings.rangeHigh + off, SLIDER_LO, SLIDER_HI);
+    const minW = inst ? inst.low + off : SLIDER_LO;
+    const maxW = inst ? inst.high + off : SLIDER_HI;
+    const wlo = T.clamp(settings.rangeLow + off, minW, maxW);
+    const whi = T.clamp(settings.rangeHigh + off, minW, maxW);
     ["rangeLow", "rangeHigh"].forEach((id) => {
       const el = $("#" + id);
-      el.min = String(SLIDER_LO);
-      el.max = String(SLIDER_HI);
+      if (el) {
+        el.min = String(minW);
+        el.max = String(maxW);
+      }
     });
-    $("#rangeLow").value = String(wlo);
-    $("#rangeHigh").value = String(whi);
-    $("#rangeLowLbl").textContent = midiLabel(wlo);
-    $("#rangeHighLbl").textContent = midiLabel(whi);
+    if ($("#rangeLow")) $("#rangeLow").value = String(wlo);
+    if ($("#rangeHigh")) $("#rangeHigh").value = String(whi);
+    if ($("#rangeLowLbl")) $("#rangeLowLbl").textContent = midiLabel(wlo);
+    if ($("#rangeHighLbl")) $("#rangeHighLbl").textContent = midiLabel(whi);
     if ($("#rangeHint") && inst) {
       $("#rangeHint").textContent =
-        "Skrevet " +
-        midiLabel(inst.low + off) +
+        "Skrevet omfang for " +
+        inst.name +
+        ": " +
+        midiLabel(minW) +
         "–" +
-        midiLabel(inst.high + off) +
-        " på dette instrumentet. Skalaen går fra C2 til C8.";
+        midiLabel(maxW) +
+        ".";
     }
   }
 
@@ -199,8 +205,8 @@
     const inst = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
     let wlo = parseInt($("#rangeLow").value, 10);
     let whi = parseInt($("#rangeHigh").value, 10);
-    const minW = inst.low + off;
-    const maxW = inst.high + off;
+    const minW = inst ? inst.low + off : SLIDER_LO;
+    const maxW = inst ? inst.high + off : SLIDER_HI;
     wlo = T.clamp(wlo, minW, maxW);
     whi = T.clamp(whi, minW, maxW);
     if (wlo > whi) {
@@ -220,12 +226,123 @@
       (other) => other.id !== inst.id && other.low === settings.rangeLow && other.low > inst.low
     );
     if (force || inheritedLow || settings.rangeLow < inst.low || settings.rangeHigh > inst.high) {
-      settings.rangeLow = inst.low;
-      settings.rangeHigh = inst.high;
+      if (inst.id === "trumpet") {
+        settings.rangeLow = 60;
+        settings.rangeHigh = 72;
+      } else if (inst.id === "mar50") {
+        settings.rangeLow = 36;
+        settings.rangeHigh = 84;
+      } else if (inst.id === "mar43") {
+        settings.rangeLow = 45;
+        settings.rangeHigh = 84;
+      } else {
+        settings.rangeLow = inst.low;
+        settings.rangeHigh = inst.high;
+      }
     }
     settings.rangeLow = Theory.clamp(settings.rangeLow, inst.low, inst.high);
     settings.rangeHigh = Theory.clamp(settings.rangeHigh, inst.low, inst.high);
     if (settings.rangeHigh - settings.rangeLow < 5) settings.rangeHigh = Math.min(inst.high, settings.rangeLow + 12);
+  }
+
+  function defaultDuetMalletRange(instId) {
+    const inst = T.INSTRUMENTS.find((i) => i.id === instId);
+    if (!inst) return { low: 60, high: 84, minW: 36, maxW: 108 };
+    const off = inst.writtenOff || 0;
+    const minW = inst.low + off;
+    const maxW = inst.high + off;
+    let low = minW;
+    let high = maxW;
+    switch (instId) {
+      case "glock":
+        low = 55;
+        high = 84;
+        break;
+      case "xylo":
+        low = 53;
+        high = 84;
+        break;
+      case "vibes":
+        low = 53;
+        high = 84;
+        break;
+      case "mar43":
+        low = 45;
+        high = 84;
+        break;
+      case "mar50":
+        low = 36;
+        high = 84;
+        break;
+      default:
+        low = Math.max(minW, 60);
+        high = Math.min(maxW, 84);
+    }
+    return { low, high, minW, maxW };
+  }
+
+  function syncDuetRangeSliders(forceMalletDefault) {
+    const malInstId = settings.duetMalletInstrument || "xylo";
+    const { low: defLow, high: defHigh, minW, maxW } = defaultDuetMalletRange(malInstId);
+
+    if (forceMalletDefault || !settings.duetRangeMalletLow || settings.duetRangeMalletLow < minW || settings.duetRangeMalletLow > maxW) {
+      settings.duetRangeMalletLow = defLow;
+    }
+    if (forceMalletDefault || !settings.duetRangeMalletHigh || settings.duetRangeMalletHigh < minW || settings.duetRangeMalletHigh > maxW) {
+      settings.duetRangeMalletHigh = defHigh;
+    }
+    if (settings.duetRangeMalletLow > settings.duetRangeMalletHigh) {
+      const t = settings.duetRangeMalletLow;
+      settings.duetRangeMalletLow = settings.duetRangeMalletHigh;
+      settings.duetRangeMalletHigh = t;
+    }
+
+    const tptLow = settings.duetRangeTptLow || 60;
+    const tptHigh = settings.duetRangeTptHigh || 74;
+    const malLow = settings.duetRangeMalletLow;
+    const malHigh = settings.duetRangeMalletHigh;
+
+    ["rangeTptLow", "duetRangeTptLow"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) {
+        el.min = "54";
+        el.max = "84";
+        el.value = String(tptLow);
+      }
+    });
+    ["rangeTptHigh", "duetRangeTptHigh"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) {
+        el.min = "54";
+        el.max = "84";
+        el.value = String(tptHigh);
+      }
+    });
+    if ($("#rangeTptLowLbl")) $("#rangeTptLowLbl").textContent = midiLabel(tptLow);
+    if ($("#duetRangeTptLowLbl")) $("#duetRangeTptLowLbl").textContent = midiLabel(tptLow);
+    if ($("#rangeTptHighLbl")) $("#rangeTptHighLbl").textContent = midiLabel(tptHigh);
+    if ($("#duetRangeTptHighLbl")) $("#duetRangeTptHighLbl").textContent = midiLabel(tptHigh);
+
+    ["rangeMalletLow", "duetRangeMalletLow"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) {
+        el.min = String(minW);
+        el.max = String(maxW);
+        el.value = String(malLow);
+      }
+    });
+    ["rangeMalletHigh", "duetRangeMalletHigh"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) {
+        el.min = String(minW);
+        el.max = String(maxW);
+        el.value = String(malHigh);
+      }
+    });
+    if ($("#rangeMalletLowLbl")) $("#rangeMalletLowLbl").textContent = midiLabel(malLow);
+    if ($("#duetRangeMalletLowLbl")) $("#duetRangeMalletLowLbl").textContent = midiLabel(malLow);
+    if ($("#rangeMalletHighLbl")) $("#rangeMalletHighLbl").textContent = midiLabel(malHigh);
+    if ($("#duetRangeMalletHighLbl")) $("#duetRangeMalletHighLbl").textContent = midiLabel(malHigh);
   }
 
   function fillSelect(el, items, value, labelFn, valueFn) {
@@ -603,30 +720,7 @@
     if ($("#soloRangeControls")) $("#soloRangeControls").hidden = isDuet;
     if ($("#duetRangeControls")) $("#duetRangeControls").hidden = !isDuet;
 
-    const tptLow = settings.duetRangeTptLow || 60;
-    const tptHigh = settings.duetRangeTptHigh || 74;
-    const malLow = settings.duetRangeMalletLow || 60;
-    const malHigh = settings.duetRangeMalletHigh || 84;
-
-    if ($("#rangeTptLow")) $("#rangeTptLow").value = tptLow;
-    if ($("#duetRangeTptLow")) $("#duetRangeTptLow").value = tptLow;
-    if ($("#rangeTptLowLbl")) $("#rangeTptLowLbl").textContent = midiLabel(tptLow);
-    if ($("#duetRangeTptLowLbl")) $("#duetRangeTptLowLbl").textContent = midiLabel(tptLow);
-
-    if ($("#rangeTptHigh")) $("#rangeTptHigh").value = tptHigh;
-    if ($("#duetRangeTptHigh")) $("#duetRangeTptHigh").value = tptHigh;
-    if ($("#rangeTptHighLbl")) $("#rangeTptHighLbl").textContent = midiLabel(tptHigh);
-    if ($("#duetRangeTptHighLbl")) $("#duetRangeTptHighLbl").textContent = midiLabel(tptHigh);
-
-    if ($("#rangeMalletLow")) $("#rangeMalletLow").value = malLow;
-    if ($("#duetRangeMalletLow")) $("#duetRangeMalletLow").value = malLow;
-    if ($("#rangeMalletLowLbl")) $("#rangeMalletLowLbl").textContent = midiLabel(malLow);
-    if ($("#duetRangeMalletLowLbl")) $("#duetRangeMalletLowLbl").textContent = midiLabel(malLow);
-
-    if ($("#rangeMalletHigh")) $("#rangeMalletHigh").value = malHigh;
-    if ($("#duetRangeMalletHigh")) $("#duetRangeMalletHigh").value = malHigh;
-    if ($("#rangeMalletHighLbl")) $("#rangeMalletHighLbl").textContent = midiLabel(malHigh);
-    if ($("#duetRangeMalletHighLbl")) $("#duetRangeMalletHighLbl").textContent = midiLabel(malHigh);
+    syncDuetRangeSliders(false);
 
     buildRhythmToggles($("#rhythms"), "rhythms", settings.rhythms);
     buildRhythmToggles($("#rests"), "rests", settings.rests);
@@ -754,9 +848,23 @@
     if ($("#duetPlayTrumpet")) settings.duetPlayTrumpet = $("#duetPlayTrumpet").checked;
     if ($("#duetPlayMallets")) settings.duetPlayMallets = $("#duetPlayMallets").checked;
     if ($("#rangeTptLow")) settings.duetRangeTptLow = Number($("#rangeTptLow").value);
+    else if ($("#duetRangeTptLow")) settings.duetRangeTptLow = Number($("#duetRangeTptLow").value);
     if ($("#rangeTptHigh")) settings.duetRangeTptHigh = Number($("#rangeTptHigh").value);
+    else if ($("#duetRangeTptHigh")) settings.duetRangeTptHigh = Number($("#duetRangeTptHigh").value);
     if ($("#rangeMalletLow")) settings.duetRangeMalletLow = Number($("#rangeMalletLow").value);
+    else if ($("#duetRangeMalletLow")) settings.duetRangeMalletLow = Number($("#duetRangeMalletLow").value);
     if ($("#rangeMalletHigh")) settings.duetRangeMalletHigh = Number($("#rangeMalletHigh").value);
+    else if ($("#duetRangeMalletHigh")) settings.duetRangeMalletHigh = Number($("#duetRangeMalletHigh").value);
+    if (settings.duetRangeTptLow > settings.duetRangeTptHigh) {
+      const t = settings.duetRangeTptLow;
+      settings.duetRangeTptLow = settings.duetRangeTptHigh;
+      settings.duetRangeTptHigh = t;
+    }
+    if (settings.duetRangeMalletLow > settings.duetRangeMalletHigh) {
+      const t = settings.duetRangeMalletLow;
+      settings.duetRangeMalletLow = settings.duetRangeMalletHigh;
+      settings.duetRangeMalletHigh = t;
+    }
     if (settings.rangeLow > settings.rangeHigh) {
       const t = settings.rangeLow;
       settings.rangeLow = settings.rangeHigh;
@@ -1012,6 +1120,11 @@
         $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
         if ($("#soloRangeControls")) $("#soloRangeControls").hidden = settings.duetEnabled;
         if ($("#duetRangeControls")) $("#duetRangeControls").hidden = !settings.duetEnabled;
+        if (settings.duetEnabled) {
+          syncDuetRangeSliders(false);
+        } else {
+          syncRangeSliders();
+        }
         saveSettings();
         generate();
       });
@@ -1022,6 +1135,11 @@
         if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
         if ($("#soloRangeControls")) $("#soloRangeControls").hidden = settings.duetEnabled;
         if ($("#duetRangeControls")) $("#duetRangeControls").hidden = !settings.duetEnabled;
+        if (settings.duetEnabled) {
+          syncDuetRangeSliders(false);
+        } else {
+          syncRangeSliders();
+        }
         saveSettings();
       });
     }
@@ -1029,6 +1147,7 @@
       settings.duetMalletInstrument = newVal;
       if ($("#duetMalletInstrument")) $("#duetMalletInstrument").value = newVal;
       if ($("#duetToolbarMalletSelect")) $("#duetToolbarMalletSelect").value = newVal;
+      syncDuetRangeSliders(true);
       saveSettings();
       AudioEngine.loadInstrument(newVal);
       if (settings.duetEnabled) generate();
@@ -1365,6 +1484,9 @@
       remoteCall = true;
       try {
         haltPlay();
+        applyInstrumentRange(true);
+        syncRangeSliders();
+        syncDuetRangeSliders(false);
         bindUI();
         if ($("#showStickingLabel")) {
           $("#showStickingLabel").textContent = currentProfile() === "trumpet" ? "Vis ventilgrep" : "Vis køllenummer";
