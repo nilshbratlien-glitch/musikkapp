@@ -263,10 +263,10 @@
 
     const title =
       viewPart === "trumpet"
-        ? "Duett: Trompet (B) · " + styleName + " · " + (score.trumpetKey ? score.trumpetKey.name : "D-dur")
+        ? "Duett: Trompet (B) · " + styleName + " · " + (score.trumpetKey ? score.trumpetKey.name : "D-dur") + " (klinger " + (score.key ? score.key.name : "C-dur") + ")"
         : viewPart === "mallets"
           ? "Duett: " + malletInst.name + " (C) · " + styleName + " · " + (score.key ? score.key.name : "C-dur")
-          : "Duett: Trompet (B) & " + malletInst.name + " (C) · " + styleName + " · " + (score.key ? score.key.name : "C-dur");
+          : "Duett: Trompet (B) & " + malletInst.name + " (C) · " + styleName + " · " + (score.key ? score.key.name : "C-dur") + (score.trumpetKey && score.trumpetKey.name !== (score.key && score.key.name) ? " (Trompet: " + score.trumpetKey.name + ")" : "");
     const lines = [
       "X:1",
       "T:" + title,

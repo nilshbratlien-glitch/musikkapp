@@ -233,10 +233,11 @@ test("ScoreRenderer.duetToAbc dynamically switches Marimba clef to avoid excessi
   assert.ok(abc.includes("clef=bass"), "Low marimba notes should trigger bass clef");
 });
 
-test("Generator.generateDuet supports 2, 3, and 4 mallets with appropriate chord voicings", () => {
+test("Generator.generateDuet supports 2, 3, and 4 mallets with appropriate chord voicings across styles", () => {
   const { Generator } = load(444);
   for (const mCount of [2, 3, 4]) {
-    const duet = Generator.generateDuet(settings({
+    // Test melody_comp
+    const duetComp = Generator.generateDuet(settings({
       keyId: "C",
       measures: 8,
       style: "melody_comp",
@@ -245,12 +246,37 @@ test("Generator.generateDuet supports 2, 3, and 4 mallets with appropriate chord
       mallets: mCount,
     }));
 
-    assert.equal(duet.settingsSnapshot.duetMallets, mCount);
-    const maxPitchesInEvent = Math.max(...duet.malletMeasures.flatMap((m) => m.events.map((e) => (e.pitches ? e.pitches.length : 0))));
-    if (mCount >= 3) {
-      assert.ok(maxPitchesInEvent >= 2, `With ${mCount} mallets, should produce multi-note voicings (got max ${maxPitchesInEvent})`);
-    }
+    assert.equal(duetComp.settingsSnapshot.duetMallets, mCount);
+    const maxPitchesComp = Math.max(...duetComp.malletMeasures.flatMap((m) => m.events.map((e) => (e.pitches ? e.pitches.length : 0))));
+    assert.ok(maxPitchesComp >= 2, `With ${mCount} mallets in melody_comp, should produce multi-note voicings (got max ${maxPitchesComp})`);
+
+    // Test harmony style (Terser & sekster) - phrase endings and cadences should have chords for 2+ mallets
+    const duetHarm = Generator.generateDuet(settings({
+      keyId: "C",
+      measures: 8,
+      style: "harmony",
+      malletInstrument: "mar50",
+      duetMallets: mCount,
+      mallets: mCount,
+    }));
+
+    const maxPitchesHarm = Math.max(...duetHarm.malletMeasures.flatMap((m) => m.events.map((e) => (e.pitches ? e.pitches.length : 0))));
+    assert.ok(maxPitchesHarm >= 2, `With ${mCount} mallets in harmony style, should produce chord at cadences/phrase ends (got max ${maxPitchesHarm})`);
   }
 });
+
+test("ScoreRenderer.duetToAbc includes clear key indication for both concert and trumpet", () => {
+  const { Generator, ScoreRenderer } = load(111);
+  const duet = Generator.generateDuet(settings({
+    keyId: "C",
+    measures: 8,
+    style: "harmony",
+    malletInstrument: "mar50",
+  }));
+
+  const abc = ScoreRenderer.duetToAbc(duet, { viewPart: "score" });
+  assert.ok(abc.includes("C-dur (Trompet: D-dur)"), "Title should clarify both concert and trumpet keys");
+});
+
 
 

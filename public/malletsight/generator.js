@@ -1951,6 +1951,77 @@
       return targetMidi;
     }
 
+    function getMalletVoicing(mIndex, isFinalBar, isPhraseEnd, baseMalletPitch) {
+      if (malletCount < 2) {
+        return { pitches: [baseMalletPitch], mallets: [1] };
+      }
+      const chord = CHORDS_8[mIndex % 8];
+      const rootDeg = chord.rootDeg;
+      const thirdDeg = chord.thirdDeg;
+      const fifthDeg = chord.fifthDeg;
+
+      let rPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + rootDeg))];
+      let tPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + thirdDeg))];
+      let fPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + fifthDeg))];
+
+      if (isHighPercussion) {
+        const add = malletInstId === "glock" ? 24 : 12;
+        rPitch += add;
+        tPitch += add;
+        fPitch += add;
+      } else {
+        while (rPitch - 12 >= malletInst.low && rPitch - 12 >= malletLow) rPitch -= 12;
+      }
+      rPitch = T.clamp(rPitch, malletLow, malletHigh);
+      tPitch = T.clamp(tPitch, malletLow, malletHigh);
+      fPitch = T.clamp(fPitch, malletLow, malletHigh);
+
+      if (malletCount === 2) {
+        // Dyad (2 mallets): root + 3rd or root + 5th
+        let upper = (tPitch !== rPitch && Math.abs(tPitch - rPitch) >= 3 && Math.abs(tPitch - rPitch) <= 16)
+          ? tPitch
+          : fPitch;
+        if (upper === rPitch || Math.abs(upper - rPitch) < 3) {
+          upper = (rPitch + 7 <= malletHigh) ? rPitch + 7 : (rPitch + 4 <= malletHigh ? rPitch + 4 : baseMalletPitch);
+        }
+        upper = T.clamp(upper, malletLow, malletHigh);
+        const pitches = [...new Set([rPitch, upper])].sort((a, b) => a - b);
+        if (pitches.length === 1 && pitches[0] + 7 <= malletHigh) {
+          pitches.push(pitches[0] + 7);
+        }
+        return {
+          pitches: pitches.length ? pitches : [baseMalletPitch],
+          mallets: pitches.length >= 2 ? [1, 2] : [1],
+        };
+      } else if (malletCount === 3) {
+        // Triad (3 mallets): root + 3rd + 5th
+        let triad = [...new Set([rPitch, tPitch, fPitch])].filter((p) => p >= malletLow && p <= malletHigh).sort((a, b) => a - b);
+        if (triad.length < 3 && triad[0] + 12 <= malletHigh) {
+          triad.push(triad[0] + 12);
+        }
+        triad.sort((a, b) => a - b);
+        return {
+          pitches: triad.length ? triad : [baseMalletPitch],
+          mallets: [1, 2, 3].slice(0, triad.length),
+        };
+      } else {
+        // 4 mallets: root + 5th + 3rd + octave
+        const oct = Math.min(malletHigh, rPitch + 12);
+        let quad = [...new Set([rPitch, fPitch, tPitch, oct])].filter((p) => p >= malletLow && p <= malletHigh).sort((a, b) => a - b);
+        if (quad.length < 4 && quad[quad.length - 1] + 12 <= malletHigh) {
+          quad.push(quad[quad.length - 1] + 12);
+        }
+        if (quad.length < 4 && quad[0] - 12 >= malletLow) {
+          quad.unshift(quad[0] - 12);
+        }
+        quad.sort((a, b) => a - b);
+        return {
+          pitches: quad.length ? quad : [baseMalletPitch],
+          mallets: [1, 2, 3, 4].slice(0, quad.length),
+        };
+      }
+    }
+
     // Active rhythm features based on user settings:
     const allowedRhythms = new Set(rawSettings.rhythms || ["w", "h", "hd", "q", "qd", "8"]);
     const has16 = allowedRhythms.has("16");
@@ -2017,6 +2088,7 @@
         barNotes = chosenTheme[m % 8];
       }
       const isFinalBar = m === numMeasures - 1;
+      const isPhraseEnd = (m + 1) % 4 === 0 || isFinalBar;
 
       const tptEvents = [];
       const malletEvents = [];
@@ -2100,7 +2172,10 @@
               mallets: [],
               sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
             });
-            malletEvents.push({ rest: false, dur: dur, pitches: [malPitch], mallets: [1] });
+            const voicing = (isLastNote && malletCount >= 2)
+              ? getMalletVoicing(m, true, true, malPitch)
+              : { pitches: [malPitch], mallets: [1] };
+            malletEvents.push({ rest: false, dur: dur, pitches: voicing.pitches, mallets: voicing.mallets });
           });
         }
       } else if (style === "melody_comp") {
@@ -2161,10 +2236,14 @@
           const finalDur = meterKey === "4/4" ? d("w") : meterKey === "3/4" ? d("hd") : d("h");
           let finalPitches = [bassPitch];
           let finalMallets = [1];
-          if (malletCount === 3) {
+          if (malletCount === 2) {
+            const v2 = getMalletVoicing(m, true, true, bassPitch);
+            finalPitches = v2.pitches;
+            finalMallets = v2.mallets;
+          } else if (malletCount === 3) {
             finalPitches = [...new Set([bassPitch, thirdPitch, fifthPitch])].sort((a, b) => a - b);
             finalMallets = [1, 2, 3].slice(0, finalPitches.length);
-          } else if (malletCount === 4) {
+          } else if (malletCount >= 4) {
             const oct = Math.min(malletInst.high, bassPitch + 12);
             finalPitches = [...new Set([bassPitch, fifthPitch, thirdPitch, oct])].sort((a, b) => a - b);
             finalMallets = [1, 2, 3, 4].slice(0, finalPitches.length);
@@ -2229,28 +2308,40 @@
             pitches: bassP,
             mallets: bassM,
           });
-          const chordP1 = malletCount >= 3
-            ? [...new Set([thirdPitch, fifthPitch])].sort((a, b) => a - b)
-            : [thirdPitch];
-          const chordM1 = malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2];
-          malletEvents.push({
-            rest: false,
-            dur: d("q"),
-            pitches: chordP1,
-            mallets: chordM1,
-          });
-          malletEvents.push({
-            rest: false,
-            dur: d("q"),
-            pitches: chordP1,
-            mallets: chordM1,
-          });
+          if (isPhraseEnd) {
+            // Half-cadence phrase end: sustained chord
+            const phraseChord = getMalletVoicing(m, false, true, bassPitch);
+            malletEvents.push({
+              rest: false,
+              dur: d("h"),
+              pitches: phraseChord.pitches,
+              mallets: phraseChord.mallets,
+            });
+          } else {
+            const chordP1 = malletCount >= 3
+              ? [...new Set([thirdPitch, fifthPitch])].sort((a, b) => a - b)
+              : [thirdPitch];
+            const chordM1 = malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2];
+            malletEvents.push({
+              rest: false,
+              dur: d("q"),
+              pitches: chordP1,
+              mallets: chordM1,
+            });
+            malletEvents.push({
+              rest: false,
+              dur: d("q"),
+              pitches: chordP1,
+              mallets: chordM1,
+            });
+          }
         }
       } else {
         // "harmony": pure parallel & consonant diatonic 3rds (and 10ths) with musical dialogue
         barNotes.forEach((item, ni) => {
           const isLastInBar = (ni === barNotes.length - 1);
           const isLastNote = isFinalBar && isLastInBar;
+          const isPhraseCadence = isPhraseEnd && isLastInBar;
           const deg = isLastNote ? 0 : item[0];
           const origDur = d(item[1]);
 
@@ -2268,11 +2359,19 @@
               mallets: [],
               sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
             });
+
+            let voicing = { pitches: [malPitch], mallets: [1] };
+            if ((isLastNote || isPhraseCadence) && malletCount >= 2) {
+              voicing = getMalletVoicing(m, isLastNote, isPhraseCadence, malPitch);
+            } else if (origDur.ticks >= 24 && malletCount >= 2 && Math.random() < 0.6) {
+              voicing = getMalletVoicing(m, false, false, malPitch);
+            }
+
             malletEvents.push({
               rest: false,
               dur: origDur,
-              pitches: [malPitch],
-              mallets: [1],
+              pitches: voicing.pitches,
+              mallets: voicing.mallets,
             });
           } else {
             const textureRoll = Math.random();
@@ -2315,11 +2414,14 @@
               });
               const baseTptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
               const malPitch = getMalletPitch(baseTptSounding, false);
+              const voicing = (origDur.ticks >= 24 && malletCount >= 2)
+                ? getMalletVoicing(m, false, isPhraseCadence, malPitch)
+                : { pitches: [malPitch], mallets: [1] };
               malletEvents.push({
                 rest: false,
                 dur: origDur,
-                pitches: [malPitch],
-                mallets: [1],
+                pitches: voicing.pitches,
+                mallets: voicing.mallets,
               });
             } else {
               // Dialogue: Trumpet holds sustained note, Mallet plays flourish
