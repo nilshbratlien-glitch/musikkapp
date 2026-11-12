@@ -77,6 +77,7 @@
     duetRangeMalletLow: 60,
     duetRangeMalletHigh: 84,
     duetMallets: 2,
+    duetAllowChords: true,
   };
 
   const TRUMPET_DEFAULTS = Object.assign({}, DEFAULTS, {
@@ -716,6 +717,7 @@
     if ($("#duetMallets")) $("#duetMallets").value = mCnt;
     if ($("#duetStyle")) $("#duetStyle").value = settings.duetStyle || "harmony";
     if ($("#duetViewSelect")) $("#duetViewSelect").value = settings.duetViewPart || "score";
+    if ($("#duetAllowChords")) $("#duetAllowChords").checked = settings.duetAllowChords !== false;
     if ($("#duetPlayTrumpet")) $("#duetPlayTrumpet").checked = settings.duetPlayTrumpet !== false;
     if ($("#duetPlayMallets")) $("#duetPlayMallets").checked = settings.duetPlayMallets !== false;
     if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", !!settings.duetEnabled);
@@ -859,6 +861,7 @@
     else if ($("#duetMalletInstrument")) settings.duetMalletInstrument = $("#duetMalletInstrument").value;
     if ($("#duetStyle")) settings.duetStyle = $("#duetStyle").value;
     if ($("#duetViewSelect")) settings.duetViewPart = $("#duetViewSelect").value;
+    if ($("#duetAllowChords")) settings.duetAllowChords = $("#duetAllowChords").checked;
     if ($("#duetPlayTrumpet")) settings.duetPlayTrumpet = $("#duetPlayTrumpet").checked;
     if ($("#duetPlayMallets")) settings.duetPlayMallets = $("#duetPlayMallets").checked;
     if ($("#rangeTptLow")) settings.duetRangeTptLow = Number($("#rangeTptLow").value);
@@ -1200,6 +1203,14 @@
     if ($("#duetMallets")) {
       $("#duetMallets").addEventListener("change", () => {
         onDuetMalletCountChange($("#duetMallets").value);
+      });
+    }
+
+    if ($("#duetAllowChords")) {
+      $("#duetAllowChords").addEventListener("change", () => {
+        settings.duetAllowChords = $("#duetAllowChords").checked;
+        saveSettings();
+        generateAndRender(true);
       });
     }
 

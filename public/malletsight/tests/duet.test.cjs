@@ -27,8 +27,8 @@ test("Generator.generateDuet generates valid duet scores in harmony style", () =
   }));
 
   assert.equal(duet.isDuet, true);
-  assert.equal(duet.key.id, "C");
-  assert.equal(duet.trumpetKey.id, "D");
+  assert.equal(duet.trumpetKey.id, "C");
+  assert.equal(duet.key.id, "Bb");
   assert.equal(duet.trumpetMeasures.length, 8);
   assert.equal(duet.malletMeasures.length, 8);
 
@@ -61,8 +61,8 @@ test("Generator.generateDuet supports call_response style (ekkolek)", () => {
   }));
 
   assert.equal(duet.isDuet, true);
-  assert.equal(duet.key.id, "F");
-  assert.equal(duet.trumpetKey.id, "G");
+  assert.equal(duet.trumpetKey.id, "F");
+  assert.equal(duet.key.id, "Eb");
 
   // Bars 1-2: Trumpet plays, Mallets rest
   assert.ok(duet.trumpetMeasures[0].events.some((e) => !e.rest), "Trumpet active in bar 1");
@@ -83,8 +83,8 @@ test("Generator.generateDuet supports melody_comp style", () => {
   }));
 
   assert.equal(duet.isDuet, true);
-  assert.equal(duet.key.id, "Bb");
-  assert.equal(duet.trumpetKey.id, "C");
+  assert.equal(duet.trumpetKey.id, "Bb");
+  assert.equal(duet.key.id, "Ab");
 
   // Trumpet plays melody, mallets plays pulse chords/arpeggio
   assert.ok(duet.trumpetMeasures.some((m) => m.events.some((e) => !e.rest)));
@@ -103,18 +103,18 @@ test("ScoreRenderer.duetToAbc formats ABC for score, trumpet, and mallets views"
   const fullScoreAbc = ScoreRenderer.duetToAbc(duet, { viewPart: "score" });
   assert.ok(fullScoreAbc.includes("%%staves {(1) (2)}"), "Full score should have dual staves");
   assert.ok(fullScoreAbc.includes('V:1 clef=treble name="Trompet (B)"'), "V:1 should be Trumpet in B");
-  assert.ok(fullScoreAbc.includes("K:D"), "Trumpet voice should be in D-dur");
+  assert.ok(fullScoreAbc.includes("K:C"), "Trumpet voice should be in C-dur");
   assert.ok(fullScoreAbc.includes('V:2 clef=treble name="Xylofon (C)"'), "V:2 should be Xylophone in C");
-  assert.ok(fullScoreAbc.includes("K:C"), "Mallets voice should be in C-dur");
+  assert.ok(fullScoreAbc.includes("K:Bb"), "Mallets voice should be in Bb-dur");
 
   const trumpetOnlyAbc = ScoreRenderer.duetToAbc(duet, { viewPart: "trumpet" });
   assert.ok(!trumpetOnlyAbc.includes("%%staves"), "Single part should not have %%staves");
-  assert.ok(trumpetOnlyAbc.includes("K:D"), "Trumpet part should be in D-dur");
+  assert.ok(trumpetOnlyAbc.includes("K:C"), "Trumpet part should be in C-dur");
   assert.ok(!trumpetOnlyAbc.includes("Xylofon"), "Trumpet part should not have Xylofon staff");
 
   const malletsOnlyAbc = ScoreRenderer.duetToAbc(duet, { viewPart: "mallets" });
   assert.ok(!malletsOnlyAbc.includes("%%staves"), "Single part should not have %%staves");
-  assert.ok(malletsOnlyAbc.includes("K:C"), "Mallets part should be in C-dur");
+  assert.ok(malletsOnlyAbc.includes("K:Bb"), "Mallets part should be in Bb-dur");
   assert.ok(!malletsOnlyAbc.includes("Trompet"), "Mallets part should not have Trompet staff");
 });
 
@@ -196,7 +196,7 @@ test("ScoreRenderer.duetToAbc renders proper key signature without natural cance
 
   const { Generator, ScoreRenderer } = load(555);
   const duet = Generator.generateDuet(settings({
-    keyId: "C",
+    keyId: "D",
     measures: 8,
     style: "harmony",
     malletInstrument: "xylo",
@@ -244,6 +244,7 @@ test("Generator.generateDuet supports 2, 3, and 4 mallets with appropriate chord
       malletInstrument: "mar43",
       duetMallets: mCount,
       mallets: mCount,
+      duetAllowChords: true,
     }));
 
     assert.equal(duetComp.settingsSnapshot.duetMallets, mCount);
@@ -258,6 +259,7 @@ test("Generator.generateDuet supports 2, 3, and 4 mallets with appropriate chord
       malletInstrument: "mar50",
       duetMallets: mCount,
       mallets: mCount,
+      duetAllowChords: true,
     }));
 
     const maxPitchesHarm = Math.max(...duetHarm.malletMeasures.flatMap((m) => m.events.map((e) => (e.pitches ? e.pitches.length : 0))));
@@ -275,7 +277,23 @@ test("ScoreRenderer.duetToAbc includes clear key indication for both concert and
   }));
 
   const abc = ScoreRenderer.duetToAbc(duet, { viewPart: "score" });
-  assert.ok(abc.includes("C-dur (Trompet: D-dur)"), "Title should clarify both concert and trumpet keys");
+  assert.ok(abc.includes("C-dur (Slagverk: B-dur)"), "Title should clarify both trumpet and mallet keys");
+});
+
+test("Generator.generateDuet respects duetAllowChords: false by generating strictly monophonic mallet parts", () => {
+  const { Generator } = load(789);
+  const duet = Generator.generateDuet(settings({
+    keyId: "C",
+    measures: 8,
+    style: "melody_comp",
+    malletInstrument: "mar50",
+    duetMallets: 4,
+    duetAllowChords: false,
+  }));
+
+  assert.equal(duet.settingsSnapshot.duetAllowChords, false);
+  const maxPitches = Math.max(...duet.malletMeasures.flatMap((m) => m.events.map((e) => (e.pitches ? e.pitches.length : 0))));
+  assert.equal(maxPitches, 1, "With duetAllowChords: false, no chords should be generated even with 4 mallets");
 });
 
 

@@ -263,10 +263,10 @@
 
     const title =
       viewPart === "trumpet"
-        ? "Duett: Trompet (B) · " + styleName + " · " + (score.trumpetKey ? score.trumpetKey.name : "D-dur") + " (klinger " + (score.key ? score.key.name : "C-dur") + ")"
+        ? "Duett: Trompet (B) · " + styleName + " · " + (score.trumpetKey ? score.trumpetKey.name : "C-dur") + " (klinger " + (score.key ? score.key.name : "B-dur") + ")"
         : viewPart === "mallets"
-          ? "Duett: " + malletInst.name + " (C) · " + styleName + " · " + (score.key ? score.key.name : "C-dur")
-          : "Duett: Trompet (B) & " + malletInst.name + " (C) · " + styleName + " · " + (score.key ? score.key.name : "C-dur") + (score.trumpetKey && score.trumpetKey.name !== (score.key && score.key.name) ? " (Trompet: " + score.trumpetKey.name + ")" : "");
+          ? "Duett: " + malletInst.name + " (C) · " + styleName + " · " + (score.key ? score.key.name : "B-dur")
+          : "Duett: Trompet (B) & " + malletInst.name + " (C) · " + styleName + " · " + (score.trumpetKey ? score.trumpetKey.name : "C-dur") + (score.key && score.key.name !== (score.trumpetKey && score.trumpetKey.name) ? " (Slagverk: " + score.key.name + ")" : "");
     const lines = [
       "X:1",
       "T:" + title,
@@ -276,8 +276,8 @@
       "%%stretchlast 0",
     ];
 
-    const tptKeyId = score.trumpetKey ? score.trumpetKey.id : "D";
-    const concertKeyId = score.key ? score.key.id : "C";
+    const tptKeyId = score.trumpetKey ? score.trumpetKey.id : "C";
+    const concertKeyId = score.key ? score.key.id : "Bb";
 
     const tptScore = Object.assign({}, score, { key: score.trumpetKey || score.key, settingsSnapshot: Object.assign({}, score.settingsSnapshot, { instrument: "trumpet" }) });
     const tptBars = (score.trumpetMeasures || []).map((m) => measureAbc(m, tptScore, options, score.time));

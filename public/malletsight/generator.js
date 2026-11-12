@@ -1744,8 +1744,12 @@
   }
 
   function generateDuet(rawSettings) {
-    const concertKey = resolveKey(rawSettings);
-    const trumpetKey = T.transposeKeyForBb ? T.transposeKeyForBb(concertKey) : concertKey;
+    // Menu key is the Trumpet's key (e.g. C-dur = 0 accidentals for trumpet)
+    const trumpetKey = resolveKey(rawSettings);
+    // Mallets in C transpose to concert key (e.g. Trumpet C-dur -> Marimba Bb-dur / B-dur med 2 b-er)
+    const concertKey = T.transposeTrumpetToConcert
+      ? T.transposeTrumpetToConcert(trumpetKey)
+      : trumpetKey;
     const time =
       rawSettings.timeId === "random"
         ? T.pick(T.TIMES.filter((t) => ["4/4", "3/4", "2/4"].includes(t.id)))
@@ -1754,6 +1758,7 @@
     const malletInstId = rawSettings.malletInstrument || rawSettings.duetMalletInstrument || "xylo";
     const malletInst = T.INSTRUMENTS.find((i) => i.id === malletInstId) || T.INSTRUMENTS.find((i) => i.id === "xylo");
     const style = rawSettings.style || rawSettings.duetStyle || "harmony"; // "harmony", "call_response", "melody_comp"
+    const allowChords = rawSettings.duetAllowChords !== false && rawSettings.allowChords !== false;
     const malletCount = Math.max(2, Math.min(4, parseInt(rawSettings.duetMallets || rawSettings.mallets, 10) || 2));
     const numMeasures = Math.max(4, parseInt(rawSettings.measures, 10) || 8);
 
@@ -1765,8 +1770,15 @@
     const tptSoundLow = tptLow - 2;
     const tptSoundHigh = tptHigh - 2;
 
-    const malletLow = rawSettings.duetRangeMalletLow || (malletInst.low + (malletInst.writtenOff || 0));
-    const malletHigh = rawSettings.duetRangeMalletHigh || (malletInst.high + (malletInst.writtenOff || 0));
+    const malletWrittenLow = rawSettings.duetRangeMalletLow !== undefined
+      ? rawSettings.duetRangeMalletLow
+      : (malletInst.low + (malletInst.writtenOff || 0));
+    const malletWrittenHigh = rawSettings.duetRangeMalletHigh !== undefined
+      ? rawSettings.duetRangeMalletHigh
+      : (malletInst.high + (malletInst.writtenOff || 0));
+
+    const malletLow = Math.max(malletInst.low, malletWrittenLow - (malletInst.writtenOff || 0));
+    const malletHigh = Math.min(malletInst.high, malletWrittenHigh - (malletInst.writtenOff || 0));
 
     // Position tonic within the trumpet range
     let tonicPitch = concertKey.tonic + 60;
@@ -1925,10 +1937,8 @@
         targetIdx -= 7;
       }
 
-      const userSoundingLow = malletLow - (malletInst.writtenOff || 0);
-      const userSoundingHigh = malletHigh - (malletInst.writtenOff || 0);
-      while (scale[targetIdx] < userSoundingLow && targetIdx + 7 < scale.length) targetIdx += 7;
-      while (scale[targetIdx] > userSoundingHigh && targetIdx - 7 >= 0) targetIdx -= 7;
+      while (scale[targetIdx] < malletLow && targetIdx + 7 < scale.length) targetIdx += 7;
+      while (scale[targetIdx] > malletHigh && targetIdx - 7 >= 0) targetIdx -= 7;
 
       return scale[targetIdx];
     }
@@ -1943,16 +1953,14 @@
       while (targetMidi < malletInst.low) targetMidi += 12;
       while (targetMidi > malletInst.high) targetMidi -= 12;
 
-      const userSoundingLow = malletLow - (malletInst.writtenOff || 0);
-      const userSoundingHigh = malletHigh - (malletInst.writtenOff || 0);
-      while (targetMidi < userSoundingLow && targetMidi + 12 <= malletInst.high) targetMidi += 12;
-      while (targetMidi > userSoundingHigh && targetMidi - 12 >= malletInst.low) targetMidi -= 12;
+      while (targetMidi < malletLow && targetMidi + 12 <= malletInst.high) targetMidi += 12;
+      while (targetMidi > malletHigh && targetMidi - 12 >= malletInst.low) targetMidi -= 12;
 
       return targetMidi;
     }
 
     function getMalletVoicing(mIndex, isFinalBar, isPhraseEnd, baseMalletPitch) {
-      if (malletCount < 2) {
+      if (!allowChords || malletCount < 2) {
         return { pitches: [baseMalletPitch], mallets: [1] };
       }
       const chord = CHORDS_8[mIndex % 8];
@@ -2236,17 +2244,19 @@
           const finalDur = meterKey === "4/4" ? d("w") : meterKey === "3/4" ? d("hd") : d("h");
           let finalPitches = [bassPitch];
           let finalMallets = [1];
-          if (malletCount === 2) {
-            const v2 = getMalletVoicing(m, true, true, bassPitch);
-            finalPitches = v2.pitches;
-            finalMallets = v2.mallets;
-          } else if (malletCount === 3) {
-            finalPitches = [...new Set([bassPitch, thirdPitch, fifthPitch])].sort((a, b) => a - b);
-            finalMallets = [1, 2, 3].slice(0, finalPitches.length);
-          } else if (malletCount >= 4) {
-            const oct = Math.min(malletInst.high, bassPitch + 12);
-            finalPitches = [...new Set([bassPitch, fifthPitch, thirdPitch, oct])].sort((a, b) => a - b);
-            finalMallets = [1, 2, 3, 4].slice(0, finalPitches.length);
+          if (allowChords) {
+            if (malletCount === 2) {
+              const v2 = getMalletVoicing(m, true, true, bassPitch);
+              finalPitches = v2.pitches;
+              finalMallets = v2.mallets;
+            } else if (malletCount === 3) {
+              finalPitches = [...new Set([bassPitch, thirdPitch, fifthPitch])].sort((a, b) => a - b);
+              finalMallets = [1, 2, 3].slice(0, finalPitches.length);
+            } else if (malletCount >= 4) {
+              const oct = Math.min(malletInst.high, bassPitch + 12);
+              finalPitches = [...new Set([bassPitch, fifthPitch, thirdPitch, oct])].sort((a, b) => a - b);
+              finalMallets = [1, 2, 3, 4].slice(0, finalPitches.length);
+            }
           }
           malletEvents.push({
             rest: false,
@@ -2261,10 +2271,10 @@
             pitches: [bassPitch],
             mallets: [1],
           });
-          const upperPitches = malletCount >= 3
+          const upperPitches = (allowChords && malletCount >= 3)
             ? [...new Set([thirdPitch, fifthPitch])].sort((a, b) => a - b)
             : [thirdPitch];
-          const upperMallets = malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2];
+          const upperMallets = !allowChords ? [1] : (malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2]);
           malletEvents.push({
             rest: false,
             dur: d("q"),
@@ -2284,10 +2294,10 @@
             pitches: [bassPitch],
             mallets: [1],
           });
-          const upperPitches = malletCount >= 3
+          const upperPitches = (allowChords && malletCount >= 3)
             ? [...new Set([thirdPitch, fifthPitch])].sort((a, b) => a - b)
             : [fifthPitch];
-          const upperMallets = malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2];
+          const upperMallets = !allowChords ? [1] : (malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2]);
           malletEvents.push({
             rest: false,
             dur: d("q"),
@@ -2298,7 +2308,7 @@
           // 4/4
           let bassP = [bassPitch];
           let bassM = [1];
-          if (malletCount === 4 && bassPitch + 7 <= malletInst.high) {
+          if (allowChords && malletCount === 4 && bassPitch + 7 <= malletInst.high) {
             bassP = [bassPitch, bassPitch + 7];
             bassM = [1, 2];
           }
@@ -2308,7 +2318,7 @@
             pitches: bassP,
             mallets: bassM,
           });
-          if (isPhraseEnd) {
+          if (isPhraseEnd && allowChords) {
             // Half-cadence phrase end: sustained chord
             const phraseChord = getMalletVoicing(m, false, true, bassPitch);
             malletEvents.push({
@@ -2318,10 +2328,10 @@
               mallets: phraseChord.mallets,
             });
           } else {
-            const chordP1 = malletCount >= 3
+            const chordP1 = (allowChords && malletCount >= 3)
               ? [...new Set([thirdPitch, fifthPitch])].sort((a, b) => a - b)
               : [thirdPitch];
-            const chordM1 = malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2];
+            const chordM1 = !allowChords ? [1] : (malletCount >= 4 ? [3, 4] : malletCount === 3 ? [2, 3] : [2]);
             malletEvents.push({
               rest: false,
               dur: d("q"),
@@ -2487,6 +2497,7 @@
         duetMalletInstrument: malletInst.id,
         duetMallets: malletCount,
         mallets: malletCount,
+        duetAllowChords: allowChords,
         duetStyle: style,
         tempo: rawSettings.tempo || 80,
         legato: !!rawSettings.legato,

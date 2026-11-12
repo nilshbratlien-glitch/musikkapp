@@ -353,6 +353,41 @@
     Fm: "Gm",
   };
 
+  const TRUMPET_TO_CONCERT_KEY_MAP = {
+    D: "C",
+    A: "G",
+    E: "D",
+    B: "A",
+    "F#": "E",
+    "C#": "B",
+    "G#": "F#",
+    G: "F",
+    C: "Bb",
+    F: "Eb",
+    Bb: "Ab",
+    Eb: "Db",
+    Ab: "Db",
+    Db: "B",
+    Bm: "Am",
+    "F#m": "Em",
+    "C#m": "Bm",
+    "G#m": "F#m",
+    "D#m": "C#m",
+    Em: "Dm",
+    Am: "Gm",
+    Dm: "Cm",
+    Gm: "Fm",
+    Cm: "Bbm",
+    Fm: "Ebm",
+  };
+
+  function transposeTrumpetToConcert(trumpetKey) {
+    if (!trumpetKey) return KEYS.find((k) => k.id === "Bb") || KEYS[0];
+    const keyId = typeof trumpetKey === "string" ? trumpetKey : trumpetKey.id;
+    const targetId = TRUMPET_TO_CONCERT_KEY_MAP[keyId] || "Bb";
+    return KEYS.find((k) => k.id === targetId) || (KEYS.find((k) => k.id === "Bb") || KEYS[0]);
+  }
+
   function transposeKeyForBb(concertKey) {
     if (!concertKey) return KEYS[0];
     const keyId = typeof concertKey === "string" ? concertKey : concertKey.id;
@@ -387,6 +422,7 @@
     PC,
     trumpetValve,
     transposeKeyForBb,
+    transposeTrumpetToConcert,
     writtenOff: function (instrumentId) {
       const inst = INSTRUMENTS.find((i) => i.id === instrumentId);
       return inst && inst.writtenOff ? inst.writtenOff : 0;
