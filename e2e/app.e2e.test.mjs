@@ -390,7 +390,7 @@ describe("Metronom during a 2-mallet block", () => {
     await page.locator(".plan-chip").waitFor();
     await traceOwners();
     const main = page.locator("main");
-    assert.match(await main.innerText(), /Øveplan · 3 slag/);
+    assert.match(await main.innerText(), /2-mallet · 3 slag/);
     assert.equal(await pressed("3/4"), "true", "the 3-beat chip is selected");
     assert.equal(await pressed("4/4"), "false", "never 3 slag and 4/4 at once");
     assert.equal(await page.locator('main [aria-pressed="true"]').count(), 2, "one meter and one subdivision chip");
@@ -422,7 +422,7 @@ describe("Metronom during a 2-mallet block", () => {
 
     await page.getByRole("button", { name: "4/4", exact: true }).click();
     assert.equal((await pulseState()).beats, 4);
-    assert.match(await main.innerText(), /Øveplan · 4 slag/);
+    assert.match(await main.innerText(), /2-mallet · 4 slag/);
     assert.equal(await pressed("4/4"), "true");
     assert.equal(await pressed("3/4"), "false");
     await shot("metronom-block-running");
