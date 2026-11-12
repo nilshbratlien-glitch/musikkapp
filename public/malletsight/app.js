@@ -1523,6 +1523,10 @@
       }
       if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
         AudioEngine.loadInstrument(settings.instrumentId);
+        if (settings.duetEnabled || currentProfile() === "trumpet") {
+          AudioEngine.loadInstrument("trumpet");
+          AudioEngine.loadInstrument(settings.duetMalletInstrument || "xylo");
+        }
       }
     },
     unmount,
@@ -1545,6 +1549,10 @@
         generate();
         if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
           AudioEngine.loadInstrument(settings.instrumentId);
+          if (settings.duetEnabled || currentProfile() === "trumpet") {
+            AudioEngine.loadInstrument("trumpet");
+            AudioEngine.loadInstrument(settings.duetMalletInstrument || "xylo");
+          }
         }
       } finally {
         remoteCall = false;

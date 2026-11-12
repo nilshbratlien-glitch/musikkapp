@@ -58,7 +58,7 @@
     const folder = sampleFolder(instId);
     if (Array.isArray(sampleBank[folder])) return Promise.resolve(sampleBank[folder]);
     const c = ac();
-    if (!c || c.state !== "running") return Promise.resolve([]);
+    if (!c || c.state === "closed") return Promise.resolve([]);
     if (sampleBank[folder]) return sampleBank[folder];
     const p = Promise.all(
       Object.keys(NOTE_MIDI).map((name) =>
@@ -584,8 +584,15 @@
       }, totalDurationMs);
     };
 
-    const timeout = setTimeout(kick, 250);
-    loadInstrument(instId)
+    const timeout = setTimeout(kick, 800);
+    const loadPromise = score && score.isDuet
+      ? Promise.all([
+          loadInstrument("trumpet"),
+          loadInstrument(score.malletInstrumentId || (score.settingsSnapshot && score.settingsSnapshot.duetMalletInstrument) || "xylo"),
+        ])
+      : loadInstrument(instId);
+
+    loadPromise
       .then(() => {
         clearTimeout(timeout);
         kick();

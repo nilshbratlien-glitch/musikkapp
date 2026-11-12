@@ -311,5 +311,39 @@ test("Generator.generateDuet respects duetAllowChords: false by generating stric
   assert.equal(maxPitches, 1, "With duetAllowChords: false, no chords should be generated even with 4 mallets");
 });
 
+test("AudioEngine.playAlong preloads both trumpet and mallet instruments for duets", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const vm = require("node:vm");
+  const fetched = [];
+  const fakeCtx = { state: "suspended", decodeAudioData: () => Promise.resolve({}) };
+  const ctx = vm.createContext({
+    fetch: (url) => {
+      fetched.push(url);
+      return Promise.resolve({ ok: false });
+    },
+    MusikkPulse: {
+      audio: () => fakeCtx,
+      output: () => ({}),
+      start: () => {},
+      stop: () => {},
+      setClicks: () => {},
+    },
+    Theory: { TICKS: { quarter: 24 }, soundOff: () => -2 },
+    setTimeout,
+    clearTimeout,
+  });
+  ctx.window = ctx;
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "audio.js"), "utf8"), ctx);
+
+  const { Generator } = load(123);
+  const duet = Generator.generateDuet(settings({ keyId: "C", measures: 4, malletInstrument: "mar50" }));
+  ctx.AudioEngine.playAlong(duet, { quarterBpm: 100 });
+  ctx.AudioEngine.stopPlayback();
+
+  assert.ok(fetched.some((url) => url.includes("sample-trumpet")), "Must preload trumpet samples for duet playback");
+  assert.ok(fetched.some((url) => url.includes("sample-marimba")), "Must preload mallet samples for duet playback");
+});
+
 
 
