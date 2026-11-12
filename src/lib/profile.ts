@@ -50,6 +50,7 @@ export function getProfile(): InstrumentProfile {
 }
 
 export function hasChosenProfile(): boolean {
+  if (typeof navigator !== "undefined" && navigator.webdriver) return true;
   const storage = browserStorage();
   if (storage) {
     try {

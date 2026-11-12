@@ -296,7 +296,7 @@ function buzz() {
 }
 
 function saveSession(note: string) {
-  const doneNames = clock.store.done.map(blockName);
+  const doneNames = clock.store.done.map((id) => blockName(id));
   if (!doneNames.length && !note) return;
   const entry: PlanLog = {
     t: Date.now(),

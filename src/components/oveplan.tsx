@@ -63,7 +63,7 @@ export function Oveplan() {
 
   function saveSession(note: string) {
     const cur = clock.current;
-    const doneNames = cur.store.done.map(blockName);
+    const doneNames = cur.store.done.map((id) => blockName(id));
     if (!doneNames.length && !note) return;
     cur.store.log = [
       {

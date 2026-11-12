@@ -135,14 +135,24 @@ function InstrumentModal({
         className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 text-center">
-          <p className="text-xs font-semibold tracking-wider text-accent uppercase">Velg instrumentprofil</p>
-          <h2 id="instrument-modal-title" className="mt-1 text-xl font-bold tracking-tight text-fg">
-            Hva skal du øve på i dag?
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            Hver profil har sin egen øveplan, notekort og bladlesing.
-          </p>
+        <div className="mb-4 flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 text-center">
+            <p className="text-xs font-semibold tracking-wider text-accent uppercase">Velg instrumentprofil</p>
+            <h2 id="instrument-modal-title" className="mt-1 text-xl font-bold tracking-tight text-fg">
+              Hva skal du øve på i dag?
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Hver profil har sin egen øveplan, notekort og bladlesing.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Lukk"
+            className="metro-press -mr-2 -mt-2 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted hover:text-fg"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="grid gap-3">

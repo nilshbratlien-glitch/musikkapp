@@ -12,6 +12,12 @@ import {
   stopPlanMetroRemote,
   stopPlanRemote,
 } from "@/lib/plan-clock";
+import {
+  getProfile,
+  setProfile,
+  setProfileBroadcastHook,
+  type InstrumentProfile,
+} from "@/lib/profile";
 import { setFollowerMode, setMasterMuted } from "@/lib/pulse";
 import { broadcastSync, getSyncState, onSyncPayload, subscribeSyncState } from "./room";
 import type { SyncPayload } from "./types";
@@ -142,7 +148,7 @@ export function initSyncBridge() {
   if (initialized) return;
   initialized = true;
 
-  setProfileBroadcastHook((profile) => {
+  setProfileBroadcastHook((profile: InstrumentProfile) => {
     const s = getSyncState();
     if (s.connected && s.role === "controller") {
       broadcastSync({ type: "PROFILE_SET", profile });
