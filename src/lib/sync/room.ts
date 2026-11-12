@@ -109,7 +109,7 @@ export async function joinRoom(roomCode: string, role?: DeviceRole, deviceName?:
         presence: { key: currentConfig.deviceId },
       },
     });
-  } catch (_err) {
+  } catch {
     emitState({
       connecting: false,
       error: "Kunne ikke opprette synkroniseringskanal mot Supabase.",

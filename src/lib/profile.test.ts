@@ -12,7 +12,7 @@ import {
   _resetProfileForTesting,
   type InstrumentProfile,
 } from "./profile.ts";
-import { TOOLS, toolNamespace, type ToolId } from "./tools.ts";
+import { TOOLS, toolNamespace } from "./tools.ts";
 
 type MemoryStorage = Storage & { failNext: boolean };
 
