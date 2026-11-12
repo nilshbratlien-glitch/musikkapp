@@ -278,6 +278,9 @@
     env.gain.linearRampToValueAtTime(0.22, time + Math.min(hold, 0.09));
     env.gain.setValueAtTime(0.22, time + hold);
     env.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+    env.gain.linearRampToValueAtTime(0.22, time + Math.min(hold, 0.09));
+    env.gain.setValueAtTime(0.22, time + hold);
+    env.gain.exponentialRampToValueAtTime(0.0001, stopAt);
 
     lp.connect(env);
     env.connect(dest);

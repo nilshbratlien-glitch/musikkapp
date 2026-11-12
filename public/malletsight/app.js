@@ -115,11 +115,6 @@
         if (isTrumpet) {
           merged.instrumentId = "trumpet";
           merged.clef = "treble";
-        } else {
-          if (merged.instrumentId === "trumpet") {
-            merged.instrumentId = DEFAULTS.instrumentId;
-          }
-          merged.legato = false;
         }
         const valid = new Set(T.KEYS.map((k) => k.id));
         if (!Array.isArray(parsed.keyIds)) {
@@ -512,12 +507,6 @@
     ];
   }
 
-  function profileInstruments() {
-    return currentProfile() === "trumpet"
-      ? T.INSTRUMENTS.filter((i) => i.id === "trumpet")
-      : T.INSTRUMENTS.filter((i) => i.id !== "trumpet");
-  }
-
   function syncTexture() {
     const opts = textureOptions();
     if (!opts.some((o) => o.id === settings.texture)) settings.texture = opts[0].id;
@@ -525,11 +514,7 @@
   }
 
   function bindUI() {
-    const instList = profileInstruments();
-    if (!instList.some((i) => i.id === settings.instrumentId)) {
-      settings.instrumentId = instList[0].id;
-    }
-    fillSelect($("#instrument"), instList, settings.instrumentId);
+    fillSelect($("#instrument"), T.INSTRUMENTS, settings.instrumentId);
     buildKeyToggles();
     fillSelect(
       $("#time"),
@@ -617,28 +602,17 @@
   }
 
   function updateMalletHints() {
-    const isTrumpet = currentProfile() === "trumpet";
-
-    const malletsRow = $("#malletsRow") || ($("#mallets") ? $("#mallets").closest(".row") : null);
-    if (malletsRow) malletsRow.hidden = isTrumpet;
-
-    const rollsRow = $("#rollsRow");
-    if (rollsRow) rollsRow.hidden = isTrumpet;
-
-    const legatoRow = $("#legatoRow") || ($("#legato") ? $("#legato").closest("label") : null);
-    if (legatoRow) legatoRow.hidden = !isTrumpet;
-
-    const multi = !isTrumpet && settings.mallets >= 3 && settings.texture !== "melody" && settings.texture !== "mixed";
+    const multi = settings.mallets >= 3 && settings.texture !== "melody" && settings.texture !== "mixed";
     $all(".multi-only").forEach((el) => {
       el.hidden = !multi;
     });
     const textureRow = $("#textureRow");
-    if (textureRow) textureRow.hidden = isTrumpet;
-    const twoStop = !isTrumpet && settings.mallets === 2 && (settings.texture === "mixed" || settings.texture === "doublestops");
+    if (textureRow) textureRow.hidden = false;
+    const twoStop = settings.mallets === 2 && (settings.texture === "mixed" || settings.texture === "doublestops");
     const mix = $("#chordChanceRow");
-    if (mix) mix.hidden = isTrumpet || !(settings.texture === "mixed" || settings.texture === "doublestops");
+    if (mix) mix.hidden = !(settings.texture === "mixed" || settings.texture === "doublestops");
     const ds = $("#doubleStopRow");
-    if (ds) ds.hidden = isTrumpet || !twoStop;
+    if (ds) ds.hidden = !twoStop;
     if ($("#chordChanceTitle")) {
       $("#chordChanceTitle").textContent = "Akkorder i linjen";
     }
@@ -647,8 +621,6 @@
         ? "Samme rytme. Den ekstra tonen er et valgt intervall fra melodien."
         : "Melodien fortsetter, og akkorder kommer på noen av de lengre tonene.";
     }
-    const clefRow = $("#clefRow") || ($("#clef") ? $("#clef").closest(".row") : null);
-    if (clefRow) clefRow.hidden = isTrumpet;
     const inst = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
     const lockTreble = inst && inst.defaultClef === "treble";
     if ($("#clef")) {
@@ -661,22 +633,12 @@
   }
 
   function readInputs() {
-    const isTrumpet = currentProfile() === "trumpet";
-    if (isTrumpet) {
-      settings.instrumentId = "trumpet";
-      settings.mallets = 2;
-      settings.texture = "melody";
-      settings.clef = "treble";
-      settings.rolls = "off";
-    } else {
-      settings.instrumentId = $("#instrument").value;
-      settings.mallets = parseInt($("#mallets").value, 10);
-      settings.texture = $("#texture").value;
-      settings.clef = $("#clef").value;
-      const instClef = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
-      if (instClef && instClef.defaultClef === "treble") settings.clef = "treble";
-      settings.rolls = $("#rolls").value;
-    }
+    settings.instrumentId = $("#instrument").value;
+    settings.mallets = parseInt($("#mallets").value, 10);
+    settings.texture = $("#texture").value;
+    settings.clef = $("#clef").value;
+    const instClef = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
+    if (instClef && instClef.defaultClef === "treble") settings.clef = "treble";
     settings.timeId = $("#time").value;
     syncLegacyKeyId();
     settings.measures = parseInt($("#measures").value, 10);
@@ -688,6 +650,7 @@
     settings.maxGripShift = parseInt($("#gripShift").value, 10);
     if ($("#voicing")) settings.voicing = $("#voicing").value;
     if ($("#blockSize")) settings.blockSize = $("#blockSize").value;
+    settings.rolls = $("#rolls").value;
     settings.annotate = $("#annotate").value;
     if ($("#chordChance")) settings.chordChance = parseInt($("#chordChance").value, 10) / 100;
     if ($("#stopPlace")) settings.stopPlace = $("#stopPlace").value;
@@ -707,9 +670,6 @@
       const el = $("#" + k);
       if (el) settings[k] = el.checked;
     });
-    if (!isTrumpet) {
-      settings.legato = false;
-    }
     if (settings.rangeLow > settings.rangeHigh) {
       const t = settings.rangeLow;
       settings.rangeLow = settings.rangeHigh;
@@ -803,14 +763,6 @@
   }
 
   function openSettings(open) {
-    if (open) {
-      const instList = profileInstruments();
-      if (!instList.some((i) => i.id === settings.instrumentId)) {
-        settings.instrumentId = instList[0].id;
-      }
-      fillSelect($("#instrument"), instList, settings.instrumentId);
-      updateMalletHints();
-    }
     $("#drawer").classList.toggle("open", open);
     $("#scrim").classList.toggle("open", open);
     document.body.classList.toggle("drawer-open", open);

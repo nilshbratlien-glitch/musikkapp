@@ -117,9 +117,6 @@ export function NoteCards() {
     cont: null,
   });
   const answerRef = useRef<(letter: number) => void>(() => {});
-  const answerValveRef = useRef<(combo: ValveCombo) => void>(() => {});
-  const valveBufferRef = useRef<string[]>([]);
-  const valveTimerRef = useRef<number | null>(null);
   const [, bump] = useState(0);
   const redraw = () => bump((n) => n + 1);
 
@@ -223,31 +220,6 @@ export function NoteCards() {
       `Det var ${expected === "0" ? "0 (åpen)" : expected} (${noteLabel})`,
     );
   }
-  answerValveRef.current = answerValve;
-
-  function flushValveBuffer() {
-    if (valveTimerRef.current != null) {
-      window.clearTimeout(valveTimerRef.current);
-      valveTimerRef.current = null;
-    }
-    const buf = valveBufferRef.current;
-    valveBufferRef.current = [];
-    if (!buf.length) return;
-    const sorted = [...buf].sort().join("-");
-    let combo: ValveCombo | null = null;
-    if (sorted === "0") combo = "0";
-    else if (sorted === "1") combo = "1";
-    else if (sorted === "2") combo = "2";
-    else if (sorted === "3") combo = "1-2";
-    else if (sorted === "1-2") combo = "1-2";
-    else if (sorted === "2-3") combo = "2-3";
-    else if (sorted === "1-3") combo = "1-3";
-    else if (sorted === "1-2-3") combo = "1-2-3";
-
-    if (combo) {
-      answerValveRef.current(combo);
-    }
-  }
 
   function setDrillMode(mode: DrillMode) {
     const cur = model.current;
@@ -278,54 +250,11 @@ export function NoteCards() {
   }, [profile, isTrumpet]);
 
   useEffect(() => {
-    const currentModel = model.current;
     const onKey = (event: KeyboardEvent) => {
       const live = model.current;
-      if (live.tab !== "drill" || live.session.locked || !live.session.card) {
-        if ((event.key === " " || event.key === "Enter") && live.cont) {
-          event.preventDefault();
-          live.cont();
-        }
-        return;
-      }
+      if (live.tab !== "drill" || live.session.locked || !live.session.card) return;
       const target = event.target;
       if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "SELECT")) return;
-
-      const activeProfile = getProfile();
-      const isTrumpetProfile = activeProfile === "trumpet";
-      const activeMode: DrillMode = isTrumpetProfile ? (live.stored.mode ?? "valves") : "names";
-
-      if (activeMode === "valves") {
-        if (event.key === "0") {
-          event.preventDefault();
-          if (valveTimerRef.current != null) {
-            window.clearTimeout(valveTimerRef.current);
-            valveTimerRef.current = null;
-          }
-          valveBufferRef.current = [];
-          answerValveRef.current("0");
-        } else if (event.key === "1" || event.key === "2" || event.key === "3") {
-          event.preventDefault();
-          if (!valveBufferRef.current.includes(event.key)) {
-            valveBufferRef.current.push(event.key);
-          }
-          if (valveBufferRef.current.length >= 3) {
-            flushValveBuffer();
-          } else {
-            if (valveTimerRef.current != null) {
-              window.clearTimeout(valveTimerRef.current);
-            }
-            valveTimerRef.current = window.setTimeout(flushValveBuffer, 280);
-          }
-        } else if (event.key === "Enter" || event.key === " ") {
-          if (valveBufferRef.current.length > 0) {
-            event.preventDefault();
-            flushValveBuffer();
-          }
-        }
-        return;
-      }
-
       const key = event.key.toUpperCase();
       const index = key === "H" ? 6 : LETTERS.indexOf(key as (typeof LETTERS)[number]);
       if (index >= 0) {
@@ -336,11 +265,7 @@ export function NoteCards() {
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      if (valveTimerRef.current != null) {
-        window.clearTimeout(valveTimerRef.current);
-        valveTimerRef.current = null;
-      }
-      if (currentModel.toastTimer != null) window.clearTimeout(currentModel.toastTimer);
+      if (model.current.toastTimer != null) window.clearTimeout(model.current.toastTimer);
       clearContinue();
     };
   }, []);

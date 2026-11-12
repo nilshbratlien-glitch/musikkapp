@@ -70,7 +70,7 @@ export function Malletsight() {
         if (cancelled) return;
       }
       window.MalletSight?.mount(root);
-      window.MalletSight?.setProfile?.(getProfile());
+      window.MalletSight?.setProfile?.(profile);
     })();
     return () => {
       cancelled = true;

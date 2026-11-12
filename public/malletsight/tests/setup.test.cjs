@@ -34,12 +34,3 @@ test("AudioEngine exposes loadInstrument and all playback methods expected by ap
   assert.equal(typeof ctx.AudioEngine.playScore, "function");
   assert.equal(typeof ctx.AudioEngine.playAlong, "function");
 });
-
-test("markup.html defines #clefRow and settings drawer isolates it for trumpet profile", () => {
-  const markup = fs.readFileSync("markup.html", "utf8");
-  assert.match(markup, /id=["']clefRow["']/);
-  const appJs = fs.readFileSync("app.js", "utf8");
-  assert.match(appJs, /clefRow/);
-  assert.match(appJs, /clefRow\.hidden\s*=\s*isTrumpet/);
-});
-
