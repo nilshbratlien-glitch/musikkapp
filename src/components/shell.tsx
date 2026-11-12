@@ -149,7 +149,7 @@ function InstrumentModal({
             type="button"
             onClick={onClose}
             aria-label="Lukk"
-            className="metro-press -mr-2 -mt-2 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted hover:text-fg"
+            className="metro-press -mr-2 -mt-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted hover:text-fg"
           >
             ✕
           </button>

@@ -42,6 +42,10 @@ describe("oveplan", () => {
     assert.equal(blockName("fourmallet", "trumpet"), "Teknikk & skala");
     assert.equal(blockName("srf", "trumpet"), "Bladlesing");
     assert.equal(blockName("rep", "trumpet"), "Korpslekse");
+    assert.equal(blockName("twomallet", "mallets"), "2-mallet");
+    assert.equal(blockName("fourmallet", "mallets"), "4-mallet");
+    assert.equal(blockName("srf", "mallets"), "Bladlesing");
+    assert.equal(blockName("rep", "mallets"), "Repertoar");
     assert.equal(blockTool("rep", "trumpet"), "/metronom");
     assert.equal(blockTool("rep", "mallets"), null);
     assert.equal(TRUMPET_EXERCISES.twomallet.title, "Oppvarming");

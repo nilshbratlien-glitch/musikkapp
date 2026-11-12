@@ -82,11 +82,30 @@ export function setProfile(profile: InstrumentProfile, opts?: { broadcast?: bool
   version += 1;
   for (const listener of listeners) listener();
   if (typeof window !== "undefined") {
-    window.MalletSight?.setProfile?.(next);
+    try {
+      window.MalletSight?.setProfile?.(next);
+    } catch {
+      /* ignore */
+    }
+    if (typeof window.dispatchEvent === "function") {
+      try {
+        window.dispatchEvent(new CustomEvent("PROFILE_SET", { detail: { profile: next } }));
+      } catch {
+        /* ignore */
+      }
+    }
   }
   if (opts?.broadcast !== false) {
     broadcastHook?.(next);
   }
+}
+
+export function _resetProfileForTesting() {
+  memoryProfile = "mallets";
+  memoryChosen = false;
+  version = 0;
+  listeners.clear();
+  broadcastHook = null;
 }
 
 export function subscribeProfile(listener: () => void) {

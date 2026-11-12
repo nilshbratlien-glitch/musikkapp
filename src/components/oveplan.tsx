@@ -238,9 +238,9 @@ export function Oveplan() {
                     {item.skipped || !item.on ? "—" : item.mins}
                   </span>
                   <span className="flex gap-1">
-                    <button type="button" disabled={!item.on || item.skipped || item.mins <= 1} onClick={() => changeMins(item.id, -1)} className="metro-press size-10 rounded-xl border border-line disabled:opacity-30">−</button>
-                    <button type="button" onClick={() => changeMins(item.id, 1)} className="metro-press size-10 rounded-xl border border-line">+</button>
-                    <button type="button" disabled={!item.on || item.skipped} onClick={() => skip(item.id)} className="metro-press min-h-10 rounded-xl border border-line px-2 text-sm disabled:opacity-30">Hopp</button>
+                    <button type="button" aria-label="Reduser tid" disabled={!item.on || item.skipped || item.mins <= 1} onClick={() => changeMins(item.id, -1)} className="metro-press size-11 rounded-xl border border-line disabled:opacity-30">−</button>
+                    <button type="button" aria-label="Øk tid" onClick={() => changeMins(item.id, 1)} className="metro-press size-11 rounded-xl border border-line">+</button>
+                    <button type="button" disabled={!item.on || item.skipped} onClick={() => skip(item.id)} className="metro-press min-h-11 rounded-xl border border-line px-2 text-sm disabled:opacity-30">Hopp</button>
                   </span>
                 </li>
               );
@@ -316,8 +316,22 @@ export function Oveplan() {
       <div className="mt-3 grid gap-2 rounded-card border border-line bg-surface p-4">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="min-w-12 text-xl font-bold tabular-nums">{cur.store.bpm}</span>
-          <button type="button" onClick={() => setPlanBpm(cur.store.bpm - 2)} className="metro-press min-h-10 rounded-lg border border-line px-3">−</button>
-          <button type="button" onClick={() => setPlanBpm(cur.store.bpm + 2)} className="metro-press min-h-10 rounded-lg border border-line px-3">+</button>
+          <button
+            type="button"
+            aria-label="Senk tempo"
+            onClick={() => setPlanBpm(cur.store.bpm - 2)}
+            className="metro-press size-11 min-w-11 min-h-11 rounded-lg border border-line"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            aria-label="Øk tempo"
+            onClick={() => setPlanBpm(cur.store.bpm + 2)}
+            className="metro-press size-11 min-w-11 min-h-11 rounded-lg border border-line"
+          >
+            +
+          </button>
           <button
             type="button"
             onClick={() => {

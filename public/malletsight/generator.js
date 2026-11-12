@@ -1652,7 +1652,7 @@
             i++;
             continue;
           }
-          const targetLen = 2 + Math.floor(Math.random() * 3); // 2, 3, or 4
+          const targetLen = 2 + Math.floor((typeof settings.rng === "function" ? settings.rng() : Math.random()) * 3); // 2, 3, or 4
           let len = 1;
           while (len < targetLen && (i + len) < events.length) {
             const prev = events[i + len - 1];

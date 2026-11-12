@@ -10,3 +10,5 @@ attachments
 .env.*
 dist
 .output
+.agents
+

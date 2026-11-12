@@ -139,7 +139,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
             type="button"
             onClick={onClose}
             aria-label="Lukk"
-            className="metro-press rounded-lg p-1.5 text-muted hover:bg-header hover:text-fg"
+            className="metro-press flex size-11 items-center justify-center rounded-lg text-muted hover:bg-header hover:text-fg"
           >
             <X className="size-5" />
           </button>

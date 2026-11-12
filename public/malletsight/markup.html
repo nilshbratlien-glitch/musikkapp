@@ -6,12 +6,12 @@
       </div>
       <div class="spacer"></div>
       <div class="level-step" title="Nivå">
-        <button class="btn icon-btn" id="btnLevelDown" type="button" title="Lettere">−</button>
+        <button class="btn icon-btn" id="btnLevelDown" type="button" title="Lettere" aria-label="Lettere nivå">−</button>
         <span id="levelRead">1</span>
-        <button class="btn icon-btn" id="btnLevelUp" type="button" title="Vanskeligere">+</button>
+        <button class="btn icon-btn" id="btnLevelUp" type="button" title="Vanskeligere" aria-label="Vanskeligere nivå">+</button>
       </div>
-      <button class="btn icon-btn" id="btnZoomOut" title="Zoom ut">−</button>
-      <button class="btn icon-btn" id="btnZoomIn" title="Zoom inn">+</button>
+      <button class="btn icon-btn" id="btnZoomOut" title="Zoom ut" aria-label="Zoom ut">−</button>
+      <button class="btn icon-btn" id="btnZoomIn" title="Zoom inn" aria-label="Zoom inn">+</button>
       <button class="btn" id="btnSettings">Innstillinger</button>
     </header>
 
@@ -27,12 +27,12 @@
         <button class="btn" id="btnMetro">Metronom</button>
         <button class="btn" id="btnSubdiv" title="Underdeling">♩</button>
         <div class="tempo-pad">
-          <button class="btn icon-btn" id="btnTempoDown" title="Saktere">−</button>
+          <button class="btn icon-btn" id="btnTempoDown" title="Saktere" aria-label="Saktere tempo">−</button>
           <div class="metro-ui">
             <div class="beat-lamps" id="beatLamps"></div>
             <div class="tempo-read"><span id="tempoRead">80</span></div>
           </div>
-          <button class="btn icon-btn" id="btnTempoUp" title="Raskere">+</button>
+          <button class="btn icon-btn" id="btnTempoUp" title="Raskere" aria-label="Raskere tempo">+</button>
         </div>
       </div>
       <div class="cluster">
@@ -61,7 +61,7 @@
         <button type="button" class="settings-back" data-settings-back>Tilbake</button>
         <h3 class="settings-title">Instrument</h3>
         <div class="row"><label>Instrument</label><select id="instrument"></select></div>
-        <div class="row"><label>Køller</label>
+        <div class="row" id="malletsRow"><label>Køller</label>
           <select id="mallets">
             <option value="2">2</option>
             <option value="3">3</option>
@@ -85,7 +85,7 @@
             </select>
           </div>
         </div>
-        <div class="row"><label>Notesystem</label><select id="clef"></select></div>
+        <div class="row" id="clefRow"><label>Notesystem</label><select id="clef"></select></div>
       </div>
 
       <div class="settings-panel" data-settings-panel="rytme" hidden>
@@ -175,7 +175,7 @@
         <input type="range" id="tempo" min="40" max="160" />
         <label class="toggle"><span>Aksenter</span><input type="checkbox" id="accents" /></label>
         <label class="toggle"><span>Staccato</span><input type="checkbox" id="staccato" /></label>
-        <label class="toggle"><span>Legato (buer)</span><input type="checkbox" id="legato" /></label>
+        <label class="toggle" id="legatoRow"><span>Legato (buer)</span><input type="checkbox" id="legato" /></label>
         <label class="toggle"><span>Dynamikk</span><input type="checkbox" id="dynamics" /></label>
         <div class="row" id="rollsRow"><label>Virvler</label>
           <select id="rolls">

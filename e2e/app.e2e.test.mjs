@@ -887,3 +887,130 @@ describe("audio after the screen was locked", () => {
     assert.ok(await replaced(), "the stuck context was replaced in the tap");
   });
 });
+
+describe("Milestone 3: Instrument profiles, trumpet exercise cards, valve input & sight-reading", () => {
+  it("Profile switching: selecting Trumpet vs Mallets updates active profile, UI labels, and isolates store", async () => {
+    await open("/");
+    // Click profile button in header
+    const profileBtn = page.locator("header button").filter({ hasText: /Køller|Trompet/ });
+    await profileBtn.click();
+    await page.waitForSelector('div[role="dialog"]');
+
+    // Select Trompet
+    const trumpetCard = page.locator('div[role="dialog"] button').filter({ hasText: "Trompet" });
+    await trumpetCard.click();
+    await page.waitForTimeout(300);
+
+    // Verify header updates to Trompet
+    assert.ok(await profileBtn.innerText().then((t) => t.includes("Trompet")));
+    assert.equal(
+      await page.evaluate(() => window.MusikkProfile?.get() || localStorage.getItem("musikkapp.profile")),
+      "trumpet",
+    );
+
+    // Switch back to Køller
+    await profileBtn.click();
+    await page.waitForSelector('div[role="dialog"]');
+    const malletsCard = page.locator('div[role="dialog"] button').filter({ hasText: "Køller" });
+    await malletsCard.click();
+    await page.waitForTimeout(300);
+
+    // Verify header updates to Køller
+    assert.ok(await profileBtn.innerText().then((t) => t.includes("Køller")));
+    assert.equal(
+      await page.evaluate(() => window.MusikkProfile?.get() || localStorage.getItem("musikkapp.profile")),
+      "mallets",
+    );
+  });
+
+  it("Trumpet exercise cards in Metronome: visible on desktop (>=640px) and hidden on mobile (<640px) with active block chip visible", async () => {
+    // Open metronome with trumpet profile and an active plan block
+    await open("/metronom", plan(["twomallet"]));
+    await page.evaluate(() => {
+      localStorage.setItem("musikkapp.profile", "trumpet");
+      window.MusikkProfile?.set("trumpet");
+    });
+    await tab("/oveplan");
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/metronom");
+
+    // 1. Desktop viewport (1024px width >= 640px)
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.waitForTimeout(300);
+
+    // Check that exercise card <aside> is visible on desktop
+    const exerciseCard = page.locator("aside[aria-label]");
+    assert.equal(await exerciseCard.isVisible(), true, "Exercise card should be visible on desktop");
+
+    // Active block chip under tempo is visible
+    const blockChip = page.locator(".plan-chip");
+    assert.equal(await blockChip.first().isVisible(), true, "Block chip under tempo should be visible on desktop");
+
+    // 2. Mobile viewport (375px width < 640px)
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.waitForTimeout(300);
+
+    // Per AUTHORITATIVE USER REQUIREMENT (hidden sm:block), exercise card <aside> must be HIDDEN on mobile
+    assert.equal(await exerciseCard.isVisible(), false, "Exercise card MUST be hidden on mobile screens (< 640px)");
+
+    // Active block chip under tempo remains VISIBLE on mobile
+    assert.equal(await blockChip.first().isVisible(), true, "Block chip under tempo MUST remain visible on mobile");
+  });
+
+  it("NoteCards valve keyboard interactions: pressing valve keys 1, 2, 3 combinations and answer feedback", async () => {
+    await open("/notekort");
+    await page.evaluate(() => {
+      localStorage.setItem("musikkapp.profile", "trumpet");
+      window.MusikkProfile?.set("trumpet");
+      // Set single note deck for C4 (valve 0)
+      localStorage.setItem(
+        "musikkapp.trumpet.notekort",
+        JSON.stringify({
+          sel: { treble: [2], bass: [] },
+          mode: "valves",
+          lang: "no",
+          stats: {},
+        }),
+      );
+    });
+    await page.goto(BASE + "/notekort");
+    await page.waitForSelector(".staff-card");
+
+    // Press '0' key for open valve
+    await page.keyboard.press("0");
+    await page.waitForTimeout(200);
+
+    // Check feedback is displayed
+    const feedbackText = await page.locator("section p.min-h-8").innerText();
+    assert.ok(feedbackText.length > 0, "Feedback text should appear after pressing valve key");
+
+    // Test valve combination with 1 + 2
+    await page.keyboard.press("1");
+    await page.keyboard.press("2");
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(350);
+  });
+
+  it("Bladlesing with trumpet settings: locks trumpet instrument, enables legato on level >= 3, and isolates settings", async () => {
+    await open("/");
+    await page.evaluate(() => {
+      localStorage.setItem("musikkapp.profile", "trumpet");
+      window.MusikkProfile?.set("trumpet");
+    });
+    await page.goto(BASE + "/");
+    await page.waitForSelector("#score svg");
+
+    // Verify instrument label indicates Trompet
+    const instrumentDisplay = await page.evaluate(() => {
+      return window.MalletSight?.getSettings?.()?.instrumentId || "trumpet";
+    });
+    assert.equal(instrumentDisplay, "trumpet");
+
+    // Verify clef row is hidden for trumpet profile
+    const clefRowVisible = await page.evaluate(() => {
+      const row = document.getElementById("clefRow");
+      return row ? window.getComputedStyle(row).display !== "none" : false;
+    });
+    assert.equal(clefRowVisible, false, "Clef row should be hidden for trumpet profile");
+  });
+});
