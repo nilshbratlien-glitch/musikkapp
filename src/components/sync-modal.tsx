@@ -52,7 +52,11 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
 
   function handleCopyCode() {
     if (!sync.roomCode) return;
-    void navigator.clipboard.writeText(sync.roomCode);
+    try {
+      void navigator.clipboard?.writeText(sync.roomCode);
+    } catch {
+      /* ignore clipboard permission errors */
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }

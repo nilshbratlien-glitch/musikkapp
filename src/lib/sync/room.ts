@@ -102,12 +102,20 @@ export async function joinRoom(roomCode: string, role?: DeviceRole, deviceName?:
   });
 
   const channelName = `musikkapp:${code}`;
-  channel = client.channel(channelName, {
-    config: {
-      broadcast: { self: false },
-      presence: { key: currentConfig.deviceId },
-    },
-  });
+  try {
+    channel = client.channel(channelName, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: currentConfig.deviceId },
+      },
+    });
+  } catch (err) {
+    emitState({
+      connecting: false,
+      error: "Kunne ikke opprette synkroniseringskanal mot Supabase.",
+    });
+    return;
+  }
 
   // Listen to remote broadcast events
   channel.on("broadcast", { event: "sync" }, ({ payload }) => {
