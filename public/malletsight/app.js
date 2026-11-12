@@ -66,6 +66,12 @@
     stopPlace: "below",
     voicing: "closed",
     blockSize: "mix",
+    duetEnabled: false,
+    duetMalletInstrument: "xylo",
+    duetStyle: "harmony",
+    duetViewPart: "score",
+    duetPlayTrumpet: true,
+    duetPlayMallets: true,
   };
 
   const TRUMPET_DEFAULTS = Object.assign({}, DEFAULTS, {
@@ -580,6 +586,14 @@
       if (el) el.checked = !!settings[k];
     });
 
+    if ($("#duetEnabled")) $("#duetEnabled").checked = !!settings.duetEnabled;
+    if ($("#duetMalletInstrument")) $("#duetMalletInstrument").value = settings.duetMalletInstrument || "xylo";
+    if ($("#duetStyle")) $("#duetStyle").value = settings.duetStyle || "harmony";
+    if ($("#duetViewSelect")) $("#duetViewSelect").value = settings.duetViewPart || "score";
+    if ($("#duetPlayTrumpet")) $("#duetPlayTrumpet").checked = settings.duetPlayTrumpet !== false;
+    if ($("#duetPlayMallets")) $("#duetPlayMallets").checked = settings.duetPlayMallets !== false;
+    if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", !!settings.duetEnabled);
+
     buildRhythmToggles($("#rhythms"), "rhythms", settings.rhythms);
     buildRhythmToggles($("#rests"), "rests", settings.rests);
     document.querySelectorAll("[data-rhythm-preset]").forEach((btn) => {
@@ -698,6 +712,12 @@
       const el = $("#" + k);
       if (el) settings[k] = el.checked;
     });
+    if ($("#duetEnabled")) settings.duetEnabled = $("#duetEnabled").checked;
+    if ($("#duetMalletInstrument")) settings.duetMalletInstrument = $("#duetMalletInstrument").value;
+    if ($("#duetStyle")) settings.duetStyle = $("#duetStyle").value;
+    if ($("#duetViewSelect")) settings.duetViewPart = $("#duetViewSelect").value;
+    if ($("#duetPlayTrumpet")) settings.duetPlayTrumpet = $("#duetPlayTrumpet").checked;
+    if ($("#duetPlayMallets")) settings.duetPlayMallets = $("#duetPlayMallets").checked;
     if (settings.rangeLow > settings.rangeHigh) {
       const t = settings.rangeLow;
       settings.rangeLow = settings.rangeHigh;
@@ -712,6 +732,7 @@
       zoom: settings.zoom,
       showSticking: settings.showSticking,
       annotate: settings.annotate,
+      viewPart: settings.duetViewPart || "score",
     };
   }
 
@@ -748,14 +769,56 @@
     practiceBeat = 0;
     const line = $("#practiceLine");
     if (line && currentScore) {
-      const idx = levelIndex();
-      const inst = T.INSTRUMENTS.find((i) => i.id === currentScore.settingsSnapshot.instrument);
-      line.textContent = [
-        idx >= 0 ? "Nivå " + (idx + 1) : "Egendefinert",
-        currentScore.key && currentScore.key.name,
-        currentScore.time && currentScore.time.id,
-        inst ? inst.name : (currentProfile() === "trumpet" ? "Trompet (B)" : "Køller"),
-      ].filter(Boolean).join(" · ");
+      if (currentScore.isDuet) {
+        const styleName =
+          currentScore.duetStyle === "call_response"
+            ? "Ekkolek"
+            : currentScore.duetStyle === "melody_comp"
+              ? "Melodi & komp"
+              : "Terser & sekster";
+        const mName = currentScore.malletInstrumentName || "Slagverk";
+        line.textContent = [
+          "Duett: " + styleName,
+          currentScore.key && currentScore.key.name + (currentScore.trumpetKey ? " (Trompet i " + currentScore.trumpetKey.name + ")" : ""),
+          currentScore.time && currentScore.time.id,
+          "Trompet (B) + " + mName,
+        ].filter(Boolean).join(" · ");
+      } else {
+        const idx = levelIndex();
+        const inst = T.INSTRUMENTS.find((i) => i.id === currentScore.settingsSnapshot.instrument);
+        line.textContent = [
+          idx >= 0 ? "Nivå " + (idx + 1) : "Egendefinert",
+          currentScore.key && currentScore.key.name,
+          currentScore.time && currentScore.time.id,
+          inst ? inst.name : (currentProfile() === "trumpet" ? "Trompet (B)" : "Køller"),
+        ].filter(Boolean).join(" · ");
+      }
+    }
+
+    const duetToolbar = $("#duetToolbar");
+    if (duetToolbar) {
+      const isDuet = Boolean(currentScore && currentScore.isDuet);
+      duetToolbar.hidden = !isDuet;
+      if (isDuet) {
+        const vp = settings.duetViewPart || "score";
+        $all("[data-duet-view]").forEach((btn) => {
+          btn.classList.toggle("active", btn.getAttribute("data-duet-view") === vp);
+        });
+        const btnTpt = $("#btnMuteTrumpet");
+        if (btnTpt) {
+          btnTpt.classList.toggle("active", settings.duetPlayTrumpet !== false);
+          btnTpt.classList.toggle("muted", settings.duetPlayTrumpet === false);
+        }
+        const btnMal = $("#btnMuteMallets");
+        if (btnMal) {
+          btnMal.classList.toggle("active", settings.duetPlayMallets !== false);
+          btnMal.classList.toggle("muted", settings.duetPlayMallets === false);
+        }
+      }
+    }
+    const btnDuetToggle = $("#btnDuetToggle");
+    if (btnDuetToggle) {
+      btnDuetToggle.classList.toggle("on", !!settings.duetEnabled);
     }
   }
 
@@ -765,7 +828,15 @@
     resetKeyStepIfNeeded();
     settings.keyIndex = keyStep;
     try {
-      currentScore = Generator.generate(settings);
+      if (settings.duetEnabled) {
+        currentScore = Generator.generateDuet(settings);
+        if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
+          AudioEngine.loadInstrument("trumpet");
+          AudioEngine.loadInstrument(settings.duetMalletInstrument || "xylo");
+        }
+      } else {
+        currentScore = Generator.generate(settings);
+      }
       const n = selectedKeysInCircle().length;
       if (n > 1) keyStep = (keyStep + 1) % n;
       if ($("#keyModeHint")) $("#keyModeHint").textContent = keyModeText();
@@ -894,6 +965,68 @@
     $("#btnLevelDown").addEventListener("click", () => stepLevel(-1));
     $("#btnLevelUp").addEventListener("click", () => stepLevel(1));
     $("#btnApply").addEventListener("click", generateFresh);
+
+    if ($("#btnDuetToggle")) {
+      $("#btnDuetToggle").addEventListener("click", () => {
+        settings.duetEnabled = !settings.duetEnabled;
+        if ($("#duetEnabled")) $("#duetEnabled").checked = settings.duetEnabled;
+        $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
+        saveSettings();
+        generate();
+      });
+    }
+    if ($("#duetEnabled")) {
+      $("#duetEnabled").addEventListener("change", () => {
+        settings.duetEnabled = $("#duetEnabled").checked;
+        if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
+        saveSettings();
+      });
+    }
+    if ($("#duetMalletInstrument")) {
+      $("#duetMalletInstrument").addEventListener("change", () => {
+        settings.duetMalletInstrument = $("#duetMalletInstrument").value;
+        saveSettings();
+      });
+    }
+    if ($("#duetStyle")) {
+      $("#duetStyle").addEventListener("change", () => {
+        settings.duetStyle = $("#duetStyle").value;
+        saveSettings();
+      });
+    }
+    if ($("#duetViewSelect")) {
+      $("#duetViewSelect").addEventListener("change", () => {
+        settings.duetViewPart = $("#duetViewSelect").value;
+        saveSettings();
+        if (currentScore && currentScore.isDuet) paintScore();
+      });
+    }
+    $all("[data-duet-view]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        settings.duetViewPart = btn.getAttribute("data-duet-view");
+        if ($("#duetViewSelect")) $("#duetViewSelect").value = settings.duetViewPart;
+        saveSettings();
+        if (currentScore && currentScore.isDuet) paintScore();
+      });
+    });
+    if ($("#btnMuteTrumpet")) {
+      $("#btnMuteTrumpet").addEventListener("click", () => {
+        settings.duetPlayTrumpet = settings.duetPlayTrumpet === false;
+        if ($("#duetPlayTrumpet")) $("#duetPlayTrumpet").checked = settings.duetPlayTrumpet;
+        $("#btnMuteTrumpet").classList.toggle("active", settings.duetPlayTrumpet !== false);
+        $("#btnMuteTrumpet").classList.toggle("muted", settings.duetPlayTrumpet === false);
+        saveSettings();
+      });
+    }
+    if ($("#btnMuteMallets")) {
+      $("#btnMuteMallets").addEventListener("click", () => {
+        settings.duetPlayMallets = settings.duetPlayMallets === false;
+        if ($("#duetPlayMallets")) $("#duetPlayMallets").checked = settings.duetPlayMallets;
+        $("#btnMuteMallets").classList.toggle("active", settings.duetPlayMallets !== false);
+        $("#btnMuteMallets").classList.toggle("muted", settings.duetPlayMallets === false);
+        saveSettings();
+      });
+    }
 
     let metroSubdiv = 1;
 
@@ -1043,6 +1176,8 @@
         beatsPerBar: spec.beats,
         beatTicks: currentScore.time.beatTicks,
         countIn: 1,
+        muteTrumpet: settings.duetPlayTrumpet === false,
+        muteMallets: settings.duetPlayMallets === false,
         onCue: (q) => {
           if (!AudioEngine.isPlaying()) return;
           const lamp = q.phase === "countin" ? q.beat : q.beat % q.beats;

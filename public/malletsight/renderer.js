@@ -248,7 +248,83 @@
     return prefix;
   }
 
+  function duetToAbc(score, options) {
+    options = options || {};
+    const malletInst = T.INSTRUMENTS.find((i) => i.id === score.malletInstrumentId) || T.INSTRUMENTS.find((i) => i.id === "xylo");
+    const malletOff = malletInst && malletInst.writtenOff ? malletInst.writtenOff : 0;
+    const viewPart = options.viewPart || "score"; // "score" | "trumpet" | "mallets"
+
+    const styleName =
+      score.duetStyle === "call_response"
+        ? "Ekkoduett"
+        : score.duetStyle === "melody_comp"
+          ? "Melodi & Komp"
+          : "Terser & sekster";
+
+    const title =
+      viewPart === "trumpet"
+        ? "Duett: Trompet (B) · " + styleName + " · " + (score.trumpetKey ? score.trumpetKey.name : "D-dur")
+        : viewPart === "mallets"
+          ? "Duett: " + malletInst.name + " (C) · " + styleName + " · " + (score.key ? score.key.name : "C-dur")
+          : "Duett: Trompet (B) & " + malletInst.name + " (C) · " + styleName + " · " + (score.key ? score.key.name : "C-dur");
+    const lines = [
+      "X:1",
+      "T:" + title,
+      "M:" + score.time.id,
+      "L:1/16",
+      "Q:1/4=" + (score.settingsSnapshot.tempo || 80),
+      "%%stretchlast 0",
+    ];
+
+    const tptKeyId = score.trumpetKey ? score.trumpetKey.id : "D";
+    const concertKeyId = score.key ? score.key.id : "C";
+    const malletClef = score.malletClef || "treble";
+
+    const tptScore = Object.assign({}, score, { key: score.trumpetKey || score.key, settingsSnapshot: Object.assign({}, score.settingsSnapshot, { instrument: "trumpet" }) });
+    const tptBars = (score.trumpetMeasures || []).map((m) => measureAbc(m, tptScore, options, score.time));
+
+    const malletScore = Object.assign({}, score, { key: score.key, settingsSnapshot: Object.assign({}, score.settingsSnapshot, { instrument: score.malletInstrumentId || "xylo" }) });
+    const malletBars = (score.malletMeasures || []).map((m) => {
+      const offMeasure = {
+        events: m.events.map((ev) => {
+          if (ev.rest || !ev.pitches || !ev.pitches.length) return ev;
+          return Object.assign({}, ev, { pitches: ev.pitches.map((p) => p + malletOff) });
+        }),
+      };
+      return measureAbc(offMeasure, malletScore, options, score.time);
+    });
+
+    if (viewPart === "trumpet") {
+      lines.push("K:" + tptKeyId + " clef=treble");
+      lines.push(tptBars.join(" | ") + " |]");
+    } else if (viewPart === "mallets") {
+      lines.push("K:" + concertKeyId + " clef=" + malletClef);
+      lines.push(malletBars.join(" | ") + " |]");
+    } else {
+      lines.push("%%staves {(1) (2)}");
+      lines.push('V:1 clef=treble name="Trompet (B)" snm="Tpt"');
+      lines.push("K:" + tptKeyId);
+      lines.push('V:2 clef=' + malletClef + ' name="' + malletInst.name + ' (C)" snm="' + malletInst.name.slice(0, 3) + '"');
+      lines.push("K:" + concertKeyId);
+
+      const width = options.staffWidth || 640;
+      const per = width < 520 ? 2 : width < 860 ? 3 : 4;
+      for (let i = 0; i < tptBars.length; i += per) {
+        const tptChunk = tptBars.slice(i, i + per);
+        const malletChunk = malletBars.slice(i, i + per);
+        const isEnd = i + per >= tptBars.length;
+        lines.push("[V:1] " + tptChunk.join(" | ") + (isEnd ? " |]" : " |"));
+        lines.push("[V:2] " + malletChunk.join(" | ") + (isEnd ? " |]" : " |"));
+      }
+    }
+
+    return lines.join("\n");
+  }
+
   function scoreToAbc(score, options) {
+    if (score && score.isDuet) {
+      return duetToAbc(score, options);
+    }
     const inst = T.INSTRUMENTS.find((i) => i.id === score.settingsSnapshot.instrument);
     const off = inst && inst.writtenOff ? inst.writtenOff : 0;
     const sOff = inst && inst.soundOff ? inst.soundOff : 0;
@@ -477,5 +553,5 @@
     }
   }
 
-  global.ScoreRenderer = { renderScore, scoreToAbc, prepareCursor, showBeat, clearBeat };
+  global.ScoreRenderer = { renderScore, scoreToAbc, duetToAbc, prepareCursor, showBeat, clearBeat };
 })(window);

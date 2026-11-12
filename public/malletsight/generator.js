@@ -1215,6 +1215,10 @@
 
   function resolveKey(settings) {
     const all = T.KEYS;
+    if (settings.keyId && settings.keyId !== "random" && (!settings.keyIds || settings.keyIds.length <= 1 || !settings.keyIds.includes(settings.keyId))) {
+      const match = all.find((k) => k.id === settings.keyId);
+      if (match) return match;
+    }
     let ids = Array.isArray(settings.keyIds) ? settings.keyIds.filter(Boolean) : [];
     if (!ids.length) {
       if (settings.keyId && settings.keyId !== "random") ids = [settings.keyId];
@@ -1645,41 +1649,7 @@
 
       /* Legato: group 2–4 consecutive sounding notes under a slur */
       if (settings.legato) {
-        let i = 0;
-        while (i < events.length - 1) {
-          const start = events[i];
-          if (start.rest || start.tie || start.tuplet || !start.pitches || !start.pitches.length) {
-            i++;
-            continue;
-          }
-          const targetLen = 2 + Math.floor(Math.random() * 3); // 2, 3, or 4
-          let len = 1;
-          while (len < targetLen && (i + len) < events.length) {
-            const prev = events[i + len - 1];
-            const curr = events[i + len];
-            if (curr.rest || curr.tie || curr.tuplet || !curr.pitches || !curr.pitches.length) break;
-            if (prev.tie) break;
-            const p1 = prev.pitches[0];
-            const p2 = curr.pitches[0];
-            if (p1 === p2 || Math.abs(p2 - p1) > 7) break;
-            len++;
-          }
-          if (len >= 2) {
-            events[i].slurStart = true;
-            for (let k = 1; k < len; k++) {
-              events[i + k].slurred = true;
-            }
-            events[i + len - 1].slurEnd = true;
-            for (let k = 0; k < len; k++) {
-              if (events[i + k].articulations) {
-                events[i + k].articulations = events[i + k].articulations.filter((a) => a !== "staccato");
-              }
-            }
-            i += len;
-          } else {
-            i++;
-          }
-        }
+        applyLegatoGroups(events);
       }
 
       measures.push({ events });
@@ -1735,5 +1705,253 @@
     };
   }
 
-  global.Generator = { generate };
+  function applyLegatoGroups(events) {
+    let i = 0;
+    while (i < events.length - 1) {
+      const start = events[i];
+      if (start.rest || start.tie || start.tuplet || !start.pitches || !start.pitches.length) {
+        i++;
+        continue;
+      }
+      const targetLen = 2 + Math.floor(Math.random() * 3); // 2, 3, or 4
+      let len = 1;
+      while (len < targetLen && i + len < events.length) {
+        const prev = events[i + len - 1];
+        const curr = events[i + len];
+        if (curr.rest || curr.tie || curr.tuplet || !curr.pitches || !curr.pitches.length) break;
+        if (prev.tie) break;
+        const p1 = prev.pitches[0];
+        const p2 = curr.pitches[0];
+        if (p1 === p2 || Math.abs(p2 - p1) > 7) break;
+        len++;
+      }
+      if (len >= 2) {
+        events[i].slurStart = true;
+        for (let k = 1; k < len; k++) {
+          events[i + k].slurred = true;
+        }
+        events[i + len - 1].slurEnd = true;
+        for (let k = 0; k < len; k++) {
+          if (events[i + k].articulations) {
+            events[i + k].articulations = events[i + k].articulations.filter((a) => a !== "staccato");
+          }
+        }
+        i += len;
+      } else {
+        i++;
+      }
+    }
+  }
+
+  function generateDuet(rawSettings) {
+    const concertKey = resolveKey(rawSettings);
+    const trumpetKey = T.transposeKeyForBb ? T.transposeKeyForBb(concertKey) : concertKey;
+    const time =
+      rawSettings.timeId === "random"
+        ? T.pick(T.TIMES.filter((t) => ["4/4", "3/4", "2/4"].includes(t.id)))
+        : T.TIMES.find((t) => t.id === rawSettings.timeId) || T.TIMES[0];
+
+    const malletInstId = rawSettings.malletInstrument || rawSettings.duetMalletInstrument || "xylo";
+    const malletInst = T.INSTRUMENTS.find((i) => i.id === malletInstId) || T.INSTRUMENTS.find((i) => i.id === "xylo");
+    const style = rawSettings.style || rawSettings.duetStyle || "harmony"; // "harmony", "call_response", "melody_comp"
+    const numMeasures = Math.max(4, parseInt(rawSettings.measures, 10) || 8);
+
+    const concertScale = T.scalePcs(concertKey);
+
+    // Trumpet sounding range: written 60 (C4) to 74 (D5) -> sounding 58 (Bb3) to 72 (C5)
+    const tptSoundingPool = [];
+    for (let p = 58; p <= 74; p++) {
+      if (concertScale.includes(((p % 12) + 12) % 12)) tptSoundingPool.push(p);
+    }
+    if (!tptSoundingPool.length) tptSoundingPool.push(60, 62, 64, 65, 67, 69, 71, 72);
+
+    const writeOff = malletInst.writtenOff || 0;
+    const sOff = malletInst.soundOff || 0;
+    const totalOff = sOff - writeOff;
+    const malletLow = Math.max(36, malletInst.low + totalOff);
+    const malletHigh = Math.min(108, malletInst.high + totalOff);
+
+    const malletSoundingPool = [];
+    for (let p = malletLow; p <= malletHigh; p++) {
+      if (concertScale.includes(((p % 12) + 12) % 12)) malletSoundingPool.push(p);
+    }
+    if (!malletSoundingPool.length) malletSoundingPool.push(60, 64, 67, 72);
+
+    const isHighPercussion = malletInstId === "xylo" || malletInstId === "glock";
+    const tptWalker = createMelodyWalker({ maxLeap: rawSettings.maxLeap || 4 }, concertKey, tptSoundingPool);
+
+    const trumpetMeasures = [];
+    const malletMeasures = [];
+    const recentRhythms = [];
+
+    for (let m = 0; m < numMeasures; m++) {
+      const lastBar = m === numMeasures - 1;
+      let rhythm = buildRhythm(rawSettings, time.ticks, time.beatTicks, recentRhythms.slice(-2));
+      if (rhythm.cellKey) recentRhythms.push(rhythm.cellKey);
+      if (lastBar) {
+        const settled = settleEnding(rhythm, time.ticks, time.beatTicks, true);
+        if (settled) rhythm = settled;
+      }
+
+      const tptEvents = [];
+      const malletEvents = [];
+
+      if (style === "call_response") {
+        const isTptSolo = (m % 4 === 0 || m % 4 === 1) && !lastBar;
+        const isMalletSolo = (m % 4 === 2 || m % 4 === 3) && !lastBar;
+
+        for (let ci = 0; ci < rhythm.length; ci++) {
+          const cell = rhythm[ci];
+          if (cell.rest) {
+            tptEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
+            malletEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
+            continue;
+          }
+
+          const tptSounding = tptWalker();
+          const writtenTpt = tptSounding + 2;
+          const targetMallet = isHighPercussion ? tptSounding + 12 : tptSounding;
+          const malletSounding = T.nearestIn(targetMallet, malletSoundingPool);
+
+          if (isTptSolo) {
+            tptEvents.push({
+              rest: false,
+              dur: cell.dur,
+              pitches: [writtenTpt],
+              mallets: [],
+              sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+            });
+            malletEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
+          } else if (isMalletSolo) {
+            tptEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
+            malletEvents.push({ rest: false, dur: cell.dur, pitches: [malletSounding], mallets: [1] });
+          } else {
+            const harmInterval = isHighPercussion ? 12 : -4;
+            const targetM = T.nearestIn(tptSounding + harmInterval, malletSoundingPool);
+            tptEvents.push({
+              rest: false,
+              dur: cell.dur,
+              pitches: [writtenTpt],
+              mallets: [],
+              sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+            });
+            malletEvents.push({ rest: false, dur: cell.dur, pitches: [targetM], mallets: [1] });
+          }
+        }
+      } else if (style === "melody_comp") {
+        for (const cell of rhythm) {
+          if (cell.rest) {
+            tptEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
+          } else {
+            const tptSounding = tptWalker();
+            const writtenTpt = tptSounding + 2;
+            tptEvents.push({
+              rest: false,
+              dur: cell.dur,
+              pitches: [writtenTpt],
+              mallets: [],
+              sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+            });
+          }
+        }
+        const beatTicks = time.beatTicks || 24;
+        const numBeats = Math.max(1, Math.round(time.ticks / beatTicks));
+        for (let b = 0; b < numBeats; b++) {
+          const isDownbeat = b === 0 || (numBeats === 4 && b === 2);
+          const baseOct = isHighPercussion ? 72 : 48;
+          const rootNote = concertKey.tonic + baseOct;
+          const fifthNote = concertKey.tonic + 7 + baseOct;
+          const pitch = isDownbeat ? rootNote : fifthNote;
+          const nearest = T.nearestIn(pitch, malletSoundingPool);
+          malletEvents.push({
+            rest: false,
+            dur: { id: "q", ticks: beatTicks, name: "Fjerdedel", beamable: false },
+            pitches: [nearest],
+            mallets: [1],
+          });
+        }
+      } else {
+        // "harmony": 3rds & 6ths
+        for (let ci = 0; ci < rhythm.length; ci++) {
+          const cell = rhythm[ci];
+          if (cell.rest) {
+            tptEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
+            malletEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
+            continue;
+          }
+
+          const tptSounding = tptWalker();
+          const writtenTpt = tptSounding + 2;
+
+          let harmInterval;
+          if (lastBar && ci === rhythm.length - 1) {
+            harmInterval = isHighPercussion ? 12 : 0;
+          } else if (isHighPercussion) {
+            harmInterval = ci % 2 === 0 ? 3 : 8;
+          } else {
+            harmInterval = ci % 2 === 0 ? -4 : -9;
+          }
+
+          const targetMallet = tptSounding + harmInterval;
+          const malletSounding = T.nearestIn(targetMallet, malletSoundingPool);
+
+          tptEvents.push({
+            rest: false,
+            dur: cell.dur,
+            pitches: [writtenTpt],
+            mallets: [],
+            sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+          });
+          malletEvents.push({
+            rest: false,
+            dur: cell.dur,
+            pitches: [malletSounding],
+            mallets: [1],
+          });
+        }
+      }
+
+      if (rawSettings.legato) {
+        applyLegatoGroups(tptEvents);
+        applyLegatoGroups(malletEvents);
+      }
+
+      trumpetMeasures.push({ events: tptEvents });
+      malletMeasures.push({ events: malletEvents });
+    }
+
+    applyDynamics(trumpetMeasures, rawSettings);
+    applyDynamics(malletMeasures, rawSettings);
+
+    let malletClef = "treble";
+    if (malletInstId === "mar50" || malletInstId === "mar43") {
+      const allM = malletMeasures.flatMap((m) => m.events.flatMap((e) => e.pitches));
+      const avg = allM.reduce((a, b) => a + b, 0) / (allM.length || 1);
+      malletClef = avg < 57 ? "bass" : "treble";
+    }
+
+    return {
+      isDuet: true,
+      key: concertKey,
+      trumpetKey: trumpetKey,
+      time: time,
+      clef: "treble",
+      malletClef: malletClef,
+      duetStyle: style,
+      malletInstrumentId: malletInst.id,
+      malletInstrumentName: malletInst.name,
+      trumpetMeasures: trumpetMeasures,
+      malletMeasures: malletMeasures,
+      measures: trumpetMeasures,
+      settingsSnapshot: {
+        instrument: "duet",
+        duetMalletInstrument: malletInst.id,
+        duetStyle: style,
+        tempo: rawSettings.tempo || 80,
+        legato: !!rawSettings.legato,
+      },
+    };
+  }
+
+  global.Generator = { generate, generateDuet };
 })(window);

@@ -230,7 +230,10 @@
     return map[nameSteps] || 12;
   }
 
-  function nearestIn(list, target) {
+  function nearestIn(a, b) {
+    const list = Array.isArray(a) ? a : b;
+    const target = Array.isArray(a) ? b : a;
+    if (!list || !list.length) return target;
     let best = list[0];
     let d = Math.abs(best - target);
     for (const n of list) {
@@ -326,6 +329,37 @@
     return byPc[pc] || "0";
   }
 
+  const BB_KEY_MAP = {
+    C: "D",
+    G: "A",
+    D: "E",
+    A: "B",
+    E: "F#",
+    B: "C#",
+    "F#": "G#",
+    F: "G",
+    Bb: "C",
+    Eb: "F",
+    Ab: "Bb",
+    Db: "Eb",
+    Am: "Bm",
+    Em: "F#m",
+    Bm: "C#m",
+    "F#m": "G#m",
+    "C#m": "D#m",
+    Dm: "Em",
+    Gm: "Am",
+    Cm: "Dm",
+    Fm: "Gm",
+  };
+
+  function transposeKeyForBb(concertKey) {
+    if (!concertKey) return KEYS[0];
+    const keyId = typeof concertKey === "string" ? concertKey : concertKey.id;
+    const targetId = BB_KEY_MAP[keyId] || "D";
+    return KEYS.find((k) => k.id === targetId) || (typeof concertKey === "object" ? concertKey : KEYS[0]);
+  }
+
   global.Theory = {
     INSTRUMENTS,
     KEYS,
@@ -352,6 +386,7 @@
     diatonicQualities,
     PC,
     trumpetValve,
+    transposeKeyForBb,
     writtenOff: function (instrumentId) {
       const inst = INSTRUMENTS.find((i) => i.id === instrumentId);
       return inst && inst.writtenOff ? inst.writtenOff : 0;

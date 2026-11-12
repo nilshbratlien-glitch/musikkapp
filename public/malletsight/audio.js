@@ -449,13 +449,37 @@
         return;
       }
       const items = [];
+      const tptItems = [];
+      const malletItems = [];
       let tickPos = 0;
-      score.measures.forEach((m) => {
-        (m.events || []).forEach((ev) => {
-          items.push({ ev: ev, tick: tickPos });
-          tickPos += ev.dur && ev.dur.ticks ? ev.dur.ticks : qTicks;
+
+      if (score.isDuet) {
+        let tptTick = 0;
+        (score.trumpetMeasures || []).forEach((m) => {
+          (m.events || []).forEach((ev) => {
+            tptItems.push({ ev: ev, tick: tptTick });
+            tptTick += ev.dur && ev.dur.ticks ? ev.dur.ticks : qTicks;
+          });
         });
-      });
+
+        let malletTick = 0;
+        (score.malletMeasures || []).forEach((m) => {
+          (m.events || []).forEach((ev) => {
+            malletItems.push({ ev: ev, tick: malletTick });
+            malletTick += ev.dur && ev.dur.ticks ? ev.dur.ticks : qTicks;
+          });
+        });
+
+        tickPos = Math.max(tptTick, malletTick);
+      } else {
+        score.measures.forEach((m) => {
+          (m.events || []).forEach((ev) => {
+            items.push({ ev: ev, tick: tickPos });
+            tickPos += ev.dur && ev.dur.ticks ? ev.dur.ticks : qTicks;
+          });
+        });
+      }
+
       const barTicks = score.time && score.time.ticks ? score.time.ticks : beats * qTicks;
       const clickTicks = barTicks / beats;
       const beatSec = (clickTicks / qTicks) * qSec;
@@ -502,18 +526,50 @@
       });
       playOwned = true;
       if (c && c.state === "running") {
-        items.forEach((item, idx) => {
-          const ev = item.ev;
-          const when = musicAt + (item.tick / qTicks) * qSec;
-          if (!ev.rest && ev.pitches && ev.pitches.length) {
-            const prev = idx > 0 ? items[idx - 1].ev : null;
-            ev.pitches.forEach((p) => {
-              if (isTiedInto(prev, p)) return;
-              const dur = Math.max(0.05, (heldTicks(items, idx, p) / qTicks) * qSec);
-              try { scheduleNote(when, p, dur, instId, !!ev.roll, !!ev.slurred); } catch (err) { /* best effort */ }
+        if (score.isDuet) {
+          if (!opts.muteTrumpet) {
+            tptItems.forEach((item, idx) => {
+              const ev = item.ev;
+              const when = musicAt + (item.tick / qTicks) * qSec;
+              if (!ev.rest && ev.pitches && ev.pitches.length) {
+                const prev = idx > 0 ? tptItems[idx - 1].ev : null;
+                ev.pitches.forEach((p) => {
+                  if (isTiedInto(prev, p)) return;
+                  const dur = Math.max(0.05, (heldTicks(tptItems, idx, p) / qTicks) * qSec);
+                  try { scheduleNote(when, p, dur, "trumpet", false, !!ev.slurred); } catch (err) {}
+                });
+              }
             });
           }
-        });
+          if (!opts.muteMallets) {
+            const mInst = score.malletInstrumentId || "xylo";
+            malletItems.forEach((item, idx) => {
+              const ev = item.ev;
+              const when = musicAt + (item.tick / qTicks) * qSec;
+              if (!ev.rest && ev.pitches && ev.pitches.length) {
+                const prev = idx > 0 ? malletItems[idx - 1].ev : null;
+                ev.pitches.forEach((p) => {
+                  if (isTiedInto(prev, p)) return;
+                  const dur = Math.max(0.05, (heldTicks(malletItems, idx, p) / qTicks) * qSec);
+                  try { scheduleNote(when, p, dur, mInst, !!ev.roll, false); } catch (err) {}
+                });
+              }
+            });
+          }
+        } else {
+          items.forEach((item, idx) => {
+            const ev = item.ev;
+            const when = musicAt + (item.tick / qTicks) * qSec;
+            if (!ev.rest && ev.pitches && ev.pitches.length) {
+              const prev = idx > 0 ? items[idx - 1].ev : null;
+              ev.pitches.forEach((p) => {
+                if (isTiedInto(prev, p)) return;
+                const dur = Math.max(0.05, (heldTicks(items, idx, p) / qTicks) * qSec);
+                try { scheduleNote(when, p, dur, instId, !!ev.roll, !!ev.slurred); } catch (err) { /* best effort */ }
+              });
+            }
+          });
+        }
       }
       const totalDurationMs = Math.max(0, (0.07 + countBeats * beatSec + musicSec + 0.08) * 1000);
       playEndTimer = setTimeout(() => {
