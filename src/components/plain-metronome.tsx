@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { METERS, SUBDIVISIONS, beatsInMeter, meterForBeats, type Meter, type Subdivision } from "@/lib/metronome";
-import { BLOCK_COLOR, blockStyle, TRUMPET_EXERCISES, type BlockId } from "@/lib/oveplan";
+import { BLOCK_COLOR, blockName, blockStyle, TRUMPET_EXERCISES, type BlockId } from "@/lib/oveplan";
 import {
   getPlanClock,
   getPlanClockVersion,
@@ -144,7 +144,7 @@ export function PlainMetronome() {
           {plan ? (
             <span className="plan-chip" style={blockStyle(block)}>
               <span className="plan-chip-dot" aria-hidden="true" />
-              Øveplan · {beats} slag
+              {blockName(block, profile)} · {beats} slag
             </span>
           ) : (
             meter
@@ -200,10 +200,10 @@ export function PlainMetronome() {
           ))}
         </div>
         <div className="flex items-center justify-center gap-2">
-          <button type="button" onClick={() => changeBpm(shownBpm - 1)} className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header text-xl">
+          <button type="button" onClick={() => changeBpm(shownBpm - 1)} aria-label="Senk tempo" className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header text-xl">
             −
           </button>
-          <button type="button" onClick={() => changeBpm(shownBpm + 1)} className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header text-xl">
+          <button type="button" onClick={() => changeBpm(shownBpm + 1)} aria-label="Øk tempo" className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header text-xl">
             +
           </button>
         </div>
@@ -221,7 +221,7 @@ export function PlainMetronome() {
       </div>
       {plan && clock.activeId && profile === "trumpet" && TRUMPET_EXERCISES[block] && (
         <aside
-          className="mt-4 hidden sm:block rounded-card border border-line bg-surface p-5 shadow-sm"
+          className="mt-4 hidden sm:block rounded-card border border-line bg-surface p-4 sm:p-5 shadow-sm"
           style={blockStyle(block)}
           aria-label={TRUMPET_EXERCISES[block].title}
         >
@@ -232,7 +232,7 @@ export function PlainMetronome() {
             </span>
             <span className="text-xs text-muted font-medium">Instruksjoner for denne blokka</span>
           </div>
-          <ul className="space-y-2.5 text-sm text-foreground/90">
+          <ul className="space-y-2 text-sm text-fg/90 sm:space-y-2.5">
             {TRUMPET_EXERCISES[block].items.map((item, idx) => (
               <li key={idx} className="flex items-start gap-2.5">
                 <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[var(--block,var(--color-accent))]" aria-hidden="true" />
