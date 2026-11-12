@@ -272,4 +272,29 @@ describe("a context the screen lock stopped", () => {
     assert.ok(pulse.getState().beat >= 1, "and the beat moves past the first one");
     assert.equal(pulse.getState().running, true);
   });
+
+  it("in followerMode (Skjerm), a suspended AudioContext never stalls and ticks on wall-clock time", () => {
+    const clicks: number[] = [];
+    const stops: string[] = [];
+    pulse.setFollowerMode(true);
+    try {
+      pulse.start({
+        owner: "bladlesing",
+        bpm: 120,
+        beats: 4,
+        onClick: (c) => clicks.push(c.tick),
+        onStop: (why) => stops.push(why),
+      });
+      const ctx = latest();
+      ctx.state = "suspended";
+      freeze(ctx);
+      tick(2000);
+      assert.equal(pulse.getState().running, true, "follower never stalls even when AudioContext is suspended");
+      assert.deepEqual(stops, [], "no stalled stop");
+      assert.ok(clicks.length >= 4, `expected at least 4 clicks on wall-clock fallback, got ${clicks.length}`);
+      assert.ok(pulse.getState().beat >= 0, "beat advances in follower mode");
+    } finally {
+      pulse.setFollowerMode(false);
+    }
+  });
 });
