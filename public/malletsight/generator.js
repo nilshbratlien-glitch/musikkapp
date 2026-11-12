@@ -1756,159 +1756,372 @@
     const style = rawSettings.style || rawSettings.duetStyle || "harmony"; // "harmony", "call_response", "melody_comp"
     const numMeasures = Math.max(4, parseInt(rawSettings.measures, 10) || 8);
 
-    const concertScale = T.scalePcs(concertKey);
+    const scale = T.diatonicPitches(concertKey, 24, 115);
 
-    // Trumpet sounding range: written 60 (C4) to 74 (D5) -> sounding 58 (Bb3) to 72 (C5)
-    const tptSoundingPool = [];
-    for (let p = 58; p <= 74; p++) {
-      if (concertScale.includes(((p % 12) + 12) % 12)) tptSoundingPool.push(p);
+    // Find the ideal singing register for Trumpet (written C4-D5 -> sounding Bb3(58) to C5(72))
+    let tonicPitch = concertKey.tonic + 60;
+    if (tonicPitch < 58) tonicPitch += 12;
+    if (tonicPitch > 70) tonicPitch -= 12;
+    let tIdx = scale.indexOf(tonicPitch);
+    if (tIdx < 0) {
+      let bestD = 999;
+      scale.forEach((p, i) => {
+        const d = Math.abs(p - tonicPitch);
+        if (d < bestD) { bestD = d; tIdx = i; }
+      });
     }
-    if (!tptSoundingPool.length) tptSoundingPool.push(60, 62, 64, 65, 67, 69, 71, 72);
 
-    const writeOff = malletInst.writtenOff || 0;
-    const sOff = malletInst.soundOff || 0;
-    const totalOff = sOff - writeOff;
-    const malletLow = Math.max(36, malletInst.low + totalOff);
-    const malletHigh = Math.min(108, malletInst.high + totalOff);
+    // Four cohesive, lyrical singing themes for each meter:
+    const d = (id) => T.DURATIONS.find((x) => x.id === id) || T.DURATIONS[0];
 
-    const malletSoundingPool = [];
-    for (let p = malletLow; p <= malletHigh; p++) {
-      if (concertScale.includes(((p % 12) + 12) % 12)) malletSoundingPool.push(p);
-    }
-    if (!malletSoundingPool.length) malletSoundingPool.push(60, 64, 67, 72);
+    const THEMES_BY_TIME = {
+      "4/4": [
+        // 1. "Solgløtt" - Nordic cantabile with lyrical question & answer
+        [
+          [[0, "q"], [1, "8"], [2, "8"], [4, "q"], [2, "q"]], // Bar 1: 1, 2-3, 5, 3
+          [[3, "q"], [2, "q"], [1, "h"]],                     // Bar 2: 4, 3, 2 (holds on 2)
+          [[2, "q"], [3, "8"], [4, "8"], [5, "q"], [4, "q"]], // Bar 3: 3, 4-5, 6, 5
+          [[3, "qd"], [2, "8"], [1, "h"]],                     // Bar 4: 4, 3, 2 (half cadence question)
+          [[0, "q"], [1, "8"], [2, "8"], [4, "q"], [2, "q"]], // Bar 5: 1, 2-3, 5, 3 (theme returns)
+          [[5, "qd"], [4, "8"], [3, "q"], [2, "q"]],          // Bar 6: 6, 5, 4, 3 (apex descent)
+          [[2, "q"], [1, "8"], [0, "8"], [-1, "q"], [1, "q"]],// Bar 7: 3, 2-1, 7_sub, 2 (cadence prep)
+          [[0, "w"]],                                         // Bar 8: 1 (peaceful tonic cadence)
+        ],
+        // 2. "Festmarsj" - Energetic triad fanfare & joyful marching tune
+        [
+          [[0, "q"], [2, "q"], [4, "qd"], [2, "8"]],          // Bar 1: 1, 3, 5, 3
+          [[3, "8"], [4, "8"], [5, "8"], [3, "8"], [4, "h"]], // Bar 2: 4-5-6-4, 5
+          [[4, "q"], [3, "8"], [2, "8"], [1, "q"], [3, "q"]], // Bar 3: 5, 4-3, 2, 4
+          [[2, "qd"], [1, "8"], [0, "h"]],                     // Bar 4: 3, 2, 1
+          [[0, "q"], [2, "q"], [4, "qd"], [2, "8"]],          // Bar 5: 1, 3, 5, 3
+          [[5, "q"], [4, "8"], [3, "8"], [2, "q"], [4, "q"]], // Bar 6: 6, 5-4, 3, 5
+          [[3, "q"], [2, "q"], [-1, "qd"], [1, "8"]],         // Bar 7: 4, 3, 7_sub, 2
+          [[0, "w"]],                                         // Bar 8: 1 (final arrival)
+        ],
+        // 3. "Hallingdans" - Sprightly folk dance with rhythmic bounce
+        [
+          [[0, "q"], [2, "8"], [2, "8"], [4, "q"], [2, "q"]], // Bar 1: 1, 3-3, 5, 3
+          [[3, "8"], [2, "8"], [1, "8"], [0, "8"], [1, "h"]], // Bar 2: 4-3-2-1, 2
+          [[1, "q"], [3, "8"], [3, "8"], [4, "q"], [2, "q"]], // Bar 3: 2, 4-4, 5, 3
+          [[3, "q"], [2, "q"], [1, "h"]],                     // Bar 4: 4, 3, 2
+          [[0, "q"], [2, "8"], [2, "8"], [4, "q"], [2, "q"]], // Bar 5: 1, 3-3, 5, 3
+          [[5, "q"], [4, "q"], [3, "8"], [2, "8"], [1, "q"]], // Bar 6: 6, 5, 4-3, 2
+          [[2, "q"], [1, "8"], [0, "8"], [-1, "q"], [1, "q"]],// Bar 7: 3, 2-1, 7_sub, 2
+          [[0, "w"]],                                         // Bar 8: 1
+        ],
+        // 4. "Kveldsro" - Peaceful legato cantabile
+        [
+          [[2, "h"], [1, "q"], [0, "q"]],                     // Bar 1: 3, 2, 1
+          [[1, "qd"], [2, "8"], [3, "h"]],                     // Bar 2: 2, 3, 4
+          [[4, "h"], [3, "q"], [2, "q"]],                     // Bar 3: 5, 4, 3
+          [[1, "w"]],                                         // Bar 4: 2 (half cadence)
+          [[2, "h"], [1, "q"], [0, "q"]],                     // Bar 5: 3, 2, 1
+          [[5, "h"], [4, "q"], [3, "q"]],                     // Bar 6: 6, 5, 4
+          [[2, "qd"], [1, "8"], [-1, "h"]],                    // Bar 7: 3, 2, 7_sub
+          [[0, "w"]],                                         // Bar 8: 1
+        ],
+      ],
+      "3/4": [
+        // 1. "Valsefantasi"
+        [
+          [[0, "q"], [2, "q"], [4, "q"]],
+          [[5, "h"], [4, "q"]],
+          [[3, "q"], [2, "q"], [1, "q"]],
+          [[2, "hd"]],
+          [[0, "q"], [2, "q"], [4, "q"]],
+          [[5, "h"], [6, "q"]],
+          [[4, "q"], [3, "q"], [1, "q"]],
+          [[0, "hd"]],
+        ],
+        // 2. "Sommervals"
+        [
+          [[2, "h"], [3, "q"]],
+          [[4, "h"], [2, "q"]],
+          [[1, "q"], [2, "q"], [3, "q"]],
+          [[2, "hd"]],
+          [[2, "h"], [4, "q"]],
+          [[5, "h"], [3, "q"]],
+          [[2, "q"], [1, "q"], [-1, "q"]],
+          [[0, "hd"]],
+        ],
+      ],
+      "2/4": [
+        // 1. "Trompetmarsj"
+        [
+          [[0, "8"], [2, "8"], [4, "q"]],
+          [[5, "8"], [4, "8"], [3, "q"]],
+          [[2, "8"], [3, "8"], [4, "8"], [2, "8"]],
+          [[1, "h"]],
+          [[0, "8"], [2, "8"], [4, "q"]],
+          [[5, "8"], [6, "8"], [4, "q"]],
+          [[3, "8"], [2, "8"], [-1, "8"], [1, "8"]],
+          [[0, "h"]],
+        ],
+        // 2. "Galopp"
+        [
+          [[0, "qd"], [2, "8"]],
+          [[4, "8"], [3, "8"], [2, "q"]],
+          [[1, "qd"], [3, "8"]],
+          [[2, "h"]],
+          [[0, "qd"], [2, "8"]],
+          [[4, "8"], [5, "8"], [6, "q"]],
+          [[4, "8"], [3, "8"], [1, "8"], [-1, "8"]],
+          [[0, "h"]],
+        ],
+      ],
+    };
+
+    const meterKey = time.id === "3/4" ? "3/4" : time.id === "2/4" ? "2/4" : "4/4";
+    const themesForMeter = THEMES_BY_TIME[meterKey] || THEMES_BY_TIME["4/4"];
+    const chosenTheme = T.pick(themesForMeter);
+
+    // Harmonic chords per bar (scale degrees relative to tonic):
+    const CHORDS_8 = [
+      { name: "I",  rootDeg: 0, fifthDeg: 4, thirdDeg: 2 },
+      { name: "IV", rootDeg: 3, fifthDeg: 0, thirdDeg: 5 },
+      { name: "V",  rootDeg: 4, fifthDeg: 1, thirdDeg: 6 },
+      { name: "I",  rootDeg: 0, fifthDeg: 4, thirdDeg: 2 },
+      { name: "I",  rootDeg: 0, fifthDeg: 4, thirdDeg: 2 },
+      { name: "IV", rootDeg: 3, fifthDeg: 0, thirdDeg: 5 },
+      { name: "V",  rootDeg: 4, fifthDeg: 1, thirdDeg: 6 },
+      { name: "I",  rootDeg: 0, fifthDeg: 4, thirdDeg: 2 },
+    ];
 
     const isHighPercussion = malletInstId === "xylo" || malletInstId === "glock";
-    const tptWalker = createMelodyWalker({ maxLeap: rawSettings.maxLeap || 4 }, concertKey, tptSoundingPool);
+
+    function getMalletPitch(tptSoundingMidi, isCadenceNote) {
+      let idx = scale.indexOf(tptSoundingMidi);
+      if (idx < 0) {
+        let minDist = 999;
+        scale.forEach((p, i) => {
+          const dist = Math.abs(p - tptSoundingMidi);
+          if (dist < minDist) { minDist = dist; idx = i; }
+        });
+      }
+
+      // Consonant diatonic counterpoint:
+      // - Glockenspiel: 3rd + 2 octaves above (+16 diatonic steps)
+      // - Xylophone: 3rd + 1 octave above (+9 diatonic steps)
+      // - Marimba / Vibraphone: 3rd below (-2 diatonic steps)
+      const stepOffset = malletInstId === "glock" ? 16 : malletInstId === "xylo" ? 9 : -2;
+      let targetIdx = idx + stepOffset;
+
+      while (targetIdx < 0 || scale[targetIdx] < malletInst.low) {
+        if (targetIdx + 7 >= scale.length) break;
+        targetIdx += 7;
+      }
+      while (targetIdx >= scale.length || scale[targetIdx] > malletInst.high) {
+        if (targetIdx - 7 < 0) break;
+        targetIdx -= 7;
+      }
+
+      return scale[targetIdx];
+    }
+
+    function getEchoPitch(tptSoundingMidi) {
+      // Echo the melody in the instrument's sweet singing register:
+      // - Glock: +24 semitones (written unison)
+      // - Xylo: +12 semitones (written unison)
+      // - Marimba / Vibes: +0 semitones (sounding & written unison)
+      const octOffset = malletInstId === "glock" ? 24 : malletInstId === "xylo" ? 12 : 0;
+      let targetMidi = tptSoundingMidi + octOffset;
+      while (targetMidi < malletInst.low) targetMidi += 12;
+      while (targetMidi > malletInst.high) targetMidi -= 12;
+      return targetMidi;
+    }
 
     const trumpetMeasures = [];
     const malletMeasures = [];
-    const recentRhythms = [];
+    const callTptEvents = [];
 
     for (let m = 0; m < numMeasures; m++) {
-      const lastBar = m === numMeasures - 1;
-      let rhythm = buildRhythm(rawSettings, time.ticks, time.beatTicks, recentRhythms.slice(-2));
-      if (rhythm.cellKey) recentRhythms.push(rhythm.cellKey);
-      if (lastBar) {
-        const settled = settleEnding(rhythm, time.ticks, time.beatTicks, true);
-        if (settled) rhythm = settled;
+      let barNotes;
+      if (numMeasures === 4) {
+        const map4 = [0, 1, 6, 7];
+        barNotes = chosenTheme[map4[m]];
+      } else {
+        barNotes = chosenTheme[m % 8];
       }
+      const isFinalBar = m === numMeasures - 1;
 
       const tptEvents = [];
       const malletEvents = [];
 
       if (style === "call_response") {
-        const isTptSolo = (m % 4 === 0 || m % 4 === 1) && !lastBar;
-        const isMalletSolo = (m % 4 === 2 || m % 4 === 3) && !lastBar;
+        const isCadencePhrase = m >= numMeasures - 2;
+        const isTptSolo = !isCadencePhrase && (m % 4 === 0 || m % 4 === 1);
+        const isMalletSolo = !isCadencePhrase && (m % 4 === 2 || m % 4 === 3);
 
-        for (let ci = 0; ci < rhythm.length; ci++) {
-          const cell = rhythm[ci];
-          if (cell.rest) {
-            tptEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
-            malletEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
-            continue;
-          }
-
-          const tptSounding = tptWalker();
-          const writtenTpt = tptSounding + 2;
-          const targetMallet = isHighPercussion ? tptSounding + 12 : tptSounding;
-          const malletSounding = T.nearestIn(targetMallet, malletSoundingPool);
-
-          if (isTptSolo) {
-            tptEvents.push({
-              rest: false,
-              dur: cell.dur,
-              pitches: [writtenTpt],
-              mallets: [],
-              sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
-            });
-            malletEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
-          } else if (isMalletSolo) {
-            tptEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
-            malletEvents.push({ rest: false, dur: cell.dur, pitches: [malletSounding], mallets: [1] });
-          } else {
-            const harmInterval = isHighPercussion ? 12 : -4;
-            const targetM = T.nearestIn(tptSounding + harmInterval, malletSoundingPool);
-            tptEvents.push({
-              rest: false,
-              dur: cell.dur,
-              pitches: [writtenTpt],
-              mallets: [],
-              sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
-            });
-            malletEvents.push({ rest: false, dur: cell.dur, pitches: [targetM], mallets: [1] });
-          }
-        }
-      } else if (style === "melody_comp") {
-        for (const cell of rhythm) {
-          if (cell.rest) {
-            tptEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
-          } else {
-            const tptSounding = tptWalker();
+        if (isTptSolo) {
+          barNotes.forEach((item) => {
+            const deg = item[0];
+            const dur = d(item[1]);
+            const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
             const writtenTpt = tptSounding + 2;
             tptEvents.push({
               rest: false,
-              dur: cell.dur,
+              dur: dur,
               pitches: [writtenTpt],
               mallets: [],
               sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
             });
+            malletEvents.push({ rest: true, dur: dur, pitches: [], mallets: [] });
+          });
+          callTptEvents[m % 4] = tptEvents.slice();
+        } else if (isMalletSolo) {
+          const echoRef = callTptEvents[(m % 4) - 2];
+          if (echoRef && echoRef.length) {
+            echoRef.forEach((refEv) => {
+              const dur = refEv.dur;
+              tptEvents.push({ rest: true, dur: dur, pitches: [], mallets: [] });
+              const refTptWritten = refEv.pitches[0];
+              const refTptSounding = refTptWritten - 2;
+              const malPitch = getEchoPitch(refTptSounding);
+              malletEvents.push({ rest: false, dur: dur, pitches: [malPitch], mallets: [1] });
+            });
+          } else {
+            barNotes.forEach((item) => {
+              const deg = item[0];
+              const dur = d(item[1]);
+              const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+              tptEvents.push({ rest: true, dur: dur, pitches: [], mallets: [] });
+              const malPitch = getEchoPitch(tptSounding);
+              malletEvents.push({ rest: false, dur: dur, pitches: [malPitch], mallets: [1] });
+            });
           }
-        }
-        const beatTicks = time.beatTicks || 24;
-        const numBeats = Math.max(1, Math.round(time.ticks / beatTicks));
-        for (let b = 0; b < numBeats; b++) {
-          const isDownbeat = b === 0 || (numBeats === 4 && b === 2);
-          const baseOct = isHighPercussion ? 72 : 48;
-          const rootNote = concertKey.tonic + baseOct;
-          const fifthNote = concertKey.tonic + 7 + baseOct;
-          const pitch = isDownbeat ? rootNote : fifthNote;
-          const nearest = T.nearestIn(pitch, malletSoundingPool);
-          malletEvents.push({
-            rest: false,
-            dur: { id: "q", ticks: beatTicks, name: "Fjerdedel", beamable: false },
-            pitches: [nearest],
-            mallets: [1],
+        } else {
+          // Cadence bars: play together in harmony!
+          barNotes.forEach((item, ni) => {
+            const isLastNote = isFinalBar && (ni === barNotes.length - 1);
+            const deg = item[0];
+            const dur = d(item[1]);
+            const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+            const writtenTpt = tptSounding + 2;
+            const malPitch = getMalletPitch(tptSounding, isLastNote);
+
+            tptEvents.push({
+              rest: false,
+              dur: dur,
+              pitches: [writtenTpt],
+              mallets: [],
+              sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+            });
+            malletEvents.push({ rest: false, dur: dur, pitches: [malPitch], mallets: [1] });
           });
         }
-      } else {
-        // "harmony": 3rds & 6ths
-        for (let ci = 0; ci < rhythm.length; ci++) {
-          const cell = rhythm[ci];
-          if (cell.rest) {
-            tptEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
-            malletEvents.push({ rest: true, dur: cell.dur, pitches: [], mallets: [] });
-            continue;
-          }
-
-          const tptSounding = tptWalker();
+      } else if (style === "melody_comp") {
+        barNotes.forEach((item) => {
+          const deg = item[0];
+          const dur = d(item[1]);
+          const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
           const writtenTpt = tptSounding + 2;
-
-          let harmInterval;
-          if (lastBar && ci === rhythm.length - 1) {
-            harmInterval = isHighPercussion ? 12 : 0;
-          } else if (isHighPercussion) {
-            harmInterval = ci % 2 === 0 ? 3 : 8;
-          } else {
-            harmInterval = ci % 2 === 0 ? -4 : -9;
-          }
-
-          const targetMallet = tptSounding + harmInterval;
-          const malletSounding = T.nearestIn(targetMallet, malletSoundingPool);
 
           tptEvents.push({
             rest: false,
-            dur: cell.dur,
+            dur: dur,
+            pitches: [writtenTpt],
+            mallets: [],
+            sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
+          });
+        });
+
+        const chord = CHORDS_8[m % 8];
+        if (isFinalBar) {
+          const finalDur = meterKey === "4/4" ? d("w") : meterKey === "3/4" ? d("hd") : d("h");
+          let compPitch = scale[tIdx];
+          if (isHighPercussion) {
+            compPitch = malletInstId === "glock" ? compPitch + 24 : compPitch + 12;
+          } else {
+            while (compPitch - 12 >= malletInst.low) compPitch -= 12;
+          }
+          compPitch = T.clamp(compPitch, malletInst.low, malletInst.high);
+          malletEvents.push({
+            rest: false,
+            dur: finalDur,
+            pitches: [compPitch],
+            mallets: [1],
+          });
+        } else if (meterKey === "3/4") {
+          const chordDegs = [chord.rootDeg, chord.thirdDeg, chord.fifthDeg];
+          chordDegs.forEach((degOff, bi) => {
+            let compPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + degOff))];
+            if (isHighPercussion) {
+              compPitch = malletInstId === "glock" ? compPitch + 24 : compPitch + 12;
+            } else if (bi === 0) {
+              while (compPitch - 12 >= malletInst.low) compPitch -= 12;
+            }
+            compPitch = T.clamp(compPitch, malletInst.low, malletInst.high);
+            malletEvents.push({
+              rest: false,
+              dur: d("q"),
+              pitches: [compPitch],
+              mallets: [1],
+            });
+          });
+        } else if (meterKey === "2/4") {
+          const chordDegs = [chord.rootDeg, chord.fifthDeg];
+          chordDegs.forEach((degOff, bi) => {
+            let compPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + degOff))];
+            if (isHighPercussion) {
+              compPitch = malletInstId === "glock" ? compPitch + 24 : compPitch + 12;
+            } else if (bi === 0) {
+              while (compPitch - 12 >= malletInst.low) compPitch -= 12;
+            }
+            compPitch = T.clamp(compPitch, malletInst.low, malletInst.high);
+            malletEvents.push({
+              rest: false,
+              dur: d("q"),
+              pitches: [compPitch],
+              mallets: [1],
+            });
+          });
+        } else {
+          // 4/4: Root bass (half note), Third (quarter), Fifth (quarter)
+          const pattern = [
+            { degOff: chord.rootDeg, dur: d("h"), isBass: true },
+            { degOff: chord.thirdDeg, dur: d("q"), isBass: false },
+            { degOff: chord.fifthDeg, dur: d("q"), isBass: false },
+          ];
+          pattern.forEach((p) => {
+            let compPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + p.degOff))];
+            if (isHighPercussion) {
+              compPitch = malletInstId === "glock" ? compPitch + 24 : compPitch + 12;
+            } else if (p.isBass) {
+              while (compPitch - 12 >= malletInst.low) compPitch -= 12;
+            }
+            compPitch = T.clamp(compPitch, malletInst.low, malletInst.high);
+            malletEvents.push({
+              rest: false,
+              dur: p.dur,
+              pitches: [compPitch],
+              mallets: [1],
+            });
+          });
+        }
+      } else {
+        // "harmony": pure parallel & consonant diatonic 3rds (and 10ths)
+        barNotes.forEach((item, ni) => {
+          const isLastNote = isFinalBar && (ni === barNotes.length - 1);
+          const deg = item[0];
+          const dur = d(item[1]);
+          const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+          const writtenTpt = tptSounding + 2;
+          const malPitch = getMalletPitch(tptSounding, isLastNote);
+
+          tptEvents.push({
+            rest: false,
+            dur: dur,
             pitches: [writtenTpt],
             mallets: [],
             sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
           });
           malletEvents.push({
             rest: false,
-            dur: cell.dur,
-            pitches: [malletSounding],
+            dur: dur,
+            pitches: [malPitch],
             mallets: [1],
           });
-        }
+        });
       }
 
       if (rawSettings.legato) {

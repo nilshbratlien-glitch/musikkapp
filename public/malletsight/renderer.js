@@ -284,15 +284,7 @@
     const tptBars = (score.trumpetMeasures || []).map((m) => measureAbc(m, tptScore, options, score.time));
 
     const malletScore = Object.assign({}, score, { key: score.key, settingsSnapshot: Object.assign({}, score.settingsSnapshot, { instrument: score.malletInstrumentId || "xylo" }) });
-    const malletBars = (score.malletMeasures || []).map((m) => {
-      const offMeasure = {
-        events: m.events.map((ev) => {
-          if (ev.rest || !ev.pitches || !ev.pitches.length) return ev;
-          return Object.assign({}, ev, { pitches: ev.pitches.map((p) => p + malletOff) });
-        }),
-      };
-      return measureAbc(offMeasure, malletScore, options, score.time);
-    });
+    const malletBars = (score.malletMeasures || []).map((m) => measureAbc(m, malletScore, options, score.time));
 
     if (viewPart === "trumpet") {
       lines.push("K:" + tptKeyId + " clef=treble");
