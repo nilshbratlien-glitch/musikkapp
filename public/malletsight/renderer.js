@@ -66,6 +66,8 @@
         body = '"' + ev.mallets.join("") + '"' + body;
       }
     }
+    if (ev.slurStart) body = "(" + body;
+    if (ev.slurEnd) body = body + ")";
     return body;
   }
 

@@ -1642,6 +1642,46 @@
           }
         });
       }
+
+      /* Legato: group 2–4 consecutive sounding notes under a slur */
+      if (settings.legato) {
+        let i = 0;
+        while (i < events.length - 1) {
+          const start = events[i];
+          if (start.rest || start.tie || start.tuplet || !start.pitches || !start.pitches.length) {
+            i++;
+            continue;
+          }
+          const targetLen = 2 + Math.floor(Math.random() * 3); // 2, 3, or 4
+          let len = 1;
+          while (len < targetLen && (i + len) < events.length) {
+            const prev = events[i + len - 1];
+            const curr = events[i + len];
+            if (curr.rest || curr.tie || curr.tuplet || !curr.pitches || !curr.pitches.length) break;
+            if (prev.tie) break;
+            const p1 = prev.pitches[0];
+            const p2 = curr.pitches[0];
+            if (p1 === p2 || Math.abs(p2 - p1) > 7) break;
+            len++;
+          }
+          if (len >= 2) {
+            events[i].slurStart = true;
+            for (let k = 1; k < len; k++) {
+              events[i + k].slurred = true;
+            }
+            events[i + len - 1].slurEnd = true;
+            for (let k = 0; k < len; k++) {
+              if (events[i + k].articulations) {
+                events[i + k].articulations = events[i + k].articulations.filter((a) => a !== "staccato");
+              }
+            }
+            i += len;
+          } else {
+            i++;
+          }
+        }
+      }
+
       measures.push({ events });
     }
 
@@ -1690,6 +1730,7 @@
         showSticking: settings.showSticking,
         instrument: settings.instrumentId,
         tempo: settings.tempo,
+        legato: !!settings.legato,
       },
     };
   }

@@ -227,6 +227,20 @@ describe("plan clock on the pulse core", () => {
     assert.equal(playsMetronome("rep"), false);
   });
 
+  it("navigates to /metronom for Korpslekse (rep) in trumpet profile with metronome paused", async () => {
+    const profile = await import("./profile.ts");
+    profile.setProfile("trumpet");
+    planClock.ensurePlanClock();
+    const went: string[] = [];
+    planClock.bindPlanNavigate((to) => went.push(to));
+    planClock.beginBlock(item("rep"));
+    planClock.bindPlanNavigate(() => {});
+    assert.deepEqual(went, ["/metronom"]);
+    assert.equal(planClock.planMalletBlock(), true);
+    assert.equal(pulse.getState().running, false, "metronome stays off/ready for rep");
+    profile.setProfile("mallets");
+  });
+
   it("keeps the controller on Øveplan when shouldNavigateLocally returns false", () => {
     planClock.ensurePlanClock();
     const went: string[] = [];

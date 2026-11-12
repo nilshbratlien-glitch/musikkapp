@@ -75,3 +75,46 @@ test("syncopated generation uses the injected RNG reproducibly", () => {
   assert.equal(generate(123), generate(123));
   assert.notEqual(generate(123), generate(456));
 });
+
+test("legato generates slurred groups of 2-4 notes and renders ABC slur parentheses", () => {
+  const env = load(42);
+  const config = settings({
+    instrumentId: "trumpet",
+    legato: true,
+    measures: 4,
+    rhythms: ["q", "8"],
+    rests: [],
+    allowRests: false,
+  });
+  const score = env.Generator.generate(config);
+  assert.equal(score.settingsSnapshot.legato, true);
+
+  let totalSlurs = 0;
+  for (const m of score.measures) {
+    let inSlur = false;
+    let slurCount = 0;
+    for (const ev of m.events) {
+      if (ev.slurStart) {
+        assert.equal(inSlur, false, "slur cannot start inside another slur");
+        inSlur = true;
+        slurCount = 1;
+        assert.ok(!ev.articulations || !ev.articulations.includes("staccato"));
+      } else if (inSlur) {
+        slurCount++;
+        assert.equal(ev.slurred, true);
+        assert.ok(!ev.articulations || !ev.articulations.includes("staccato"));
+        if (ev.slurEnd) {
+          assert.ok(slurCount >= 2 && slurCount <= 4, `slur count ${slurCount} should be 2-4`);
+          inSlur = false;
+          totalSlurs++;
+        }
+      }
+    }
+    assert.equal(inSlur, false, "slur must be closed within the measure");
+  }
+  assert.ok(totalSlurs > 0, "should have generated at least one slur group across 4 measures");
+
+  const abc = env.ScoreRenderer.scoreToAbc(score, { showSticking: true });
+  assert.ok(abc.includes("("), "ABC output must include slur open parenthesis");
+  assert.ok(abc.includes(")"), "ABC output must include slur close parenthesis");
+});
