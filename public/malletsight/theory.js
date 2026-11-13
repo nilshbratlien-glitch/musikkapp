@@ -29,10 +29,13 @@
     { id: "Bm", name: "h-moll", vex: "Bm", tonic: 11, mode: "harmonic", fifths: 2, flats: false },
     { id: "F#m", name: "fiss-moll", vex: "F#m", tonic: 6, mode: "harmonic", fifths: 3, flats: false },
     { id: "C#m", name: "ciss-moll", vex: "C#m", tonic: 1, mode: "harmonic", fifths: 4, flats: false },
+    { id: "G#m", name: "giss-moll", vex: "G#m", tonic: 8, mode: "harmonic", fifths: 5, flats: false },
     { id: "Dm", name: "d-moll", vex: "Dm", tonic: 2, mode: "harmonic", fifths: -1, flats: true },
     { id: "Gm", name: "g-moll", vex: "Gm", tonic: 7, mode: "harmonic", fifths: -2, flats: true },
     { id: "Cm", name: "c-moll", vex: "Cm", tonic: 0, mode: "harmonic", fifths: -3, flats: true },
     { id: "Fm", name: "f-moll", vex: "Fm", tonic: 5, mode: "harmonic", fifths: -4, flats: true },
+    { id: "Bbm", name: "b-moll", vex: "Bbm", tonic: 10, mode: "harmonic", fifths: -5, flats: true },
+    { id: "Ebm", name: "ess-moll", vex: "Ebm", tonic: 3, mode: "harmonic", fifths: -6, flats: true },
   ];
 
   /* 96 ticks per whole note: 32nds and triplets share one grid. */
@@ -230,7 +233,10 @@
     return map[nameSteps] || 12;
   }
 
-  function nearestIn(list, target) {
+  function nearestIn(a, b) {
+    const list = Array.isArray(a) ? a : b;
+    const target = Array.isArray(a) ? b : a;
+    if (!list || !list.length) return target;
     let best = list[0];
     let d = Math.abs(best - target);
     for (const n of list) {
@@ -326,6 +332,77 @@
     return byPc[pc] || "0";
   }
 
+  const BB_KEY_MAP = {
+    C: "D",
+    G: "A",
+    D: "E",
+    A: "B",
+    E: "F#",
+    B: "C#",
+    "F#": "G#",
+    F: "G",
+    Bb: "C",
+    Eb: "F",
+    Ab: "Bb",
+    Db: "Eb",
+    Am: "Bm",
+    Em: "F#m",
+    Bm: "C#m",
+    "F#m": "G#m",
+    "C#m": "D#m",
+    Dm: "Em",
+    Gm: "Am",
+    Cm: "Dm",
+    Fm: "Gm",
+    Bbm: "Cm",
+    Ebm: "Fm",
+    "G#m": "Bbm",
+  };
+
+  const TRUMPET_TO_CONCERT_KEY_MAP = {
+    D: "C",
+    A: "G",
+    E: "D",
+    B: "A",
+    "F#": "E",
+    "C#": "B",
+    "G#": "F#",
+    G: "F",
+    C: "Bb",
+    F: "Eb",
+    Bb: "Ab",
+    Eb: "Db",
+    Ab: "F#",
+    Db: "B",
+    Bm: "Am",
+    "F#m": "Em",
+    "C#m": "Bm",
+    "G#m": "F#m",
+    "D#m": "C#m",
+    Em: "Dm",
+    Am: "Gm",
+    Dm: "Cm",
+    Gm: "Fm",
+    Cm: "Bbm",
+    Fm: "Ebm",
+    Bbm: "G#m",
+    Ebm: "C#m",
+  };
+
+  function transposeTrumpetToConcert(trumpetKey) {
+    if (!trumpetKey) return KEYS.find((k) => k.id === "Bb") || KEYS[0];
+    const keyId = typeof trumpetKey === "string" ? trumpetKey : trumpetKey.id;
+    const targetId = TRUMPET_TO_CONCERT_KEY_MAP[keyId] || "Bb";
+    return KEYS.find((k) => k.id === targetId) || (KEYS.find((k) => k.id === "Bb") || KEYS[0]);
+  }
+
+  function transposeKeyForBb(concertKey) {
+    if (!concertKey) return KEYS[0];
+    const keyId = typeof concertKey === "string" ? concertKey : concertKey.id;
+    const targetId = BB_KEY_MAP[keyId] || "D";
+    return KEYS.find((k) => k.id === targetId) || (typeof concertKey === "object" ? concertKey : KEYS[0]);
+  }
+
   global.Theory = {
     INSTRUMENTS,
     KEYS,
@@ -352,6 +429,8 @@
     diatonicQualities,
     PC,
     trumpetValve,
+    transposeKeyForBb,
+    transposeTrumpetToConcert,
     writtenOff: function (instrumentId) {
       const inst = INSTRUMENTS.find((i) => i.id === instrumentId);
       return inst && inst.writtenOff ? inst.writtenOff : 0;

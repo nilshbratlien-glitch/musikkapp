@@ -66,6 +66,18 @@
     stopPlace: "below",
     voicing: "closed",
     blockSize: "mix",
+    duetEnabled: false,
+    duetMalletInstrument: "xylo",
+    duetStyle: "harmony",
+    duetViewPart: "score",
+    duetPlayTrumpet: true,
+    duetPlayMallets: true,
+    duetRangeTptLow: 60,
+    duetRangeTptHigh: 74,
+    duetRangeMalletLow: 60,
+    duetRangeMalletHigh: 84,
+    duetMallets: 2,
+    duetAllowChords: true,
   };
 
   const TRUMPET_DEFAULTS = Object.assign({}, DEFAULTS, {
@@ -163,24 +175,30 @@
   function syncRangeSliders() {
     const off = writeOff();
     const inst = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
-    const wlo = T.clamp(settings.rangeLow + off, SLIDER_LO, SLIDER_HI);
-    const whi = T.clamp(settings.rangeHigh + off, SLIDER_LO, SLIDER_HI);
+    const minW = inst ? inst.low + off : SLIDER_LO;
+    const maxW = inst ? inst.high + off : SLIDER_HI;
+    const wlo = T.clamp(settings.rangeLow + off, minW, maxW);
+    const whi = T.clamp(settings.rangeHigh + off, minW, maxW);
     ["rangeLow", "rangeHigh"].forEach((id) => {
       const el = $("#" + id);
-      el.min = String(SLIDER_LO);
-      el.max = String(SLIDER_HI);
+      if (el) {
+        el.min = String(minW);
+        el.max = String(maxW);
+      }
     });
-    $("#rangeLow").value = String(wlo);
-    $("#rangeHigh").value = String(whi);
-    $("#rangeLowLbl").textContent = midiLabel(wlo);
-    $("#rangeHighLbl").textContent = midiLabel(whi);
+    if ($("#rangeLow")) $("#rangeLow").value = String(wlo);
+    if ($("#rangeHigh")) $("#rangeHigh").value = String(whi);
+    if ($("#rangeLowLbl")) $("#rangeLowLbl").textContent = midiLabel(wlo);
+    if ($("#rangeHighLbl")) $("#rangeHighLbl").textContent = midiLabel(whi);
     if ($("#rangeHint") && inst) {
       $("#rangeHint").textContent =
-        "Skrevet " +
-        midiLabel(inst.low + off) +
+        "Skrevet omfang for " +
+        inst.name +
+        ": " +
+        midiLabel(minW) +
         "–" +
-        midiLabel(inst.high + off) +
-        " på dette instrumentet. Skalaen går fra C2 til C8.";
+        midiLabel(maxW) +
+        ".";
     }
   }
 
@@ -189,8 +207,8 @@
     const inst = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
     let wlo = parseInt($("#rangeLow").value, 10);
     let whi = parseInt($("#rangeHigh").value, 10);
-    const minW = inst.low + off;
-    const maxW = inst.high + off;
+    const minW = inst ? inst.low + off : SLIDER_LO;
+    const maxW = inst ? inst.high + off : SLIDER_HI;
     wlo = T.clamp(wlo, minW, maxW);
     whi = T.clamp(whi, minW, maxW);
     if (wlo > whi) {
@@ -210,12 +228,123 @@
       (other) => other.id !== inst.id && other.low === settings.rangeLow && other.low > inst.low
     );
     if (force || inheritedLow || settings.rangeLow < inst.low || settings.rangeHigh > inst.high) {
-      settings.rangeLow = inst.low;
-      settings.rangeHigh = inst.high;
+      if (inst.id === "trumpet") {
+        settings.rangeLow = 60;
+        settings.rangeHigh = 72;
+      } else if (inst.id === "mar50") {
+        settings.rangeLow = 36;
+        settings.rangeHigh = 84;
+      } else if (inst.id === "mar43") {
+        settings.rangeLow = 45;
+        settings.rangeHigh = 84;
+      } else {
+        settings.rangeLow = inst.low;
+        settings.rangeHigh = inst.high;
+      }
     }
     settings.rangeLow = Theory.clamp(settings.rangeLow, inst.low, inst.high);
     settings.rangeHigh = Theory.clamp(settings.rangeHigh, inst.low, inst.high);
     if (settings.rangeHigh - settings.rangeLow < 5) settings.rangeHigh = Math.min(inst.high, settings.rangeLow + 12);
+  }
+
+  function defaultDuetMalletRange(instId) {
+    const inst = T.INSTRUMENTS.find((i) => i.id === instId);
+    if (!inst) return { low: 60, high: 84, minW: 36, maxW: 108 };
+    const off = inst.writtenOff || 0;
+    const minW = inst.low + off;
+    const maxW = inst.high + off;
+    let low = minW;
+    let high = maxW;
+    switch (instId) {
+      case "glock":
+        low = 55;
+        high = 84;
+        break;
+      case "xylo":
+        low = 53;
+        high = 84;
+        break;
+      case "vibes":
+        low = 53;
+        high = 84;
+        break;
+      case "mar43":
+        low = 45;
+        high = 84;
+        break;
+      case "mar50":
+        low = 36;
+        high = 84;
+        break;
+      default:
+        low = Math.max(minW, 60);
+        high = Math.min(maxW, 84);
+    }
+    return { low, high, minW, maxW };
+  }
+
+  function syncDuetRangeSliders(forceMalletDefault) {
+    const malInstId = settings.duetMalletInstrument || "xylo";
+    const { low: defLow, high: defHigh, minW, maxW } = defaultDuetMalletRange(malInstId);
+
+    if (forceMalletDefault || !settings.duetRangeMalletLow || settings.duetRangeMalletLow < minW || settings.duetRangeMalletLow > maxW) {
+      settings.duetRangeMalletLow = defLow;
+    }
+    if (forceMalletDefault || !settings.duetRangeMalletHigh || settings.duetRangeMalletHigh < minW || settings.duetRangeMalletHigh > maxW) {
+      settings.duetRangeMalletHigh = defHigh;
+    }
+    if (settings.duetRangeMalletLow > settings.duetRangeMalletHigh) {
+      const t = settings.duetRangeMalletLow;
+      settings.duetRangeMalletLow = settings.duetRangeMalletHigh;
+      settings.duetRangeMalletHigh = t;
+    }
+
+    const tptLow = settings.duetRangeTptLow || 60;
+    const tptHigh = settings.duetRangeTptHigh || 74;
+    const malLow = settings.duetRangeMalletLow;
+    const malHigh = settings.duetRangeMalletHigh;
+
+    ["rangeTptLow", "duetRangeTptLow"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) {
+        el.min = "54";
+        el.max = "84";
+        el.value = String(tptLow);
+      }
+    });
+    ["rangeTptHigh", "duetRangeTptHigh"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) {
+        el.min = "54";
+        el.max = "84";
+        el.value = String(tptHigh);
+      }
+    });
+    if ($("#rangeTptLowLbl")) $("#rangeTptLowLbl").textContent = midiLabel(tptLow);
+    if ($("#duetRangeTptLowLbl")) $("#duetRangeTptLowLbl").textContent = midiLabel(tptLow);
+    if ($("#rangeTptHighLbl")) $("#rangeTptHighLbl").textContent = midiLabel(tptHigh);
+    if ($("#duetRangeTptHighLbl")) $("#duetRangeTptHighLbl").textContent = midiLabel(tptHigh);
+
+    ["rangeMalletLow", "duetRangeMalletLow"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) {
+        el.min = String(minW);
+        el.max = String(maxW);
+        el.value = String(malLow);
+      }
+    });
+    ["rangeMalletHigh", "duetRangeMalletHigh"].forEach((id) => {
+      const el = $("#" + id);
+      if (el) {
+        el.min = String(minW);
+        el.max = String(maxW);
+        el.value = String(malHigh);
+      }
+    });
+    if ($("#rangeMalletLowLbl")) $("#rangeMalletLowLbl").textContent = midiLabel(malLow);
+    if ($("#duetRangeMalletLowLbl")) $("#duetRangeMalletLowLbl").textContent = midiLabel(malLow);
+    if ($("#rangeMalletHighLbl")) $("#rangeMalletHighLbl").textContent = midiLabel(malHigh);
+    if ($("#duetRangeMalletHighLbl")) $("#duetRangeMalletHighLbl").textContent = midiLabel(malHigh);
   }
 
   function fillSelect(el, items, value, labelFn, valueFn) {
@@ -580,6 +709,25 @@
       if (el) el.checked = !!settings[k];
     });
 
+    if ($("#duetEnabled")) $("#duetEnabled").checked = !!settings.duetEnabled;
+    if ($("#duetMalletInstrument")) $("#duetMalletInstrument").value = settings.duetMalletInstrument || "xylo";
+    if ($("#duetToolbarMalletSelect")) $("#duetToolbarMalletSelect").value = settings.duetMalletInstrument || "xylo";
+    const mCnt = String(settings.duetMallets || settings.mallets || 2);
+    if ($("#duetToolbarMalletCount")) $("#duetToolbarMalletCount").value = mCnt;
+    if ($("#duetMallets")) $("#duetMallets").value = mCnt;
+    if ($("#duetStyle")) $("#duetStyle").value = settings.duetStyle || "harmony";
+    if ($("#duetViewSelect")) $("#duetViewSelect").value = settings.duetViewPart || "score";
+    if ($("#duetAllowChords")) $("#duetAllowChords").checked = settings.duetAllowChords !== false;
+    if ($("#duetPlayTrumpet")) $("#duetPlayTrumpet").checked = settings.duetPlayTrumpet !== false;
+    if ($("#duetPlayMallets")) $("#duetPlayMallets").checked = settings.duetPlayMallets !== false;
+    if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", !!settings.duetEnabled);
+
+    const isDuet = Boolean(settings.duetEnabled);
+    if ($("#soloRangeControls")) $("#soloRangeControls").hidden = isDuet;
+    if ($("#duetRangeControls")) $("#duetRangeControls").hidden = !isDuet;
+
+    syncDuetRangeSliders(false);
+
     buildRhythmToggles($("#rhythms"), "rhythms", settings.rhythms);
     buildRhythmToggles($("#rests"), "rests", settings.rests);
     document.querySelectorAll("[data-rhythm-preset]").forEach((btn) => {
@@ -613,7 +761,11 @@
   function updateMalletHints() {
     const isTrumpet = currentProfile() === "trumpet";
     const malletsRow = $("#malletsRow");
-    if (malletsRow) malletsRow.hidden = isTrumpet;
+    if (malletsRow) {
+      malletsRow.hidden = isTrumpet && !settings.duetEnabled;
+      const lbl = malletsRow.querySelector("label");
+      if (lbl) lbl.textContent = settings.duetEnabled ? "Køller (slagverk)" : "Køller";
+    }
     const multi = !isTrumpet && settings.mallets >= 3 && settings.texture !== "melody" && settings.texture !== "mixed";
     $all(".multi-only").forEach((el) => {
       el.hidden = !multi;
@@ -662,7 +814,13 @@
   function readInputs() {
     const isTrumpet = currentProfile() === "trumpet";
     settings.instrumentId = isTrumpet ? "trumpet" : $("#instrument").value;
-    settings.mallets = isTrumpet ? 1 : parseInt($("#mallets").value, 10);
+    if (settings.duetEnabled) {
+      const dm = parseInt(($("#duetToolbarMalletCount") && $("#duetToolbarMalletCount").value) || ($("#duetMallets") && $("#duetMallets").value) || ($("#mallets") && $("#mallets").value) || "2", 10);
+      settings.duetMallets = dm;
+      settings.mallets = dm;
+    } else {
+      settings.mallets = isTrumpet ? 1 : parseInt($("#mallets").value, 10);
+    }
     settings.texture = isTrumpet ? "melody" : $("#texture").value;
     settings.clef = isTrumpet ? "treble" : $("#clef").value;
     const instClef = T.INSTRUMENTS.find((i) => i.id === settings.instrumentId);
@@ -698,6 +856,32 @@
       const el = $("#" + k);
       if (el) settings[k] = el.checked;
     });
+    if ($("#duetEnabled")) settings.duetEnabled = $("#duetEnabled").checked;
+    if ($("#duetToolbarMalletSelect")) settings.duetMalletInstrument = $("#duetToolbarMalletSelect").value;
+    else if ($("#duetMalletInstrument")) settings.duetMalletInstrument = $("#duetMalletInstrument").value;
+    if ($("#duetStyle")) settings.duetStyle = $("#duetStyle").value;
+    if ($("#duetViewSelect")) settings.duetViewPart = $("#duetViewSelect").value;
+    if ($("#duetAllowChords")) settings.duetAllowChords = $("#duetAllowChords").checked;
+    if ($("#duetPlayTrumpet")) settings.duetPlayTrumpet = $("#duetPlayTrumpet").checked;
+    if ($("#duetPlayMallets")) settings.duetPlayMallets = $("#duetPlayMallets").checked;
+    if ($("#rangeTptLow")) settings.duetRangeTptLow = Number($("#rangeTptLow").value);
+    else if ($("#duetRangeTptLow")) settings.duetRangeTptLow = Number($("#duetRangeTptLow").value);
+    if ($("#rangeTptHigh")) settings.duetRangeTptHigh = Number($("#rangeTptHigh").value);
+    else if ($("#duetRangeTptHigh")) settings.duetRangeTptHigh = Number($("#duetRangeTptHigh").value);
+    if ($("#rangeMalletLow")) settings.duetRangeMalletLow = Number($("#rangeMalletLow").value);
+    else if ($("#duetRangeMalletLow")) settings.duetRangeMalletLow = Number($("#duetRangeMalletLow").value);
+    if ($("#rangeMalletHigh")) settings.duetRangeMalletHigh = Number($("#rangeMalletHigh").value);
+    else if ($("#duetRangeMalletHigh")) settings.duetRangeMalletHigh = Number($("#duetRangeMalletHigh").value);
+    if (settings.duetRangeTptLow > settings.duetRangeTptHigh) {
+      const t = settings.duetRangeTptLow;
+      settings.duetRangeTptLow = settings.duetRangeTptHigh;
+      settings.duetRangeTptHigh = t;
+    }
+    if (settings.duetRangeMalletLow > settings.duetRangeMalletHigh) {
+      const t = settings.duetRangeMalletLow;
+      settings.duetRangeMalletLow = settings.duetRangeMalletHigh;
+      settings.duetRangeMalletHigh = t;
+    }
     if (settings.rangeLow > settings.rangeHigh) {
       const t = settings.rangeLow;
       settings.rangeLow = settings.rangeHigh;
@@ -712,6 +896,7 @@
       zoom: settings.zoom,
       showSticking: settings.showSticking,
       annotate: settings.annotate,
+      viewPart: settings.duetViewPart || "score",
     };
   }
 
@@ -748,14 +933,56 @@
     practiceBeat = 0;
     const line = $("#practiceLine");
     if (line && currentScore) {
-      const idx = levelIndex();
-      const inst = T.INSTRUMENTS.find((i) => i.id === currentScore.settingsSnapshot.instrument);
-      line.textContent = [
-        idx >= 0 ? "Nivå " + (idx + 1) : "Egendefinert",
-        currentScore.key && currentScore.key.name,
-        currentScore.time && currentScore.time.id,
-        inst ? inst.name : (currentProfile() === "trumpet" ? "Trompet (B)" : "Køller"),
-      ].filter(Boolean).join(" · ");
+      if (currentScore.isDuet) {
+        const styleName =
+          currentScore.duetStyle === "call_response"
+            ? "Ekkolek"
+            : currentScore.duetStyle === "melody_comp"
+              ? "Melodi & komp"
+              : "Terser & sekster";
+        const mName = currentScore.malletInstrumentName || "Slagverk";
+        line.textContent = [
+          "Duett: " + styleName,
+          currentScore.key && currentScore.key.name + (currentScore.trumpetKey ? " (Trompet i " + currentScore.trumpetKey.name + ")" : ""),
+          currentScore.time && currentScore.time.id,
+          "Trompet (B) + " + mName,
+        ].filter(Boolean).join(" · ");
+      } else {
+        const idx = levelIndex();
+        const inst = T.INSTRUMENTS.find((i) => i.id === currentScore.settingsSnapshot.instrument);
+        line.textContent = [
+          idx >= 0 ? "Nivå " + (idx + 1) : "Egendefinert",
+          currentScore.key && currentScore.key.name,
+          currentScore.time && currentScore.time.id,
+          inst ? inst.name : (currentProfile() === "trumpet" ? "Trompet (B)" : "Køller"),
+        ].filter(Boolean).join(" · ");
+      }
+    }
+
+    const duetToolbar = $("#duetToolbar");
+    if (duetToolbar) {
+      const isDuet = Boolean(currentScore && currentScore.isDuet);
+      duetToolbar.hidden = !isDuet;
+      if (isDuet) {
+        const vp = settings.duetViewPart || "score";
+        $all("[data-duet-view]").forEach((btn) => {
+          btn.classList.toggle("active", btn.getAttribute("data-duet-view") === vp);
+        });
+        const btnTpt = $("#btnMuteTrumpet");
+        if (btnTpt) {
+          btnTpt.classList.toggle("active", settings.duetPlayTrumpet !== false);
+          btnTpt.classList.toggle("muted", settings.duetPlayTrumpet === false);
+        }
+        const btnMal = $("#btnMuteMallets");
+        if (btnMal) {
+          btnMal.classList.toggle("active", settings.duetPlayMallets !== false);
+          btnMal.classList.toggle("muted", settings.duetPlayMallets === false);
+        }
+      }
+    }
+    const btnDuetToggle = $("#btnDuetToggle");
+    if (btnDuetToggle) {
+      btnDuetToggle.classList.toggle("on", !!settings.duetEnabled);
     }
   }
 
@@ -765,7 +992,19 @@
     resetKeyStepIfNeeded();
     settings.keyIndex = keyStep;
     try {
-      currentScore = Generator.generate(settings);
+      if (settings.duetEnabled) {
+        const lvlIdx = levelIndex();
+        const duetLevel = lvlIdx >= 0
+          ? lvlIdx + 1
+          : Math.max(1, Math.min(10, (Number(settings.rhythmDensity) || 2) * 2));
+        currentScore = Generator.generateDuet(Object.assign({}, settings, { level: duetLevel }));
+        if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
+          AudioEngine.loadInstrument("trumpet");
+          AudioEngine.loadInstrument(settings.duetMalletInstrument || "xylo");
+        }
+      } else {
+        currentScore = Generator.generate(settings);
+      }
       const n = selectedKeysInCircle().length;
       if (n > 1) keyStep = (keyStep + 1) % n;
       if ($("#keyModeHint")) $("#keyModeHint").textContent = keyModeText();
@@ -810,6 +1049,9 @@
 
     $("#mallets").addEventListener("change", () => {
       settings.mallets = parseInt($("#mallets").value, 10);
+      settings.duetMallets = settings.mallets;
+      if ($("#duetToolbarMalletCount")) $("#duetToolbarMalletCount").value = String(settings.mallets);
+      if ($("#duetMallets")) $("#duetMallets").value = String(settings.mallets);
       settings.texture = settings.mallets === 4 ? "block" : "mixed";
       syncTexture();
       updateMalletHints();
@@ -821,6 +1063,7 @@
         if ($("#clef")) $("#clef").value = "grand";
       }
       saveSettings();
+      if (settings.duetEnabled) generate();
     });
 
     $("#texture").addEventListener("change", () => {
@@ -894,6 +1137,151 @@
     $("#btnLevelDown").addEventListener("click", () => stepLevel(-1));
     $("#btnLevelUp").addEventListener("click", () => stepLevel(1));
     $("#btnApply").addEventListener("click", generateFresh);
+
+    if ($("#btnDuetToggle")) {
+      $("#btnDuetToggle").addEventListener("click", () => {
+        settings.duetEnabled = !settings.duetEnabled;
+        if ($("#duetEnabled")) $("#duetEnabled").checked = settings.duetEnabled;
+        $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
+        if ($("#soloRangeControls")) $("#soloRangeControls").hidden = settings.duetEnabled;
+        if ($("#duetRangeControls")) $("#duetRangeControls").hidden = !settings.duetEnabled;
+        if (settings.duetEnabled) {
+          syncDuetRangeSliders(false);
+        } else {
+          syncRangeSliders();
+        }
+        saveSettings();
+        generate();
+      });
+    }
+    if ($("#duetEnabled")) {
+      $("#duetEnabled").addEventListener("change", () => {
+        settings.duetEnabled = $("#duetEnabled").checked;
+        if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
+        if ($("#soloRangeControls")) $("#soloRangeControls").hidden = settings.duetEnabled;
+        if ($("#duetRangeControls")) $("#duetRangeControls").hidden = !settings.duetEnabled;
+        if (settings.duetEnabled) {
+          syncDuetRangeSliders(false);
+        } else {
+          syncRangeSliders();
+        }
+        saveSettings();
+      });
+    }
+    const onMalletInstChange = (newVal) => {
+      settings.duetMalletInstrument = newVal;
+      if ($("#duetMalletInstrument")) $("#duetMalletInstrument").value = newVal;
+      if ($("#duetToolbarMalletSelect")) $("#duetToolbarMalletSelect").value = newVal;
+      syncDuetRangeSliders(true);
+      saveSettings();
+      AudioEngine.loadInstrument(newVal);
+      if (settings.duetEnabled) generate();
+    };
+    if ($("#duetToolbarMalletSelect")) {
+      $("#duetToolbarMalletSelect").addEventListener("change", () => {
+        onMalletInstChange($("#duetToolbarMalletSelect").value);
+      });
+    }
+    if ($("#duetMalletInstrument")) {
+      $("#duetMalletInstrument").addEventListener("change", () => {
+        onMalletInstChange($("#duetMalletInstrument").value);
+      });
+    }
+
+    const onDuetMalletCountChange = (cnt) => {
+      const val = parseInt(cnt, 10) || 2;
+      settings.mallets = val;
+      settings.duetMallets = val;
+      if ($("#mallets")) $("#mallets").value = String(val);
+      if ($("#duetToolbarMalletCount")) $("#duetToolbarMalletCount").value = String(val);
+      if ($("#duetMallets")) $("#duetMallets").value = String(val);
+      updateMalletHints();
+      saveSettings();
+      if (settings.duetEnabled) generate();
+    };
+    if ($("#duetToolbarMalletCount")) {
+      $("#duetToolbarMalletCount").addEventListener("change", () => {
+        onDuetMalletCountChange($("#duetToolbarMalletCount").value);
+      });
+    }
+    if ($("#duetMallets")) {
+      $("#duetMallets").addEventListener("change", () => {
+        onDuetMalletCountChange($("#duetMallets").value);
+      });
+    }
+
+    if ($("#duetAllowChords")) {
+      $("#duetAllowChords").addEventListener("change", () => {
+        settings.duetAllowChords = $("#duetAllowChords").checked;
+        saveSettings();
+        if (settings.duetEnabled) generate();
+      });
+    }
+
+    [
+      { id: "rangeTptLow", pair: "duetRangeTptLow", lbl: "rangeTptLowLbl", pairLbl: "duetRangeTptLowLbl", key: "duetRangeTptLow" },
+      { id: "rangeTptHigh", pair: "duetRangeTptHigh", lbl: "rangeTptHighLbl", pairLbl: "duetRangeTptHighLbl", key: "duetRangeTptHigh" },
+      { id: "rangeMalletLow", pair: "duetRangeMalletLow", lbl: "rangeMalletLowLbl", pairLbl: "duetRangeMalletLowLbl", key: "duetRangeMalletLow" },
+      { id: "rangeMalletHigh", pair: "duetRangeMalletHigh", lbl: "rangeMalletHighLbl", pairLbl: "duetRangeMalletHighLbl", key: "duetRangeMalletHigh" },
+    ].forEach((cfg) => {
+      [cfg.id, cfg.pair].forEach((domId) => {
+        const el = $("#" + domId);
+        if (!el) return;
+        el.addEventListener("input", () => {
+          const val = Number(el.value);
+          settings[cfg.key] = val;
+          const pairEl = $("#" + (domId === cfg.id ? cfg.pair : cfg.id));
+          if (pairEl) pairEl.value = val;
+          const lblA = $("#" + cfg.lbl);
+          const lblB = $("#" + cfg.pairLbl);
+          if (lblA) lblA.textContent = midiLabel(val);
+          if (lblB) lblB.textContent = midiLabel(val);
+          saveSettings();
+        });
+        el.addEventListener("change", () => {
+          if (settings.duetEnabled) generate();
+        });
+      });
+    });
+    if ($("#duetStyle")) {
+      $("#duetStyle").addEventListener("change", () => {
+        settings.duetStyle = $("#duetStyle").value;
+        saveSettings();
+      });
+    }
+    if ($("#duetViewSelect")) {
+      $("#duetViewSelect").addEventListener("change", () => {
+        settings.duetViewPart = $("#duetViewSelect").value;
+        saveSettings();
+        if (currentScore && currentScore.isDuet) paintScore();
+      });
+    }
+    $all("[data-duet-view]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        settings.duetViewPart = btn.getAttribute("data-duet-view");
+        if ($("#duetViewSelect")) $("#duetViewSelect").value = settings.duetViewPart;
+        saveSettings();
+        if (currentScore && currentScore.isDuet) paintScore();
+      });
+    });
+    if ($("#btnMuteTrumpet")) {
+      $("#btnMuteTrumpet").addEventListener("click", () => {
+        settings.duetPlayTrumpet = settings.duetPlayTrumpet === false;
+        if ($("#duetPlayTrumpet")) $("#duetPlayTrumpet").checked = settings.duetPlayTrumpet;
+        $("#btnMuteTrumpet").classList.toggle("active", settings.duetPlayTrumpet !== false);
+        $("#btnMuteTrumpet").classList.toggle("muted", settings.duetPlayTrumpet === false);
+        saveSettings();
+      });
+    }
+    if ($("#btnMuteMallets")) {
+      $("#btnMuteMallets").addEventListener("click", () => {
+        settings.duetPlayMallets = settings.duetPlayMallets === false;
+        if ($("#duetPlayMallets")) $("#duetPlayMallets").checked = settings.duetPlayMallets;
+        $("#btnMuteMallets").classList.toggle("active", settings.duetPlayMallets !== false);
+        $("#btnMuteMallets").classList.toggle("muted", settings.duetPlayMallets === false);
+        saveSettings();
+      });
+    }
 
     let metroSubdiv = 1;
 
@@ -1043,6 +1431,8 @@
         beatsPerBar: spec.beats,
         beatTicks: currentScore.time.beatTicks,
         countIn: 1,
+        muteTrumpet: settings.duetPlayTrumpet === false,
+        muteMallets: settings.duetPlayMallets === false,
         onCue: (q) => {
           if (!AudioEngine.isPlaying()) return;
           const lamp = q.phase === "countin" ? q.beat : q.beat % q.beats;
@@ -1137,6 +1527,10 @@
       }
       if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
         AudioEngine.loadInstrument(settings.instrumentId);
+        if (settings.duetEnabled || currentProfile() === "trumpet") {
+          AudioEngine.loadInstrument("trumpet");
+          AudioEngine.loadInstrument(settings.duetMalletInstrument || "xylo");
+        }
       }
     },
     unmount,
@@ -1149,6 +1543,9 @@
       remoteCall = true;
       try {
         haltPlay();
+        applyInstrumentRange(true);
+        syncRangeSliders();
+        syncDuetRangeSliders(false);
         bindUI();
         if ($("#showStickingLabel")) {
           $("#showStickingLabel").textContent = currentProfile() === "trumpet" ? "Vis ventilgrep" : "Vis køllenummer";
@@ -1156,6 +1553,10 @@
         generate();
         if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
           AudioEngine.loadInstrument(settings.instrumentId);
+          if (settings.duetEnabled || currentProfile() === "trumpet") {
+            AudioEngine.loadInstrument("trumpet");
+            AudioEngine.loadInstrument(settings.duetMalletInstrument || "xylo");
+          }
         }
       } finally {
         remoteCall = false;

@@ -5,6 +5,7 @@
         <span id="brandSubtitle">v1.4 · 2–4 køller</span>
       </div>
       <div class="spacer"></div>
+      <button class="btn" id="btnDuetToggle" type="button" title="Samspill / duett">Duett</button>
       <div class="level-step" title="Nivå">
         <button class="btn icon-btn" id="btnLevelDown" type="button" title="Lettere">−</button>
         <span id="levelRead">1</span>
@@ -18,6 +19,31 @@
     <main class="stage">
       <p class="pulse-note" id="pulseNote" role="status" hidden>Øveplan styrer metronomen</p>
       <p class="practice-line" id="practiceLine"></p>
+      <div class="duet-toolbar" id="duetToolbar" hidden>
+        <div class="duet-views" role="group" aria-label="Visningsvalg">
+          <button type="button" class="chip active" data-duet-view="score" id="btnDuetViewScore">Partitur</button>
+          <button type="button" class="chip" data-duet-view="trumpet" id="btnDuetViewTrumpet">Trompet (B)</button>
+          <button type="button" class="chip" data-duet-view="mallets" id="btnDuetViewMallets">Slagverk (C)</button>
+        </div>
+        <div class="duet-inst" role="group" aria-label="Slagverkinstrument">
+          <select id="duetToolbarMalletSelect" class="duet-toolbar-select" title="Bytt slagverkinstrument">
+            <option value="xylo">🥢 Xylofon</option>
+            <option value="mar43">🪵 Marimba 4.3</option>
+            <option value="mar50">🪵 Marimba 5.0</option>
+            <option value="vibes">✨ Vibrafon</option>
+            <option value="glock">🔔 Klokkespill</option>
+          </select>
+          <select id="duetToolbarMalletCount" class="duet-toolbar-select" title="Antall køller for slagverk">
+            <option value="2">🥢 2 køller</option>
+            <option value="3">🥢 3 køller</option>
+            <option value="4">🥢 4 køller</option>
+          </select>
+        </div>
+        <div class="duet-audio-mutes" role="group" aria-label="Makker-lyd">
+          <button type="button" class="chip active" id="btnMuteTrumpet" title="Slå av/på trompet-lyd">🎺 Trompet</button>
+          <button type="button" class="chip active" id="btnMuteMallets" title="Slå av/på slagverk-lyd">🥢 Slagverk</button>
+        </div>
+      </div>
       <div class="paper" id="score"></div>
     </main>
 
@@ -54,6 +80,7 @@
         <button type="button" class="settings-btn" data-settings="rytme">Rytme</button>
         <button type="button" class="settings-btn" data-settings="register">Register</button>
         <button type="button" class="settings-btn" data-settings="toneart">Toneart</button>
+        <button type="button" class="settings-btn" data-settings="duett">Duett</button>
         <button type="button" class="settings-btn" data-settings="mer">Mer</button>
       </div>
 
@@ -118,10 +145,25 @@
       <div class="settings-panel" data-settings-panel="register" hidden>
         <button type="button" class="settings-back" data-settings-back>Tilbake</button>
         <h3 class="settings-title">Register</h3>
-        <div class="row"><label>Lav <span id="rangeLowLbl">C4</span></label></div>
-        <input type="range" id="rangeLow" min="36" max="108" />
-        <div class="row"><label>Høy <span id="rangeHighLbl">C6</span></label></div>
-        <input type="range" id="rangeHigh" min="36" max="108" />
+        <div id="soloRangeControls">
+          <div class="row"><label>Lav <span id="rangeLowLbl">C4</span></label></div>
+          <input type="range" id="rangeLow" min="36" max="108" />
+          <div class="row"><label>Høy <span id="rangeHighLbl">C6</span></label></div>
+          <input type="range" id="rangeHigh" min="36" max="108" />
+        </div>
+        <div id="duetRangeControls" hidden>
+          <h4 class="settings-subtitle">🎺 Trompet (skrevet omfang)</h4>
+          <div class="row"><label>Laveste tone <span id="rangeTptLowLbl">C4</span></label></div>
+          <input type="range" id="rangeTptLow" min="54" max="84" value="60" />
+          <div class="row"><label>Høyeste tone <span id="rangeTptHighLbl">D5</span></label></div>
+          <input type="range" id="rangeTptHigh" min="54" max="84" value="74" />
+
+          <h4 class="settings-subtitle">🥢 Slagverk (skrevet omfang)</h4>
+          <div class="row"><label>Laveste tone <span id="rangeMalletLowLbl">C4</span></label></div>
+          <input type="range" id="rangeMalletLow" min="36" max="108" value="60" />
+          <div class="row"><label>Høyeste tone <span id="rangeMalletHighLbl">C6</span></label></div>
+          <input type="range" id="rangeMalletHigh" min="36" max="108" value="84" />
+        </div>
         <p class="hint" id="rangeHint">Skalaen er skrevet C2–C8. Hvert instrument begrenses til sitt faktiske skrevne omfang.</p>
         <div class="row"><label>Største sprang</label><select id="maxLeap"></select></div>
       </div>
@@ -147,6 +189,64 @@
         <p class="hint">Kromatiske nabotoner utenfor tonearten. Neste tone går tilbake til skalaen. Ledetoner i moll skrives alltid.</p>
         <label class="toggle"><span>Start på grunntonen</span><input type="checkbox" id="startTonic" /></label>
         <label class="toggle"><span>Slutt på grunntonen</span><input type="checkbox" id="endTonic" /></label>
+      </div>
+
+      <div class="settings-panel" data-settings-panel="duett" hidden>
+        <button type="button" class="settings-back" data-settings-back>Tilbake</button>
+        <h3 class="settings-title">Duett & Samspill</h3>
+        <label class="toggle"><span>Aktiver duett</span><input type="checkbox" id="duetEnabled" /></label>
+        <p class="hint">Trompet (i B) og melodisk slagverk (i C) spiller sammen med automatisk transponering.</p>
+
+        <div class="row"><label>Slagverkinstrument</label>
+          <select id="duetMalletInstrument">
+            <option value="xylo">Xylofon (klinger 8va)</option>
+            <option value="mar43">Marimba 4.3 oktaver (A2–C7)</option>
+            <option value="mar50">Marimba 5.0 oktaver (C2–C7)</option>
+            <option value="vibes">Vibrafon (F3–F6)</option>
+            <option value="glock">Klokkespill (klinger 15ma)</option>
+          </select>
+        </div>
+
+        <div class="row"><label>Køller (slagverk)</label>
+          <select id="duetMallets">
+            <option value="2">2 køller</option>
+            <option value="3">3 køller</option>
+            <option value="4">4 køller</option>
+          </select>
+        </div>
+        <label class="toggle"><span>Tillat akkorder</span><input type="checkbox" id="duetAllowChords" checked /></label>
+        <p class="hint">Når denne er på, spiller slagverket akkorder ved fraseslutt og kadenser. Når den er av, spilles kun én tone av gangen.</p>
+
+        <div class="row"><label>Duett-stil</label>
+          <select id="duetStyle">
+            <option value="harmony">Terser & sekster (klassisk samspill)</option>
+            <option value="call_response">Ekkolek (spill og svar)</option>
+            <option value="melody_comp">Melodi & komp (trompet leder)</option>
+          </select>
+        </div>
+
+        <div class="row"><label>Visning</label>
+          <select id="duetViewSelect">
+            <option value="score">Partitur (begge stemmer)</option>
+            <option value="trumpet">Kun Trompet i B</option>
+            <option value="mallets">Kun Slagverk i C</option>
+          </select>
+        </div>
+        <h4 class="settings-subtitle">Toneomfang (skrevet)</h4>
+        <div class="row"><label>Laveste trompet <span id="duetRangeTptLowLbl">C4</span></label></div>
+        <input type="range" id="duetRangeTptLow" min="54" max="84" value="60" />
+        <div class="row"><label>Høyeste trompet <span id="duetRangeTptHighLbl">D5</span></label></div>
+        <input type="range" id="duetRangeTptHigh" min="54" max="84" value="74" />
+
+        <div class="row"><label>Laveste slagverk <span id="duetRangeMalletLowLbl">C4</span></label></div>
+        <input type="range" id="duetRangeMalletLow" min="36" max="108" value="60" />
+        <div class="row"><label>Høyeste slagverk <span id="duetRangeMalletHighLbl">C6</span></label></div>
+        <input type="range" id="duetRangeMalletHigh" min="36" max="108" value="84" />
+
+        <h4 class="settings-subtitle">Makker-lyd (øv alene eller sammen)</h4>
+        <p class="hint">Øver du alene, kan appen spille makkerens stemme. Spiller dere sammen i rommet, kan én enhet styre metronomlyden mens den andre mutes.</p>
+        <label class="toggle"><span>Spill trompetstemme</span><input type="checkbox" id="duetPlayTrumpet" checked /></label>
+        <label class="toggle"><span>Spill slagverkstemme</span><input type="checkbox" id="duetPlayMallets" checked /></label>
       </div>
 
       <div class="settings-panel" data-settings-panel="mer" hidden>
