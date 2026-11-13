@@ -363,6 +363,41 @@ test("Generator.generateDuet generates high variety of unique procedural melodie
   assert.ok(contours.size >= 12, `Expected at least 12 unique melodic contours out of 15 runs, got ${contours.size}`);
 });
 
+test("Generator.generateDuet varies trumpet pitches and never stays on a single note across consecutive bars", () => {
+  for (const style of ["harmony", "call_response", "melody_comp"]) {
+    for (const [tptLo, tptHi] of [[60, 67], [60, 74]]) {
+      for (let seed = 1; seed <= 30; seed++) {
+        const { Generator } = load(seed);
+        const duet = Generator.generateDuet(settings({
+          keyId: "C",
+          timeId: "4/4",
+          measures: 8,
+          style,
+          duetRangeTptLow: tptLo,
+          duetRangeTptHigh: tptHi,
+          rhythms: ["h", "q", "8"],
+        }));
+        let curBarPitch = null;
+        let curBarRun = 0;
+        for (const m of duet.trumpetMeasures) {
+          const ps = m.events.filter((e) => !e.rest).flatMap((e) => e.pitches);
+          if (!ps.length) continue;
+          const uniq = [...new Set(ps)];
+          if (uniq.length === 1 && (curBarPitch === null || curBarPitch === uniq[0])) {
+            curBarPitch = uniq[0];
+            curBarRun++;
+          } else {
+            curBarPitch = uniq.length === 1 ? uniq[0] : null;
+            curBarRun = uniq.length === 1 ? 1 : 0;
+          }
+          assert.ok(curBarRun <= 1, `${style} [${tptLo},${tptHi}] seed ${seed}: trumpet stuck on pitch ${curBarPitch} for ${curBarRun} bars`);
+        }
+      }
+    }
+  }
+});
+
+
 
 
 

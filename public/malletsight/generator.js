@@ -1811,16 +1811,26 @@
     const d = (id) => T.DURATIONS.find((x) => x.id === id) || T.DURATIONS[0];
     const meterKey = time.id === "3/4" ? "3/4" : time.id === "2/4" ? "2/4" : time.id === "6/8" ? "6/8" : "4/4";
 
+    let minDeg = 0;
+    let maxDeg = 0;
+    while (tIdx + minDeg - 1 >= 0 && scale[tIdx + minDeg - 1] + 2 >= tptLow) minDeg--;
+    while (tIdx + maxDeg + 1 < scale.length && scale[tIdx + maxDeg + 1] + 2 <= tptHigh) maxDeg++;
+
     function generateDuetTheme() {
       const allowed = new Set(rawSettings.rhythms || ["w", "h", "hd", "q", "qd", "8", "16"]);
       const level = Math.max(1, Math.min(10, Number(rawSettings.level) || 3));
+      const clampDeg = (deg) => Math.max(minDeg, Math.min(maxDeg, deg));
 
       function getBarRhythm(m, isCadence) {
         if (isCadence) {
           if (meterKey === "4/4") {
-            return m === numMeasures - 1
-              ? (allowed.has("w") ? [["w", "w"]] : [["h", "h"], ["h", "h"]])
-              : (allowed.has("h") ? [["h", "h"], ["h", "h"]] : [["q", "q"], ["q", "q"], ["h", "h"]]);
+            if (m === numMeasures - 1) {
+              return allowed.has("w") ? [["w", "w"]] : [["h", "h"], ["h", "h"]];
+            }
+            if (allowed.has("h") && allowed.has("q") && Math.random() < 0.45) {
+              return [["q", "q"], ["q", "q"], ["h", "h"]];
+            }
+            return allowed.has("h") ? [["h", "h"], ["h", "h"]] : [["q", "q"], ["q", "q"], ["h", "h"]];
           }
           if (meterKey === "3/4") {
             return allowed.has("hd") ? [["hd", "hd"]] : [["h", "h"], ["q", "q"]];
@@ -1834,6 +1844,7 @@
         const patterns = [];
         if (meterKey === "4/4") {
           if (allowed.has("q")) patterns.push([["q", "q"], ["q", "q"], ["q", "q"], ["q", "q"]]);
+          if (allowed.has("h") && !allowed.has("q")) patterns.push([["h", "h"], ["h", "h"]]);
           if (allowed.has("h") && allowed.has("q")) {
             patterns.push([["h", "h"], ["q", "q"], ["q", "q"]]);
             patterns.push([["q", "q"], ["q", "q"], ["h", "h"]]);
@@ -1892,8 +1903,10 @@
 
       const motifRhythm = getBarRhythm(0, false);
       const bars = [];
-      let currentDeg = T.pick([0, 2, 4]); // Start on tonic triad tone (Do, Mi, Sol)
+      const startChoices = [0, 2, 4, -3].filter((x) => x >= minDeg && x <= maxDeg);
+      let currentDeg = startChoices.length ? T.pick(startChoices) : clampDeg(0);
       let dir = Math.random() < 0.5 ? 1 : -1;
+      let sameDegRun = 0;
 
       for (let m = 0; m < numMeasures; m++) {
         const isFinalBar = m === numMeasures - 1;
@@ -1908,25 +1921,65 @@
         rhythm.forEach((item, idx) => {
           const durId = item[0];
           const isLastInBar = (idx === rhythm.length - 1);
+          const prevDeg = currentDeg;
 
           if (isFinalBar && isLastInBar) {
-            currentDeg = 0; // Tonic resolution (Do)
+            currentDeg = clampDeg(0); // Tonic resolution (Do)
           } else if (isPhraseEnd && isLastInBar) {
-            currentDeg = T.pick([1, 4, -1]); // Half cadence on Re, Sol, or Ti
+            const cadOpts = [1, 4, -1, 2, -3].filter((x) => x >= minDeg && x <= maxDeg && x !== prevDeg);
+            if (cadOpts.length) {
+              currentDeg = T.pick(cadOpts);
+            } else if (maxDeg > minDeg) {
+              currentDeg = prevDeg + 1 <= maxDeg ? prevDeg + 1 : prevDeg - 1;
+            }
           } else if (idx === 0) {
-            const chordTones = [chord.rootDeg, chord.thirdDeg, chord.fifthDeg];
-            chordTones.sort((a, b) => Math.abs(a - currentDeg) - Math.abs(b - currentDeg));
-            currentDeg = chordTones[0];
-          } else {
+            const chordTones = [];
+            [-7, 0, 7].forEach((oct) => {
+              [chord.rootDeg, chord.thirdDeg, chord.fifthDeg].forEach((base) => {
+                const candidate = base + oct;
+                if (candidate >= minDeg && candidate <= maxDeg && !chordTones.includes(candidate)) {
+                  chordTones.push(candidate);
+                }
+              });
+            });
+            chordTones.sort((a, b) => Math.abs(a - prevDeg) - Math.abs(b - prevDeg));
+            const diffTones = chordTones.filter((c) => c !== prevDeg);
+            if (sameDegRun >= 2 && diffTones.length) {
+              currentDeg = diffTones[0];
+            } else if (diffTones.length && prevDeg === chordTones[0] && Math.random() < 0.65) {
+              currentDeg = diffTones[0];
+            } else if (chordTones.length) {
+              currentDeg = chordTones[0];
+            }
+          } else if (maxDeg > minDeg) {
+            if (prevDeg <= minDeg) dir = 1;
+            else if (prevDeg >= maxDeg) dir = -1;
+
             const roll = Math.random();
-            if (roll < 0.75) {
-              currentDeg += dir;
-              if (currentDeg > 6 || currentDeg < -2) dir *= -1;
-            } else if (roll < 0.95) {
-              currentDeg += dir * 2;
-              dir *= -1;
+            const mustMove = sameDegRun >= 2;
+            if (!mustMove && roll < 0.08) {
+              currentDeg = prevDeg;
+            } else {
+              let delta = dir;
+              if (roll >= 0.88 && prevDeg + dir * 3 >= minDeg && prevDeg + dir * 3 <= maxDeg) {
+                delta = dir * 3;
+                if (Math.random() < 0.6) dir *= -1;
+              } else if (roll >= 0.66 && prevDeg + dir * 2 >= minDeg && prevDeg + dir * 2 <= maxDeg) {
+                delta = dir * 2;
+                if (Math.random() < 0.45) dir *= -1;
+              } else if (prevDeg + dir < minDeg || prevDeg + dir > maxDeg) {
+                dir *= -1;
+                delta = dir;
+              }
+              currentDeg = clampDeg(prevDeg + delta);
+              if (currentDeg === prevDeg) {
+                dir *= -1;
+                currentDeg = clampDeg(prevDeg + dir);
+              }
             }
           }
+
+          sameDegRun = (m === 0 && idx === 0) ? 1 : (currentDeg === prevDeg ? sameDegRun + 1 : 1);
           notes.push([currentDeg, durId]);
         });
         bars.push(notes);
@@ -2064,13 +2117,17 @@
     const hasDotted8 = allowedRhythms.has("8d");
 
     function subdivideCell(cell, isFinalCell) {
-      if (isFinalCell) return null;
+      if (isFinalCell || maxDeg <= minDeg) return null;
       const deg = cell[0];
       const durId = cell[1];
+      const step1 = deg + 1 <= maxDeg ? 1 : (deg - 1 >= minDeg ? -1 : 0);
+      const step2 = deg + 2 <= maxDeg ? 1 : (deg - 2 >= minDeg ? -1 : step1);
+      if (!step1) return null;
 
       if (durId === "q") {
         if (hasTriplets && Math.random() < 0.35) {
-          const dir = Math.random() < 0.5 ? 1 : -1;
+          let dir = Math.random() < 0.5 ? 1 : -1;
+          if (deg + dir < minDeg || deg + dir > maxDeg) dir = step1;
           return [
             { deg: deg, dur: d("8t"), tuplet: "start" },
             { deg: deg + dir, dur: d("8t"), tuplet: null },
@@ -2082,19 +2139,19 @@
           if (hasDotted8 && r < 0.35) {
             return [
               { deg: deg, dur: d("8d"), tuplet: null },
-              { deg: deg + 1, dur: d("16"), tuplet: null },
+              { deg: deg + step1, dur: d("16"), tuplet: null },
             ];
-          } else if (r < 0.70) {
+          } else if (r < 0.70 && deg + step2 * 2 >= minDeg && deg + step2 * 2 <= maxDeg) {
             return [
               { deg: deg, dur: d("16"), tuplet: null },
-              { deg: deg + 1, dur: d("16"), tuplet: null },
-              { deg: deg + 2, dur: d("16"), tuplet: null },
-              { deg: deg + 1, dur: d("16"), tuplet: null },
+              { deg: deg + step2, dur: d("16"), tuplet: null },
+              { deg: deg + step2 * 2, dur: d("16"), tuplet: null },
+              { deg: deg + step2, dur: d("16"), tuplet: null },
             ];
           } else {
             return [
               { deg: deg, dur: d("16"), tuplet: null },
-              { deg: deg + 1, dur: d("16"), tuplet: null },
+              { deg: deg + step1, dur: d("16"), tuplet: null },
               { deg: deg, dur: d("8"), tuplet: null },
             ];
           }
@@ -2103,7 +2160,7 @@
         if (has16 && Math.random() < 0.28) {
           return [
             { deg: deg, dur: d("16"), tuplet: null },
-            { deg: deg + 1, dur: d("16"), tuplet: null },
+            { deg: deg + step1, dur: d("16"), tuplet: null },
           ];
         }
       }
