@@ -29,10 +29,13 @@
     { id: "Bm", name: "h-moll", vex: "Bm", tonic: 11, mode: "harmonic", fifths: 2, flats: false },
     { id: "F#m", name: "fiss-moll", vex: "F#m", tonic: 6, mode: "harmonic", fifths: 3, flats: false },
     { id: "C#m", name: "ciss-moll", vex: "C#m", tonic: 1, mode: "harmonic", fifths: 4, flats: false },
+    { id: "G#m", name: "giss-moll", vex: "G#m", tonic: 8, mode: "harmonic", fifths: 5, flats: false },
     { id: "Dm", name: "d-moll", vex: "Dm", tonic: 2, mode: "harmonic", fifths: -1, flats: true },
     { id: "Gm", name: "g-moll", vex: "Gm", tonic: 7, mode: "harmonic", fifths: -2, flats: true },
     { id: "Cm", name: "c-moll", vex: "Cm", tonic: 0, mode: "harmonic", fifths: -3, flats: true },
     { id: "Fm", name: "f-moll", vex: "Fm", tonic: 5, mode: "harmonic", fifths: -4, flats: true },
+    { id: "Bbm", name: "b-moll", vex: "Bbm", tonic: 10, mode: "harmonic", fifths: -5, flats: true },
+    { id: "Ebm", name: "ess-moll", vex: "Ebm", tonic: 3, mode: "harmonic", fifths: -6, flats: true },
   ];
 
   /* 96 ticks per whole note: 32nds and triplets share one grid. */
@@ -351,6 +354,9 @@
     Gm: "Am",
     Cm: "Dm",
     Fm: "Gm",
+    Bbm: "Cm",
+    Ebm: "Fm",
+    "G#m": "Bbm",
   };
 
   const TRUMPET_TO_CONCERT_KEY_MAP = {
@@ -366,7 +372,7 @@
     F: "Eb",
     Bb: "Ab",
     Eb: "Db",
-    Ab: "Db",
+    Ab: "F#",
     Db: "B",
     Bm: "Am",
     "F#m": "Em",
@@ -379,6 +385,8 @@
     Gm: "Fm",
     Cm: "Bbm",
     Fm: "Ebm",
+    Bbm: "G#m",
+    Ebm: "C#m",
   };
 
   function transposeTrumpetToConcert(trumpetKey) {

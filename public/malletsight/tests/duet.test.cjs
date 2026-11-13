@@ -397,7 +397,334 @@ test("Generator.generateDuet varies trumpet pitches and never stays on a single 
   }
 });
 
+test("Theory.transposeTrumpetToConcert transposes all 24 keys a major 2nd down in matching mode", () => {
+  const { Theory } = load(1);
+  assert.equal(Theory.KEYS.length, 24);
 
+  for (const k of Theory.KEYS) {
+    const concert = Theory.transposeTrumpetToConcert(k);
+    assert.ok(concert, `Expected concert key for ${k.id}`);
+    assert.ok(Theory.KEYS.some((entry) => entry.id === concert.id), `Concert key ${concert.id} must be in Theory.KEYS`);
+    assert.equal(concert.tonic, (k.tonic + 10) % 12, `Tonic mismatch for ${k.id} -> ${concert.id}`);
+    assert.equal(concert.mode, k.mode, `Mode mismatch for ${k.id} -> ${concert.id}`);
+  }
 
+  assert.equal(Theory.transposeTrumpetToConcert("Ab").id, "F#");
+  assert.equal(Theory.transposeTrumpetToConcert("Cm").id, "Bbm");
+  assert.equal(Theory.transposeTrumpetToConcert("Fm").id, "Ebm");
+  assert.equal(Theory.transposeTrumpetToConcert("Bbm").id, "G#m");
+  assert.equal(Theory.transposeTrumpetToConcert("Ebm").id, "C#m");
+});
 
+test("Generator.generateDuet keeps narrow trumpet range [60, 67] in high-tonic B major strictly diatonic", () => {
+  for (const style of ["harmony", "call_response", "melody_comp"]) {
+    for (let seed = 1; seed <= 10; seed++) {
+      const { Generator, Theory } = load(seed);
+      const duet = Generator.generateDuet(settings({
+        keyId: "B",
+        measures: 8,
+        style,
+        malletInstrument: "mar43",
+        duetRangeTptLow: 60,
+        duetRangeTptHigh: 67,
+        rhythms: ["h", "q", "8"],
+      }));
 
+      const tptPcs = new Set(Theory.scalePcs(duet.trumpetKey));
+      for (const m of duet.trumpetMeasures) {
+        for (const ev of m.events) {
+          if (ev.rest) continue;
+          for (const p of ev.pitches) {
+            assert.ok(p >= 60 && p <= 67, `${style} seed ${seed}: trumpet pitch ${p} out of [60, 67]`);
+            const pc = ((p % 12) + 12) % 12;
+            assert.ok(tptPcs.has(pc), `${style} seed ${seed}: trumpet pitch ${p} (pc=${pc}) not diatonic in ${duet.trumpetKey.id}`);
+          }
+        }
+      }
+    }
+  }
+});
+
+test("Generator.generateDuet melody_comp clamps mallet pitches to custom duetRangeMalletLow/High and concertKey scale", () => {
+  const cases = [
+    { inst: "mar50", low: 55, high: 72, writtenOff: 0 },
+    { inst: "xylo", low: 60, high: 74, writtenOff: -12 },
+  ];
+
+  for (const c of cases) {
+    for (const mCount of [2, 3, 4]) {
+      for (let seed = 1; seed <= 8; seed++) {
+        const { Generator, Theory } = load(seed + mCount * 100);
+        const duet = Generator.generateDuet(settings({
+          keyId: "Eb",
+          measures: 8,
+          style: "melody_comp",
+          malletInstrument: c.inst,
+          duetMallets: mCount,
+          duetAllowChords: true,
+          duetRangeMalletLow: c.low,
+          duetRangeMalletHigh: c.high,
+        }));
+
+        const malPcs = new Set(Theory.scalePcs(duet.key));
+        const soundLow = c.low - c.writtenOff;
+        const soundHigh = c.high - c.writtenOff;
+        for (const m of duet.malletMeasures) {
+          for (const ev of m.events) {
+            if (ev.rest) continue;
+            for (const p of ev.pitches) {
+              assert.ok(
+                p >= soundLow && p <= soundHigh,
+                `${c.inst} mallets=${mCount} seed ${seed}: sounding pitch ${p} outside [${soundLow}, ${soundHigh}]`
+              );
+              const pc = ((p % 12) + 12) % 12;
+              assert.ok(malPcs.has(pc), `${c.inst} seed ${seed}: mallet pitch ${p} (pc=${pc}) not diatonic in ${duet.key.id}`);
+            }
+          }
+        }
+      }
+    }
+  }
+});
+
+test("Generator.generateDuet strictly obeys rhythms: ['w'] and rhythms: ['q'] even in cadence bars", () => {
+  for (const style of ["harmony", "call_response", "melody_comp"]) {
+    for (const onlyDur of ["w", "q"]) {
+      for (let seed = 1; seed <= 5; seed++) {
+        const { Generator } = load(seed);
+        const duet = Generator.generateDuet(settings({
+          keyId: "C",
+          timeId: "4/4",
+          measures: 8,
+          style,
+          malletInstrument: "mar43",
+          rhythms: [onlyDur],
+        }));
+
+        duet.trumpetMeasures.forEach((m, idx) => {
+          m.events.forEach((ev) => {
+            assert.equal(
+              ev.dur.id,
+              onlyDur,
+              `${style} rhythms=[${onlyDur}] seed ${seed} bar ${idx + 1}: trumpet emitted ${ev.dur.id}`
+            );
+          });
+        });
+
+        if (style !== "melody_comp") {
+          duet.malletMeasures.forEach((m, idx) => {
+            m.events.forEach((ev) => {
+              assert.equal(
+                ev.dur.id,
+                onlyDur,
+                `${style} rhythms=[${onlyDur}] seed ${seed} bar ${idx + 1}: mallet emitted ${ev.dur.id}`
+              );
+            });
+          });
+        }
+      }
+    }
+  }
+});
+
+test("Generator.generateDuet produces exact time.ticks in every bar across all 8 meters and all 3 styles", () => {
+  const meters = ["4/4", "3/4", "2/4", "2/2", "6/8", "3/8", "5/8", "7/8"];
+  for (const timeId of meters) {
+    for (const style of ["harmony", "call_response", "melody_comp"]) {
+      const { Generator } = load(42);
+      const duet = Generator.generateDuet(settings({
+        keyId: "G",
+        timeId,
+        measures: 8,
+        style,
+        malletInstrument: "vibes",
+        duetMallets: 3,
+        duetAllowChords: true,
+        rhythms: ["h", "q", "8"],
+      }));
+
+      assert.equal(duet.time.id, timeId);
+      duet.trumpetMeasures.forEach((m, idx) => {
+        const sum = m.events.reduce((acc, ev) => acc + ev.dur.ticks, 0);
+        assert.equal(sum, duet.time.ticks, `${timeId} ${style} trumpet bar ${idx + 1}: ${sum} !== ${duet.time.ticks}`);
+      });
+      duet.malletMeasures.forEach((m, idx) => {
+        const sum = m.events.reduce((acc, ev) => acc + ev.dur.ticks, 0);
+        assert.equal(sum, duet.time.ticks, `${timeId} ${style} mallet bar ${idx + 1}: ${sum} !== ${duet.time.ticks}`);
+      });
+    }
+  }
+});
+
+test("Generator.generateDuet call_response 4-bar form gives mallet a solo/echo bar at m=1", () => {
+  for (let seed = 1; seed <= 10; seed++) {
+    const { Generator } = load(seed);
+    const duet = Generator.generateDuet(settings({
+      keyId: "F",
+      measures: 4,
+      style: "call_response",
+      malletInstrument: "mar43",
+    }));
+
+    assert.equal(duet.trumpetMeasures.length, 4);
+    assert.equal(duet.malletMeasures.length, 4);
+
+    // Bar 1 (m=0): Trumpet call, Mallet rests
+    assert.ok(duet.trumpetMeasures[0].events.some((e) => !e.rest), `seed ${seed}: trumpet active in bar 1`);
+    assert.ok(duet.malletMeasures[0].events.every((e) => e.rest), `seed ${seed}: mallet rests in bar 1`);
+
+    // Bar 2 (m=1): Mallet echo solo, Trumpet rests
+    assert.ok(duet.trumpetMeasures[1].events.every((e) => e.rest), `seed ${seed}: trumpet rests in bar 2`);
+    assert.ok(duet.malletMeasures[1].events.some((e) => !e.rest), `seed ${seed}: mallet active in bar 2`);
+
+    // Bar 3 (m=2): Trumpet call, Mallet rests
+    assert.ok(duet.trumpetMeasures[2].events.some((e) => !e.rest), `seed ${seed}: trumpet active in bar 3`);
+    assert.ok(duet.malletMeasures[2].events.every((e) => e.rest), `seed ${seed}: mallet rests in bar 3`);
+
+    // Bar 4 (m=3): Joint cadence
+    assert.ok(duet.trumpetMeasures[3].events.some((e) => !e.rest), `seed ${seed}: trumpet active in bar 4`);
+    assert.ok(duet.malletMeasures[3].events.some((e) => !e.rest), `seed ${seed}: mallet active in bar 4`);
+  }
+});
+
+test("Generator.generateDuet harmony style uses both 3rds and 6ths and reserves chords for phrase endings/cadences", () => {
+  let thirdCount = 0;
+  let sixthCount = 0;
+  let nonCadenceChords = 0;
+  let cadenceChords = 0;
+
+  for (let seed = 1; seed <= 20; seed++) {
+    const { Generator } = load(seed);
+    const duet = Generator.generateDuet(settings({
+      keyId: "C",
+      measures: 8,
+      style: "harmony",
+      malletInstrument: "mar50",
+      duetMallets: 3,
+      duetAllowChords: true,
+      rhythms: ["h", "q", "8"],
+    }));
+
+    for (let m = 0; m < duet.trumpetMeasures.length; m++) {
+      const tEvents = duet.trumpetMeasures[m].events;
+      const mEvents = duet.malletMeasures[m].events;
+      const isCadenceBar = m === 3 || m === 7;
+
+      // Check chords placement
+      for (const ev of mEvents) {
+        if (!ev.rest && ev.pitches && ev.pitches.length > 1) {
+          if (isCadenceBar) cadenceChords++;
+          else nonCadenceChords++;
+        }
+      }
+
+      // Match simultaneous attack ticks for single-note harmonic intervals
+      let tTick = 0;
+      const tByTick = new Map();
+      for (const ev of tEvents) {
+        if (!ev.rest && ev.pitches && ev.pitches.length) tByTick.set(tTick, ev.pitches[0] - 2);
+        tTick += ev.dur.ticks;
+      }
+      let mTick = 0;
+      for (const ev of mEvents) {
+        if (!ev.rest && ev.pitches && ev.pitches.length === 1 && tByTick.has(mTick)) {
+          const diff = Math.abs(ev.pitches[0] - tByTick.get(mTick)) % 12;
+          if (diff === 3 || diff === 4) thirdCount++;
+          else if (diff === 8 || diff === 9) sixthCount++;
+        }
+        mTick += ev.dur.ticks;
+      }
+    }
+  }
+
+  assert.ok(thirdCount > 0, `Expected 3rds in harmony style, got ${thirdCount}`);
+  assert.ok(sixthCount > 0, `Expected 6ths in harmony style, got ${sixthCount}`);
+  assert.ok(cadenceChords > 0, "Expected chords at phrase endings/cadences when duetAllowChords is true");
+  assert.equal(nonCadenceChords, 0, `Expected 0 chords in non-cadence bars in harmony style, got ${nonCadenceChords}`);
+});
+
+test("Generator.generateDuet shows melodic variation without bar-8 double-hits or multi-bar locks across 25 duets", () => {
+  const intervalSizes = new Set();
+
+  for (let seed = 1; seed <= 25; seed++) {
+    const style = ["harmony", "call_response", "melody_comp"][seed % 3];
+    const { Generator } = load(seed * 7);
+    const duet = Generator.generateDuet(settings({
+      keyId: "C",
+      timeId: "4/4",
+      measures: 8,
+      style,
+      malletInstrument: "mar43",
+      rhythms: ["h", "q", "8"],
+    }));
+
+    // No bar-8 penultimate-to-final identical pitch double-hit
+    const bar8Notes = duet.trumpetMeasures[7].events.filter((e) => !e.rest && e.pitches.length).map((e) => e.pitches[0]);
+    if (bar8Notes.length >= 2) {
+      assert.notEqual(
+        bar8Notes[bar8Notes.length - 2],
+        bar8Notes[bar8Notes.length - 1],
+        `seed ${seed} (${style}): bar 8 ended with double-hit on pitch ${bar8Notes[bar8Notes.length - 1]}`
+      );
+    }
+
+    // Collect melodic intervals and verify no multi-bar single-note lock
+    let prevPitch = null;
+    let curBarPitch = null;
+    let curBarRun = 0;
+    for (const m of duet.trumpetMeasures) {
+      const ps = m.events.filter((e) => !e.rest && e.pitches.length).map((e) => e.pitches[0]);
+      for (const p of ps) {
+        if (prevPitch !== null) intervalSizes.add(Math.abs(p - prevPitch));
+        prevPitch = p;
+      }
+      if (!ps.length) continue;
+      const uniq = [...new Set(ps)];
+      if (uniq.length === 1 && (curBarPitch === null || curBarPitch === uniq[0])) {
+        curBarPitch = uniq[0];
+        curBarRun++;
+      } else {
+        curBarPitch = uniq.length === 1 ? uniq[0] : null;
+        curBarRun = uniq.length === 1 ? 1 : 0;
+      }
+      assert.ok(curBarRun <= 1, `seed ${seed} (${style}): trumpet locked on pitch ${curBarPitch} for ${curBarRun} bars`);
+    }
+  }
+
+  assert.ok(intervalSizes.size >= 4, `Expected at least 4 distinct melodic interval sizes, got ${intervalSizes.size}`);
+});
+
+test("ScoreRenderer.duetToAbc produces zero ABCJS.parseOnly warnings across all 3 styles and all view parts", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const vm = require("node:vm");
+  const abcjsCode = fs.readFileSync(path.join(__dirname, "..", "abcjs.js"), "utf8");
+  const abcCtx = vm.createContext({ window: {} });
+  abcCtx.window = abcCtx;
+  vm.runInContext(abcjsCode, abcCtx);
+  const ABCJS = abcCtx.window.ABCJS;
+
+  for (const keyId of ["D", "Eb"]) {
+    for (const style of ["harmony", "call_response", "melody_comp"]) {
+      const { Generator, ScoreRenderer } = load(2026);
+      const duet = Generator.generateDuet(settings({
+        keyId,
+        measures: 8,
+        style,
+        malletInstrument: "mar50",
+        duetMallets: 3,
+        duetAllowChords: true,
+      }));
+
+      for (const viewPart of ["score", "trumpet", "mallets"]) {
+        const abc = ScoreRenderer.duetToAbc(duet, { viewPart });
+        const parsed = ABCJS.parseOnly(abc);
+        assert.equal(
+          parsed[0].warnings,
+          undefined,
+          `ABCJS.parseOnly warnings for key=${keyId}, style=${style}, viewPart=${viewPart}: ${JSON.stringify(parsed[0].warnings)}`
+        );
+      }
+    }
+  }
+});

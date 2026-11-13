@@ -993,7 +993,11 @@
     settings.keyIndex = keyStep;
     try {
       if (settings.duetEnabled) {
-        currentScore = Generator.generateDuet(settings);
+        const lvlIdx = levelIndex();
+        const duetLevel = lvlIdx >= 0
+          ? lvlIdx + 1
+          : Math.max(1, Math.min(10, (Number(settings.rhythmDensity) || 2) * 2));
+        currentScore = Generator.generateDuet(Object.assign({}, settings, { level: duetLevel }));
         if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
           AudioEngine.loadInstrument("trumpet");
           AudioEngine.loadInstrument(settings.duetMalletInstrument || "xylo");
@@ -1210,7 +1214,7 @@
       $("#duetAllowChords").addEventListener("change", () => {
         settings.duetAllowChords = $("#duetAllowChords").checked;
         saveSettings();
-        generateAndRender(true);
+        if (settings.duetEnabled) generate();
       });
     }
 

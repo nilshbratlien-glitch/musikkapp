@@ -251,7 +251,6 @@
   function duetToAbc(score, options) {
     options = options || {};
     const malletInst = T.INSTRUMENTS.find((i) => i.id === score.malletInstrumentId) || T.INSTRUMENTS.find((i) => i.id === "xylo");
-    const malletOff = malletInst && malletInst.writtenOff ? malletInst.writtenOff : 0;
     const viewPart = options.viewPart || "score"; // "score" | "trumpet" | "mallets"
 
     const styleName =
@@ -462,7 +461,7 @@
     const abc = scoreToAbc(score, Object.assign({}, options, { staffWidth: Math.max(240, pageW - 36) }));
     const pageWUsed = Math.max(240, pageW - 36);
     const scale = Math.max(0.75, Math.min(1.8, options.zoom || 1));
-    const manualLines = abc.indexOf("%%linebreak") >= 0;
+    const manualLines = Boolean(score && score.isDuet) || abc.indexOf("%%linebreak") >= 0;
     try {
       const rendered = ABCJS.renderAbc(wrap, abc, {
         scale: scale,
