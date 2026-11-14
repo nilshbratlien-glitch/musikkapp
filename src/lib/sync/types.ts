@@ -19,6 +19,7 @@ export type SyncPayload =
       sub: number;
       durationSec: number;
       endsAt: number;
+      remainMs?: number;
     }
   | {
       type: "PLAN_ARM";
@@ -31,7 +32,7 @@ export type SyncPayload =
       chime?: boolean;
     }
   | { type: "PLAN_PAUSE"; remainMs: number }
-  | { type: "PLAN_RESUME"; endsAt: number }
+  | { type: "PLAN_RESUME"; endsAt: number; remainMs?: number }
   | { type: "PLAN_STOP"; chime?: boolean }
   | { type: "PLAN_NAVIGATE"; to: string }
   // Metronome events

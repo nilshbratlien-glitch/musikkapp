@@ -309,6 +309,7 @@ export function initSyncBridge() {
           payload.beats,
           payload.sub,
           payload.endsAt,
+          payload.remainMs,
         );
         const to = blockTool(payload.blockId as BlockId) ?? "/oveplan";
         if (routerNavigate) {
@@ -350,7 +351,7 @@ export function initSyncBridge() {
       }
 
       case "PLAN_RESUME": {
-        resumeBlockRemote(payload.endsAt);
+        resumeBlockRemote(payload.endsAt, payload.remainMs);
         break;
       }
 
@@ -430,6 +431,7 @@ export function syncPlanStart(
     sub,
     durationSec,
     endsAt,
+    remainMs: Math.max(0, endsAt - Date.now()),
   });
 }
 
@@ -471,6 +473,7 @@ export function syncPlanResume(endsAt: number) {
   broadcastSync({
     type: "PLAN_RESUME",
     endsAt,
+    remainMs: Math.max(0, endsAt - Date.now()),
   });
 }
 
