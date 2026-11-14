@@ -20,7 +20,17 @@ export type BlockId = (typeof BLOCKS)[number]["id"];
 
 export type PlanItem = { id: BlockId; on: boolean; mins: number; skipped: boolean };
 
-export type PlanPreset = { id: string; name: string; blocks: { id: BlockId; mins: number }[] };
+export type PlanPreset = { id: string; name: string; duet?: boolean; blocks: { id: BlockId; mins: number }[] };
+
+export const SAMSPILL_DUET_PRESET: PlanPreset = {
+  id: "samspill-duett",
+  name: "Samspill / Duett 15 min",
+  duet: true,
+  blocks: [
+    { id: "srf", mins: 10 },
+    { id: "rep", mins: 5 },
+  ],
+};
 
 export type PlanLog = {
   t: number;
@@ -257,19 +267,40 @@ export function applyPreset(preset: PlanPreset, profile: InstrumentProfile = get
   }));
 }
 
+function clonePreset(p: PlanPreset): PlanPreset {
+  return {
+    id: p.id,
+    name: p.name,
+    ...(p.duet ? { duet: true } : {}),
+    blocks: p.blocks.map((b) => ({ ...b })),
+  };
+}
+
+export function enableBladlesingDuet(enabled = true, profile: InstrumentProfile = getProfile()) {
+  const key = profile === "trumpet" ? "musikkapp.trumpet.bladlesing" : "musikkapp.bladlesing";
+  try {
+    if (typeof globalThis.localStorage !== "undefined") {
+      const raw = globalThis.localStorage.getItem(key);
+      const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      const next = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? { ...parsed, duetEnabled: enabled } : { duetEnabled: enabled };
+      globalThis.localStorage.setItem(key, JSON.stringify(next));
+    }
+  } catch {
+    /* best effort */
+  }
+  if (typeof window !== "undefined") {
+    const ms = window.MalletSight as { setDuetEnabled?: (on: boolean) => boolean } | undefined;
+    ms?.setDuetEnabled?.(enabled);
+  }
+}
+
 export function emptyPlanStore(profile: InstrumentProfile = getProfile()): PlanStore {
+  const defaults = profile === "trumpet" ? [...TRUMPET_DEFAULT_PRESETS, SAMSPILL_DUET_PRESET] : [SAMSPILL_DUET_PRESET];
   return {
     items: ensureItems([], profile),
     done: [],
     log: [],
-    presets:
-      profile === "trumpet"
-        ? TRUMPET_DEFAULT_PRESETS.map((p) => ({
-            id: p.id,
-            name: p.name,
-            blocks: p.blocks.map((b) => ({ ...b })),
-          }))
-        : [],
+    presets: defaults.map(clonePreset),
     sessionDate: "",
     bpmMap: {},
     bpm: 80,
@@ -303,7 +334,7 @@ export function parsePlanStore(raw: unknown, profile: InstrumentProfile = getPro
         if (!isBlockId(item.id) || typeof item.mins !== "number") return [];
         return [{ id: item.id, mins: item.mins }];
       });
-      return [{ id: row.id, name: row.name, blocks }];
+      return [{ id: row.id, name: row.name, ...(row.duet ? { duet: true } : {}), blocks }];
     });
   }
   if (typeof record.sessionDate === "string") base.sessionDate = record.sessionDate;

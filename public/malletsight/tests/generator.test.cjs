@@ -118,3 +118,28 @@ test("legato generates slurred groups of 2-4 notes and renders ABC slur parenthe
   assert.ok(abc.includes("("), "ABC output must include slur open parenthesis");
   assert.ok(abc.includes(")"), "ABC output must include slur close parenthesis");
 });
+
+test("Generator.generate supports deterministic rawSettings.seed without mocking Math.random", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const vm = require("node:vm");
+  const root = path.join(__dirname, "..");
+  const ctx = vm.createContext({ Math });
+  ctx.window = ctx;
+  for (const file of ["theory.js", "generator.js", "renderer.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), ctx, { filename: file });
+  }
+
+  const base = settings({ ...levels[6], timeId: "random", legato: true, dynamics: true });
+  const a1 = ctx.Generator.generate({ ...base, seed: 42 });
+  const a2 = ctx.Generator.generate({ ...base, seed: 42 });
+  const b = ctx.Generator.generate({ ...base, seed: 43 });
+
+  assert.equal(a1.settingsSnapshot.seed, 42);
+  assert.equal(JSON.stringify(a1), JSON.stringify(a2));
+  assert.notEqual(JSON.stringify(a1), JSON.stringify(b));
+
+  const noSeed = ctx.Generator.generate(base);
+  assert.equal(noSeed.settingsSnapshot.seed, undefined);
+});
+

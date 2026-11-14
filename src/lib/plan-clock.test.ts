@@ -275,4 +275,30 @@ describe("plan clock on the pulse core", () => {
     assert.deepEqual(events, []);
     planClock.setPlanBroadcastHook({});
   });
+
+  it("syncRemainRemote ignores drift <= 1500ms and re-anchors when drift > 1500ms", () => {
+    planClock.ensurePlanClock();
+    const startNow = Date.now();
+    planClock.beginBlockRemote("srf", 5, 80, 4, 1, startNow + 300_000, 300_000);
+    const clock = planClock.getPlanClock();
+    const initialEndsAt = clock.blockEndsAt;
+
+    // Small drift (800ms) -> should not re-anchor
+    planClock.syncRemainRemote("srf", 299_200);
+    assert.equal(clock.blockEndsAt, initialEndsAt);
+
+    // Mismatched blockId -> should not re-anchor
+    planClock.syncRemainRemote("rep", 120_000);
+    assert.equal(clock.blockEndsAt, initialEndsAt);
+
+    // Large drift (5000ms) -> should re-anchor
+    planClock.syncRemainRemote("srf", 295_000);
+    assert.equal(clock.blockEndsAt, Date.now() + 295_000);
+    assert.equal(clock.blockLeft, 295);
+
+    // Paused -> should not re-anchor
+    planClock.pauseBlockRemote(295_000);
+    planClock.syncRemainRemote("srf", 200_000);
+    assert.equal(clock.blockLeft, 295);
+  });
 });

@@ -728,3 +728,135 @@ test("ScoreRenderer.duetToAbc produces zero ABCJS.parseOnly warnings across all 
     }
   }
 });
+
+test("Generator.generateDuet supports deterministic rawSettings.seed across all 3 styles without mocking Math.random", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const vm = require("node:vm");
+  const root = path.join(__dirname, "..");
+  const ctx = vm.createContext({ Math });
+  ctx.window = ctx;
+  for (const file of ["theory.js", "generator.js", "renderer.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), ctx, { filename: file });
+  }
+
+  for (const style of ["harmony", "call_response", "melody_comp"]) {
+    const base = settings({
+      keyId: "F",
+      timeId: "random",
+      measures: 8,
+      style,
+      malletInstrument: "mar50",
+      duetMallets: 3,
+      duetAllowChords: true,
+      legato: true,
+      dynamics: true,
+    });
+    const a1 = ctx.Generator.generateDuet({ ...base, seed: 1337 });
+    const a2 = ctx.Generator.generateDuet({ ...base, seed: 1337 });
+    const b = ctx.Generator.generateDuet({ ...base, seed: 1338 });
+
+    assert.equal(a1.settingsSnapshot.seed, 1337);
+    assert.equal(JSON.stringify(a1), JSON.stringify(a2), `${style}: identical seed should produce identical duet`);
+    assert.notEqual(JSON.stringify(a1), JSON.stringify(b), `${style}: different seeds should produce different duets`);
+  }
+});
+
+test("Generator.generateDuet harmony counterpoint splits long notes into passing tones while preserving invariants", () => {
+  let splitBars = 0;
+  let nonCadenceChords = 0;
+  let thirdCount = 0;
+  let sixthCount = 0;
+
+  for (let seed = 1; seed <= 25; seed++) {
+    const { Generator } = load(seed);
+    const duet = Generator.generateDuet(settings({
+      keyId: "C",
+      timeId: "4/4",
+      measures: 8,
+      style: "harmony",
+      malletInstrument: "mar50",
+      duetMallets: 3,
+      duetAllowChords: true,
+      rhythms: ["w", "h", "q"],
+      allowRests: true,
+    }));
+
+    for (let m = 0; m < duet.trumpetMeasures.length; m++) {
+      const tEvents = duet.trumpetMeasures[m].events;
+      const mEvents = duet.malletMeasures[m].events;
+      const isCadenceBar = m === 3 || m === 7;
+
+      const tSum = tEvents.reduce((acc, ev) => acc + ev.dur.ticks, 0);
+      const mSum = mEvents.reduce((acc, ev) => acc + ev.dur.ticks, 0);
+      assert.equal(tSum, duet.time.ticks);
+      assert.equal(mSum, duet.time.ticks);
+
+      if (mEvents.length > tEvents.length) splitBars++;
+
+      for (const ev of mEvents) {
+        assert.ok(["w", "h", "q"].includes(ev.dur.id), `seed ${seed} bar ${m + 1}: unexpected dur ${ev.dur.id}`);
+        if (!ev.rest && ev.pitches && ev.pitches.length > 1 && !isCadenceBar) {
+          nonCadenceChords++;
+        }
+      }
+
+      let tTick = 0;
+      const tByTick = new Map();
+      for (const ev of tEvents) {
+        if (!ev.rest && ev.pitches && ev.pitches.length) tByTick.set(tTick, ev.pitches[0] - 2);
+        tTick += ev.dur.ticks;
+      }
+      let mTick = 0;
+      for (const ev of mEvents) {
+        if (!ev.rest && ev.pitches && ev.pitches.length === 1 && tByTick.has(mTick)) {
+          const diff = Math.abs(ev.pitches[0] - tByTick.get(mTick)) % 12;
+          if (diff === 3 || diff === 4) thirdCount++;
+          else if (diff === 8 || diff === 9) sixthCount++;
+        }
+        mTick += ev.dur.ticks;
+      }
+    }
+
+    // Final bar's last note must stay on concert tonic (Bb for trumpet C)
+    const lastBar = duet.malletMeasures[duet.malletMeasures.length - 1];
+    const lastEv = lastBar.events[lastBar.events.length - 1];
+    assert.equal(lastEv.rest, false);
+    assert.ok(lastEv.pitches.some((p) => ((p % 12) + 12) % 12 === duet.key.tonic));
+  }
+
+  assert.ok(splitBars > 0, `Expected harmony counterpoint to split at least one long-note bar, got ${splitBars}`);
+  assert.equal(nonCadenceChords, 0, `Expected 0 non-cadence chords, got ${nonCadenceChords}`);
+  assert.ok(thirdCount > 0, `Expected 3rds on downbeats, got ${thirdCount}`);
+  assert.ok(sixthCount > 0, `Expected 6ths on downbeats, got ${sixthCount}`);
+});
+
+test("Generator.generateDuet clamps and octave-folds mallet pitches in narrow custom range", () => {
+  for (const style of ["harmony", "call_response", "melody_comp"]) {
+    for (let seed = 1; seed <= 10; seed++) {
+      const { Generator, Theory } = load(seed);
+      const duet = Generator.generateDuet(settings({
+        keyId: "Db",
+        measures: 8,
+        style,
+        malletInstrument: "mar50",
+        duetMallets: 3,
+        duetAllowChords: true,
+        duetRangeMalletLow: 60,
+        duetRangeMalletHigh: 67,
+        rhythms: ["h", "q"],
+      }));
+      const pcs = new Set(Theory.scalePcs(duet.key));
+      for (const m of duet.malletMeasures) {
+        for (const ev of m.events) {
+          if (ev.rest) continue;
+          for (const p of ev.pitches) {
+            assert.ok(p >= 60 && p <= 67, `${style} seed ${seed}: pitch ${p} outside [60, 67]`);
+            assert.ok(pcs.has(((p % 12) + 12) % 12), `${style} seed ${seed}: pitch ${p} not diatonic`);
+          }
+        }
+      }
+    }
+  }
+});
+

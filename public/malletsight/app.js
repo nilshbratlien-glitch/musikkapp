@@ -32,6 +32,7 @@
     clef: "auto",
     keyId: "C",
     keyIds: ["C"],
+    keyIndex: 0,
     keyFilter: "all",
     timeId: "4/4",
     measures: 8,
@@ -96,10 +97,28 @@
 
   let settings = loadSettings();
   let currentScore = null;
+  let currentSeed = null;
   let currentVisual = null;
   let beatMap = [];
   let practiceBeat = 0;
   let metroBeforePlay = false;
+
+  const LOCAL_ONLY_SETTING_KEYS = new Set([
+    "duetViewPart",
+    "duetPlayTrumpet",
+    "duetPlayMallets",
+    "zoom",
+  ]);
+
+  function compactSyncSettings() {
+    const out = {};
+    for (const key of Object.keys(settings)) {
+      if (!LOCAL_ONLY_SETTING_KEYS.has(key)) {
+        out[key] = settings[key];
+      }
+    }
+    return out;
+  }
 
   function migrateKeyIds(keyId) {
     if (!keyId || keyId === "random") return T.KEYS.map((k) => k.id);
@@ -991,6 +1010,14 @@
           btnMal.classList.toggle("active", settings.duetPlayMallets !== false);
           btnMal.classList.toggle("muted", settings.duetPlayMallets === false);
         }
+        const btnPairView = $("#btnDuetPairView");
+        if (btnPairView) {
+          const isCtrl = Boolean(window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController());
+          btnPairView.hidden = !isCtrl;
+          if (isCtrl) {
+            btnPairView.classList.toggle("active", Boolean(window.MusikkSync.isDuetViewPaired && window.MusikkSync.isDuetViewPaired()));
+          }
+        }
       }
     }
     const btnDuetToggle = $("#btnDuetToggle");
@@ -999,31 +1026,44 @@
     }
   }
 
-  function generate() {
+  function generate(seedOverride) {
     readInputs();
     applyInstrumentRange(false);
-    resetKeyStepIfNeeded();
-    settings.keyIndex = keyStep;
+    if (!remoteCall) {
+      resetKeyStepIfNeeded();
+      settings.keyIndex = keyStep;
+    } else if (typeof settings.keyIndex === "number" && Number.isFinite(settings.keyIndex)) {
+      keyStep = settings.keyIndex;
+      keyStepFor = selectionToken();
+    }
+    const seed = remoteCall && typeof seedOverride === "number" && Number.isFinite(seedOverride)
+      ? (seedOverride >>> 0)
+      : ((Math.random() * 0xffffffff) >>> 0);
+    currentSeed = seed;
     try {
       if (settings.duetEnabled) {
         const lvlIdx = levelIndex();
         const duetLevel = lvlIdx >= 0
           ? lvlIdx + 1
           : Math.max(1, Math.min(10, (Number(settings.rhythmDensity) || 2) * 2));
-        currentScore = Generator.generateDuet(Object.assign({}, settings, { level: duetLevel }));
+        currentScore = Generator.generateDuet(Object.assign({}, settings, { level: duetLevel, seed }));
         if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
           AudioEngine.loadInstrument("trumpet");
           AudioEngine.loadInstrument(settings.duetMalletInstrument || "xylo");
         }
       } else {
-        currentScore = Generator.generate(settings);
+        currentScore = Generator.generate(Object.assign({}, settings, { seed }));
       }
       const n = selectedKeysInCircle().length;
       if (n > 1) keyStep = (keyStep + 1) % n;
       if ($("#keyModeHint")) $("#keyModeHint").textContent = keyModeText();
       paintScore();
-      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController() && window.MusikkSync.sightScore && currentScore) {
-        window.MusikkSync.sightScore(currentScore, settings.tempo);
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController() && currentScore) {
+        if (window.MusikkSync.sightSeed) {
+          window.MusikkSync.sightSeed(seed, compactSyncSettings(), settings.tempo);
+        } else if (window.MusikkSync.sightScore) {
+          window.MusikkSync.sightScore(currentScore, settings.tempo);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -1144,7 +1184,7 @@
     });
     function generateFresh() {
       openSettings(false);
-      requestAnimationFrame(() => requestAnimationFrame(generate));
+      requestAnimationFrame(() => requestAnimationFrame(() => generate()));
     }
     $("#btnGenerate").addEventListener("click", generateFresh);
     $("#btnLevelDown").addEventListener("click", () => stepLevel(-1));
@@ -1267,6 +1307,9 @@
         settings.duetViewPart = $("#duetViewSelect").value;
         saveSettings();
         if (currentScore && currentScore.isDuet) paintScore();
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController() && window.MusikkSync.isDuetViewPaired && window.MusikkSync.isDuetViewPaired() && window.MusikkSync.sightDuetView) {
+          window.MusikkSync.sightDuetView(settings.duetViewPart);
+        }
       });
     }
     $all("[data-duet-view]").forEach((btn) => {
@@ -1275,8 +1318,19 @@
         if ($("#duetViewSelect")) $("#duetViewSelect").value = settings.duetViewPart;
         saveSettings();
         if (currentScore && currentScore.isDuet) paintScore();
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController() && window.MusikkSync.isDuetViewPaired && window.MusikkSync.isDuetViewPaired() && window.MusikkSync.sightDuetView) {
+          window.MusikkSync.sightDuetView(settings.duetViewPart);
+        }
       });
     });
+    if ($("#btnDuetPairView")) {
+      $("#btnDuetPairView").addEventListener("click", () => {
+        if (!window.MusikkSync || typeof window.MusikkSync.setDuetViewPaired !== "function") return;
+        const next = !(window.MusikkSync.isDuetViewPaired && window.MusikkSync.isDuetViewPaired());
+        window.MusikkSync.setDuetViewPaired(next);
+        $("#btnDuetPairView").classList.toggle("active", next);
+      });
+    }
     if ($("#btnMuteTrumpet")) {
       $("#btnMuteTrumpet").addEventListener("click", () => {
         settings.duetPlayTrumpet = settings.duetPlayTrumpet === false;
@@ -1636,8 +1690,64 @@
     getScore() {
       return currentScore || null;
     },
+    getSeed() {
+      return currentSeed;
+    },
+    getSyncSettings() {
+      return compactSyncSettings();
+    },
     getTempo() {
       return settings.tempo;
+    },
+    getDuetViewPart() {
+      return settings.duetViewPart || "score";
+    },
+    setDuetViewPart(part) {
+      if (part !== "score" && part !== "trumpet" && part !== "mallets") return false;
+      settings.duetViewPart = part;
+      if ($("#duetViewSelect")) $("#duetViewSelect").value = part;
+      saveSettings();
+      if (wired && currentScore && currentScore.isDuet) paintScore();
+      return true;
+    },
+    setDuetEnabled(enabled) {
+      settings.duetEnabled = Boolean(enabled);
+      if ($("#duetEnabled")) $("#duetEnabled").checked = settings.duetEnabled;
+      if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
+      saveSettings();
+      if (wired && (!currentScore || Boolean(currentScore.isDuet) !== settings.duetEnabled)) {
+        generate();
+      }
+      return true;
+    },
+    applySeed(payload) {
+      if (!wired || !payload || typeof payload.seed !== "number" || !Number.isFinite(payload.seed)) return false;
+      remoteCall = true;
+      try {
+        openSettings(false);
+        if (payload.settings && typeof payload.settings === "object") {
+          for (const key of Object.keys(payload.settings)) {
+            if (!LOCAL_ONLY_SETTING_KEYS.has(key) && key in settings) {
+              settings[key] = payload.settings[key];
+            }
+          }
+          if (typeof payload.settings.keyIndex === "number" && Number.isFinite(payload.settings.keyIndex)) {
+            settings.keyIndex = payload.settings.keyIndex;
+          }
+        }
+        if (typeof payload.tempo === "number" && Number.isFinite(payload.tempo)) {
+          const clamped = Math.max(40, Math.min(160, Math.round(payload.tempo)));
+          settings.tempo = clamped;
+          if ($("#tempo")) $("#tempo").value = String(clamped);
+          if ($("#tempoVal")) $("#tempoVal").textContent = String(clamped);
+          if ($("#tempoRead")) $("#tempoRead").textContent = String(clamped);
+        }
+        bindUI();
+        generate(payload.seed);
+      } finally {
+        remoteCall = false;
+      }
+      return true;
     },
     applyScore(score, tempo) {
       if (!wired || !score) return false;
@@ -1645,6 +1755,7 @@
       try {
         openSettings(false);
         currentScore = score;
+        if (typeof score.seed === "number") currentSeed = score.seed;
         settings.duetEnabled = Boolean(score.isDuet);
         if ($("#duetEnabled")) $("#duetEnabled").checked = settings.duetEnabled;
         if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);

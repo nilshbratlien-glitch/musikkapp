@@ -187,6 +187,47 @@ describe("plan-clock sync transitions", () => {
 
     stopPlanRemote();
   });
+
+  it("handles PLAN_HEARTBEAT drift correction via syncRemainRemote", async () => {
+    const { beginBlockRemote, stopPlanRemote, syncRemainRemote, getPlanClock } = await import("../plan-clock.ts");
+    const clock = getPlanClock();
+    beginBlockRemote("srf", 10, 80, 4, 1, Date.now() + 600_000, 600_000);
+
+    // Drift <= 1500ms is ignored
+    const anchored = clock.blockEndsAt;
+    syncRemainRemote("srf", 599_000);
+    assert.equal(clock.blockEndsAt, anchored);
+
+    // Drift > 1500ms re-anchors blockEndsAt
+    syncRemainRemote("srf", 590_000);
+    assert.equal(clock.blockLeft, 590);
+
+    stopPlanRemote();
+  });
+
+  it("supports compact SIGHT_SET seed payload and SIGHT_DUET_VIEW in SyncPayload", async () => {
+    const sightSet: import("./types.ts").SyncPayload = {
+      type: "SIGHT_SET",
+      seed: 0x1234abcd,
+      settings: { instrumentId: "mar50", duetEnabled: true, level: 3 },
+      tempo: 84,
+    };
+    const duetView: import("./types.ts").SyncPayload = {
+      type: "SIGHT_DUET_VIEW",
+      duetViewPart: "trumpet",
+    };
+    const heartbeat: import("./types.ts").SyncPayload = {
+      type: "PLAN_HEARTBEAT",
+      blockId: "srf",
+      remainMs: 420_000,
+    };
+
+    assert.equal(sightSet.type, "SIGHT_SET");
+    assert.equal(sightSet.seed, 0x1234abcd);
+    assert.equal(sightSet.score, undefined);
+    assert.equal(duetView.duetViewPart, "trumpet");
+    assert.equal(heartbeat.remainMs, 420_000);
+  });
 });
 
 

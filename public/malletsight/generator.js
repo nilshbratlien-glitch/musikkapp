@@ -10,6 +10,188 @@
     return d.ticks * (d.group || 1);
   }
 
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function hasNumericSeed(seed) {
+    return seed != null && seed !== "" && typeof seed !== "boolean" && Number.isFinite(Number(seed));
+  }
+
+  function makeRng(seed) {
+    return hasNumericSeed(seed) ? mulberry32(Number(seed) >>> 0) : () => Math.random();
+  }
+
+  function pick(arr, rng) {
+    const fn = rng || Math.random;
+    return arr[Math.floor(fn() * arr.length)];
+  }
+
+  function weightedPick(items, weightFn, rng) {
+    const fn = rng || Math.random;
+    let total = 0;
+    const weights = items.map((it) => {
+      const w = Math.max(0, weightFn(it));
+      total += w;
+      return w;
+    });
+    if (total <= 0) return pick(items, fn);
+    let r = fn() * total;
+    for (let i = 0; i < items.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return items[i];
+    }
+    return items[items.length - 1];
+  }
+
+  function scalePitchAt(scale, idx) {
+    if (!scale || !scale.length) return 60;
+    return scale[Math.max(0, Math.min(scale.length - 1, idx))];
+  }
+
+  function fitOctaveInRange(midi, low, high) {
+    let p = midi;
+    while (p < low && p + 12 <= high) p += 12;
+    while (p > high && p - 12 >= low) p -= 12;
+    return p;
+  }
+
+  function snapPitchToScale(scaleSlice, targetMidi, low, high) {
+    if (scaleSlice && scaleSlice.length) return T.nearestIn(scaleSlice, targetMidi);
+    return T.clamp(targetMidi, low, high);
+  }
+
+  function resolveTimeSignature(rawSettings, allowedIds, rng) {
+    if (rawSettings && rawSettings.timeId === "random") {
+      const pool = allowedIds && allowedIds.length
+        ? T.TIMES.filter((t) => allowedIds.includes(t.id))
+        : T.TIMES;
+      return pick(pool.length ? pool : T.TIMES, rng);
+    }
+    return T.TIMES.find((t) => t.id === (rawSettings && rawSettings.timeId)) || T.TIMES[0];
+  }
+
+  function isPhraseCadenceBar(m, numMeasures) {
+    return (m + 1) % 4 === 0 || m === numMeasures - 1;
+  }
+
+  function buildDiatonicChordVoicing(opts) {
+    const {
+      scale,
+      tIdx,
+      chord,
+      malletCount,
+      allowChords,
+      malletLow,
+      malletHigh,
+      malletScale,
+      isHighPercussion,
+      malletInstId,
+      basePitch,
+      bassPitch,
+      upperPitches,
+    } = opts;
+    const snap = (p) => snapPitchToScale(malletScale, p, malletLow, malletHigh);
+    const safeBase = snap(basePitch != null ? basePitch : (bassPitch != null ? bassPitch : malletLow));
+    if (!allowChords || malletCount < 2) {
+      return { pitches: [safeBase], mallets: [1] };
+    }
+
+    let rPitch = scalePitchAt(scale, tIdx + chord.rootDeg);
+    let tPitch = scalePitchAt(scale, tIdx + chord.thirdDeg);
+    let fPitch = scalePitchAt(scale, tIdx + chord.fifthDeg);
+
+    if (isHighPercussion) {
+      const add = malletInstId === "glock" ? 24 : 12;
+      rPitch += add;
+      tPitch += add;
+      fPitch += add;
+    } else {
+      while (rPitch - 12 >= malletLow) rPitch -= 12;
+      while (tPitch - 12 >= malletLow && tPitch > malletHigh) tPitch -= 12;
+      while (fPitch - 12 >= malletLow && fPitch > malletHigh) fPitch -= 12;
+    }
+    rPitch = snap(fitOctaveInRange(rPitch, malletLow, malletHigh));
+    tPitch = snap(fitOctaveInRange(tPitch, malletLow, malletHigh));
+    fPitch = snap(fitOctaveInRange(fPitch, malletLow, malletHigh));
+
+    if (bassPitch != null && Array.isArray(upperPitches)) {
+      const anchor = snap(bassPitch);
+      if (malletCount === 2) {
+        return buildDiatonicChordVoicing({
+          scale, tIdx, chord, malletCount: 2, allowChords, malletLow, malletHigh,
+          malletScale, isHighPercussion, malletInstId, basePitch: anchor,
+        });
+      }
+      if (malletCount === 3) {
+        let triad = [...new Set([anchor, ...upperPitches])].sort((a, b) => a - b);
+        if (triad.length < 3 && tPitch !== anchor) triad.push(tPitch);
+        triad = [...new Set(triad)].sort((a, b) => a - b).slice(0, 3);
+        return { pitches: triad, mallets: [1, 2, 3].slice(0, triad.length) };
+      }
+      const oct = anchor + 12 <= malletHigh ? snap(anchor + 12) : snap(malletHigh);
+      const quad = [...new Set([anchor, ...upperPitches, fPitch, tPitch, oct])]
+        .sort((a, b) => a - b)
+        .slice(0, 4);
+      return { pitches: quad, mallets: [1, 2, 3, 4].slice(0, quad.length) };
+    }
+
+    if (malletCount === 2) {
+      let upper = (tPitch !== rPitch && Math.abs(tPitch - rPitch) >= 3 && Math.abs(tPitch - rPitch) <= 16)
+        ? tPitch
+        : fPitch;
+      if (upper === rPitch || Math.abs(upper - rPitch) < 3) {
+        upper = (rPitch + 7 <= malletHigh)
+          ? snap(rPitch + 7)
+          : (rPitch + 4 <= malletHigh ? snap(rPitch + 4) : safeBase);
+      }
+      upper = snap(upper);
+      const pitches = [...new Set([rPitch, upper])].sort((a, b) => a - b);
+      if (pitches.length === 1 && pitches[0] + 7 <= malletHigh) {
+        const fifthUp = snap(pitches[0] + 7);
+        if (fifthUp !== pitches[0]) pitches.push(fifthUp);
+      }
+      pitches.sort((a, b) => a - b);
+      return {
+        pitches: pitches.length ? pitches : [safeBase],
+        mallets: pitches.length >= 2 ? [1, 2] : [1],
+      };
+    }
+
+    if (malletCount === 3) {
+      let triad = [...new Set([rPitch, tPitch, fPitch])].filter((p) => p >= malletLow && p <= malletHigh).sort((a, b) => a - b);
+      if (triad.length < 3 && triad.length > 0 && triad[0] + 12 <= malletHigh) {
+        triad.push(snap(triad[0] + 12));
+        triad = [...new Set(triad)];
+      }
+      triad.sort((a, b) => a - b);
+      return {
+        pitches: triad.length ? triad : [safeBase],
+        mallets: [1, 2, 3].slice(0, triad.length),
+      };
+    }
+
+    const oct = rPitch + 12 <= malletHigh ? snap(rPitch + 12) : snap(malletHigh);
+    let quad = [...new Set([rPitch, fPitch, tPitch, oct])].filter((p) => p >= malletLow && p <= malletHigh).sort((a, b) => a - b);
+    if (quad.length < 4 && quad.length > 0 && quad[quad.length - 1] + 12 <= malletHigh) {
+      quad.push(snap(quad[quad.length - 1] + 12));
+    }
+    if (quad.length < 4 && quad.length > 0 && quad[0] - 12 >= malletLow) {
+      quad.unshift(snap(quad[0] - 12));
+    }
+    quad = [...new Set(quad)].sort((a, b) => a - b);
+    return {
+      pitches: quad.length ? quad : [safeBase],
+      mallets: [1, 2, 3, 4].slice(0, quad.length),
+    };
+  }
+
   function emitRhythm(events, choice, rest) {
     const n = choice.group || 1;
     if (n > 1 && rest) {
@@ -96,8 +278,8 @@
     return catalog.filter((ids) => ids.every(has) && idsSpan(ids) === span).map(asCell);
   }
 
-  function pickCell(list, density) {
-    return T.weightedPick(list, (cell) => {
+  function pickCell(list, density, rng) {
+    return weightedPick(list, (cell) => {
       const spans = cell.ids.map((id) => durById(id).ticks);
       const shortest = Math.min.apply(null, spans);
       const longest = Math.max.apply(null, spans);
@@ -107,7 +289,7 @@
       else if (density >= 4) w = shortest <= 12 ? 1.8 : 0.7;
       if (cell.feature !== "plain" && density < 3) w *= 0.45;
       return w;
-    });
+    }, rng);
   }
 
   function pauseShare(density) {
@@ -145,7 +327,8 @@
     return shorts / parts.length >= 0.75;
   }
 
-  function buildVaried(has, ticks, beat, density, allowRests, avoidKeys) {
+  function buildVaried(has, ticks, beat, density, allowRests, avoidKeys, rng) {
+    const rand = rng || Math.random;
     if (!beat || ticks % beat !== 0) return null;
     const beats = ticks / beat;
     const beatList = cellsFitting(has, beat);
@@ -159,7 +342,7 @@
     if (!names.length) return null;
 
     function once() {
-      const feature = T.weightedPick(names, (name) => featureWeight(name, density));
+      const feature = weightedPick(names, (name) => featureWeight(name, density), rand);
       const ok = (cell) => cell.feature === "plain" || cell.feature === feature;
       const beatsOk = beatList.filter(ok);
       const halvesOk = halfList.filter(ok);
@@ -168,24 +351,24 @@
 
       function takeBeat(differ) {
         const pool = differ && beatsOk.length > 1 ? beatsOk.filter((cell) => cell.key !== differ) : beatsOk;
-        return pickCell(pool.length ? pool : beatsOk, density);
+        return pickCell(pool.length ? pool : beatsOk, density, rand);
       }
       function oneHalf() {
         const calmHalves = halvesOk.filter((cell) => !isRunCell(cell));
-        if (calmHalves.length && Math.random() < 0.5) return [pickCell(calmHalves, density)];
-        if (halvesOk.length && !beatsOk.length) return [pickCell(halvesOk, density)];
+        if (calmHalves.length && rand() < 0.5) return [pickCell(calmHalves, density, rand)];
+        if (halvesOk.length && !beatsOk.length) return [pickCell(halvesOk, density, rand)];
         const a = takeBeat();
         let b = takeBeat(a.key);
         if (isRunCell(a) && isRunCell(b)) {
           const calm = beatsOk.filter((cell) => !isRunCell(cell));
-          if (calm.length) b = pickCell(calm, density);
+          if (calm.length) b = pickCell(calm, density, rand);
         }
         return [a, b];
       }
 
       let parts = [];
-      if (barsOk.length && Math.random() < 0.3) {
-        parts = [pickCell(barsOk, density)];
+      if (barsOk.length && rand() < 0.3) {
+        parts = [pickCell(barsOk, density, rand)];
       } else if (beats === 4 && (halvesOk.length || beatsOk.length)) {
         const left = oneHalf();
         let right = oneHalf();
@@ -197,13 +380,13 @@
         }
         parts = left.concat(right);
       } else if (beats === 2 && (halvesOk.length || beatsOk.length)) {
-        if (halvesOk.length && (!beatsOk.length || Math.random() < 0.4)) parts = [pickCell(halvesOk, density)];
+        if (halvesOk.length && (!beatsOk.length || rand() < 0.4)) parts = [pickCell(halvesOk, density, rand)];
         else {
           const a = takeBeat();
           parts = [a, takeBeat(a.key)];
         }
       } else if (beatsOk.length && (beats === 5 || beats === 7)) {
-        const group = beats === 5 ? (Math.random() < 0.5 ? [2, 3] : [3, 2]) : Math.random() < 0.5 ? [2, 2, 3] : [3, 2, 2];
+        const group = beats === 5 ? (rand() < 0.5 ? [2, 3] : [3, 2]) : rand() < 0.5 ? [2, 2, 3] : [3, 2, 2];
         let prev = null;
         group.forEach((len) => {
           const cell = takeBeat(prev);
@@ -217,7 +400,7 @@
           const other = takeBeat(a.key);
           if (other.key !== a.key) {
             parts[beats - 1] = other;
-            if (beats >= 3 && Math.random() < 0.45) parts[beats - 2] = other;
+            if (beats >= 3 && rand() < 0.45) parts[beats - 2] = other;
           }
         }
       }
@@ -227,7 +410,7 @@
         if (runs >= parts.length - 1) {
           const calm = beatsOk.filter((cell) => !isRunCell(cell));
           if (calm.length) {
-            const swap = pickCell(calm, density);
+            const swap = pickCell(calm, density, rand);
             const idx = parts.findIndex((cell) => cell.span === swap.span && isRunCell(cell));
             if (idx >= 0) parts[idx] = swap;
           }
@@ -235,7 +418,7 @@
       }
       if (feature !== "plain" && !parts.some((cell) => cell.feature === feature)) {
         const feat = beatsOk.concat(halvesOk, barsOk).filter((cell) => cell.feature === feature);
-        const swap = feat.length ? pickCell(feat, density) : null;
+        const swap = feat.length ? pickCell(feat, density, rand) : null;
         if (swap) {
           const idx = parts.findIndex((cell) => cell.span === swap.span);
           if (idx >= 0) parts[idx] = swap;
@@ -265,7 +448,7 @@
           !restState.lastRest &&
           !d.group &&
           share < pauseShare(density) &&
-          Math.random() < pauseChance(density);
+          rand() < pauseChance(density);
         const written = emitRhythm(events, d, canRest);
         restState.pos += written;
         if (canRest) restState.restTicks += written;
@@ -320,11 +503,12 @@
     );
   }
 
-  function buildRhythm(settings, ticks, beatTicks, avoidKeys) {
+  function buildRhythm(settings, ticks, beatTicks, avoidKeys, rng) {
+    const rand = rng || Math.random;
     const allowed = settings.rhythms.map(durById).filter(Boolean);
     const has = (id) => allowed.some((d) => d.id === id);
     const density = settings.rhythmDensity || 3;
-    const varied = buildVaried(has, ticks, beatTicks || T.TICKS.quarter, density, !!settings.allowRests, avoidKeys);
+    const varied = buildVaried(has, ticks, beatTicks || T.TICKS.quarter, density, !!settings.allowRests, avoidKeys, rand);
     if (varied) {
       const result = breakEvenRuns(varied, allowed);
       if (rhythmAllowed(result, settings)) return result;
@@ -356,10 +540,10 @@
         restFits = fits(restAllowed, left);
       }
       const useRest = restFits.length > 0 && (!noteFits.length ||
-        (!lastWasRest && events.length > 0 && Math.random() < restChance));
+        (!lastWasRest && events.length > 0 && rand() < restChance));
       const pool = useRest ? restFits : noteFits;
       const onBeat = pos % beat === 0;
-      const choice = T.weightedPick(pool, (d) => {
+      const choice = weightedPick(pool, (d) => {
         const shortBias = density / 5;
         const longBias = 1 - shortBias;
         const span = spanOf(d);
@@ -367,7 +551,7 @@
         if (onBeat && (d.id === "q" || d.id === "h")) s += q;
         if (!onBeat && span >= T.TICKS.half) s *= 0.2;
         return s;
-      });
+      }, rand);
       left -= emitRhythm(events, choice, useRest);
       lastWasRest = useRest;
     }
@@ -454,7 +638,8 @@
     return { before: before, after: after };
   }
 
-  function applySyncopation(events, ticks, beat, settings) {
+  function applySyncopation(events, ticks, beat, settings, rng) {
+    const rand = rng || Math.random;
     if (!settings.syncopation || !events.length || !beat) return events;
     const win = syncWindow(beat);
     const figs = syncFigures(win, !!settings.allowRests);
@@ -463,13 +648,13 @@
     for (let pos = 0; pos + win <= ticks; pos += beat) starts.push(pos);
     const order = starts.slice();
     for (let i = order.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rand() * (i + 1));
       [order[i], order[j]] = [order[j], order[i]];
     }
     for (let i = 0; i < order.length; i++) {
       const cut = cutAround(events, order[i], order[i] + win);
       if (!cut) continue;
-      const fig = T.weightedPick(figs, (f) => f.w);
+      const fig = weightedPick(figs, (f) => f.w, rand);
       const mid = fig.notes.map((n) => ({ dur: n.dur, rest: n.rest, tuplet: null }));
       const out = cut.before.concat(mid, cut.after);
       const used = out.reduce((s, e) => s + e.dur.ticks, 0);
@@ -478,9 +663,10 @@
     return events;
   }
 
-  function colorTop(pitches, settings, key, cell) {
+  function colorTop(pitches, settings, key, cell, rng) {
+    const rand = rng || Math.random;
     if (!settings.accidentals || (cell && cell.cadence) || !pitches || !pitches.length) return pitches;
-    if (Math.random() > 0.22) return pitches;
+    if (rand() > 0.22) return pitches;
     const pcs = T.scalePcs(key);
     const topAt = pitches.length - 1;
     const top = pitches[topAt];
@@ -490,7 +676,7 @@
     });
     if (!opts.length) return pitches;
     const next = pitches.slice();
-    next[topAt] = T.pick(opts);
+    next[topAt] = pick(opts, rand);
     next.sort((a, b) => a - b);
     return next;
   }
@@ -512,7 +698,7 @@
     return 0.85;
   }
 
-  function leapSteps(semi) {
+  function leapSteps(semi, rng) {
     const approx = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19];
     const options = [];
     for (let n = 2; n < approx.length; n++) {
@@ -525,10 +711,11 @@
     const top = options[options.length - 1];
     const floor = Math.max(options[0], top - 2);
     const big = options.filter((n) => n >= floor);
-    return T.weightedPick(big.length ? big : options, (n) => (n === top ? 4 : 2));
+    return weightedPick(big.length ? big : options, (n) => (n === top ? 4 : 2), rng);
   }
 
-  function createMelodyWalker(settings, key, pool) {
+  function createMelodyWalker(settings, key, pool, rng) {
+    const rand = rng || Math.random;
     const pcs = T.scalePcs(key);
     const tonic = key.tonic;
     const maxSemi = T.intervalSemis(settings.maxLeap);
@@ -536,10 +723,10 @@
     const hi = pool[pool.length - 1];
     let prev = null;
     let prevWasChromatic = false;
-    let dir = Math.random() < 0.5 ? 1 : -1;
-    let stepsLeft = 3 + ((Math.random() * 2) | 0);
+    let dir = rand() < 0.5 ? 1 : -1;
+    let stepsLeft = 3 + ((rand() * 2) | 0);
     let leapDebt = false;
-    let phraseLeft = 6 + ((Math.random() * 3) | 0);
+    let phraseLeft = 6 + ((rand() * 3) | 0);
     let repeated = false;
     let goal = null;
     let gestures = 0;
@@ -603,7 +790,7 @@
     }
     function turn() {
       dir *= -1;
-      stepsLeft = 3 + ((Math.random() * 2) | 0);
+      stepsLeft = 3 + ((rand() * 2) | 0);
     }
     function finish(pitch, from) {
       if (from != null && runLen >= 2 && Math.sign(pitch - from) === runDir && Math.abs(pitch - from) <= 4) {
@@ -625,7 +812,7 @@
       if (leap) dir = Math.sign(pitch - from) || dir;
       prev = pitch;
       repeated = from != null && pitch === from;
-      if (!leapDebt && !repeated && settings.accidentals && phraseLeft > 2 && Math.random() < 0.16) {
+      if (!leapDebt && !repeated && settings.accidentals && phraseLeft > 2 && rand() < 0.16) {
         const chrom = chromaticBeside(pitch, from);
         if (chrom !== pitch) {
           prev = chrom;
@@ -642,11 +829,11 @@
         const tonics = pool.filter((p) => pcOf(p) === tonic);
         if (!tonics.length) return T.nearestIn(pool, mid);
         const ranked = tonics.slice().sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
-        return T.pick(ranked.slice(0, Math.min(3, ranked.length)));
+        return pick(ranked.slice(0, Math.min(3, ranked.length)), rand);
       }
       const reach = Math.max(12, Math.round((hi - lo) * 0.35));
       const band = pool.filter((p) => Math.abs(p - mid) <= reach);
-      return T.pick(band.length ? band : pool);
+      return pick(band.length ? band : pool, rand);
     }
 
     return function next(kind) {
@@ -683,24 +870,24 @@
       if (settings.texture === "melody" && hi - lo >= 7) {
         if (goal == null || phraseLeft <= 0) {
           gestures++;
-          phraseLeft = 2 + ((Math.random() * 3) | 0);
+          phraseLeft = 2 + ((rand() * 3) | 0);
           const drift = gestures % 4 === 0;
-          if (!drift && Math.random() < 0.55) dir *= -1;
+          if (!drift && rand() < 0.55) dir *= -1;
           const mid = (lo + hi) / 2;
           const way = drift ? (from < mid ? 1 : -1) : dir;
           const hop = drift
             ? Math.max(4, Math.min(Math.round((hi - lo) * 0.28), 6 + maxSemi))
-            : 2 + ((Math.random() * 3) | 0);
+            : 2 + ((rand() * 3) | 0);
           goal = T.nearestIn(pool, Math.max(lo, Math.min(hi, from + way * hop)));
           dir = Math.sign(goal - from) || dir;
         }
         phraseLeft--;
-        const roll = Math.random();
+        const roll = rand();
         if (roll < 0.08) return finish(from, from);
         let steps = 1;
         let pitch = null;
         if (roll < leapRate(maxSemi)) {
-          steps = leapSteps(maxSemi);
+          steps = leapSteps(maxSemi, rand);
           pitch = scaleSteps(from, dir * steps) || scaleSteps(from, -dir * steps);
         }
         if (pitch == null) {
@@ -714,8 +901,8 @@
       if (phraseLeft <= 1) {
         const goal = nearestTonic(from);
         if (pcOf(from) === tonic || phraseLeft < 0) {
-          phraseLeft = 6 + ((Math.random() * 3) | 0);
-          dir = Math.random() < 0.5 ? 1 : -1;
+          phraseLeft = 6 + ((rand() * 3) | 0);
+          dir = rand() < 0.5 ? 1 : -1;
           stepsLeft = 3;
         } else {
           const toward = Math.sign(goal - from) || -dir;
@@ -727,14 +914,14 @@
       stepsLeft--;
       if (stepsLeft <= 0 || from <= lo + 2 || from >= hi - 2) turn();
       let pitch = null;
-      const roll = Math.random();
+      const roll = rand();
       if (!repeated && roll < 0.08) pitch = from;
       else if (maxSemi >= 7 && roll < leapRate(maxSemi)) {
-        const n = leapSteps(maxSemi);
+        const n = leapSteps(maxSemi, rand);
         pitch = scaleSteps(from, dir * n) || scaleSteps(from, -dir * n);
       } else if (roll < 0.72) pitch = scaleSteps(from, dir);
       else if (roll < 0.84 && maxSemi >= 4) pitch = scaleSteps(from, dir * 2);
-      else if (maxSemi >= 4) pitch = scaleSteps(from, dir * leapSteps(maxSemi)) || scaleSteps(from, -dir * leapSteps(maxSemi));
+      else if (maxSemi >= 4) pitch = scaleSteps(from, dir * leapSteps(maxSemi, rand)) || scaleSteps(from, -dir * leapSteps(maxSemi, rand));
       if (pitch == null) {
         turn();
         pitch = scaleSteps(from, dir) || scaleSteps(from, -dir) || from;
@@ -822,7 +1009,8 @@
   }
 
   /* Two grips: each hand a 3rd, 4th, or 5th, small gap, triad tones only. */
-  function splitHands(tones, pool, settings, prev, opts) {
+  function splitHands(tones, pool, settings, prev, opts, rng) {
+    const rand = rng || Math.random;
     opts = opts || {};
     const pcOf = (p) => ((p % 12) + 12) % 12;
     const grand = twoStaff(settings);
@@ -864,7 +1052,7 @@
       if (wideReach(settings)) {
         if (uniq[0] < 45) score -= 2;
         if (uniq[0] <= settings.rangeLow + 2) score += 6;
-        score += Math.random() * 8;
+        score += rand() * 8;
       }
       if (score < bestScore) {
         bestScore = score;
@@ -1000,19 +1188,19 @@
     return chord.length === nNotes ? chord : [bass, best[0], best[1]];
   }
 
-  function cadenceVoicing(kind, nNotes, pool, key, settings, prev) {
+  function cadenceVoicing(kind, nNotes, pool, key, settings, prev, rng) {
     const pcs = T.scalePcs(key);
     const deg = kind === "approach" ? 4 : 0;
     const spec = T.diatonicQualities(key).find((q) => q.deg === deg) || { q: "maj" };
     const root = pcs[deg];
     const tones = T.chordTonesFrom(root, spec.q);
     const prevPitches = Array.isArray(prev) ? prev : prev && prev.pitches ? prev.pitches : null;
-    return splitHands(tones, pool, settings, prevPitches, { nNotes: nNotes, rootPc: root });
+    return splitHands(tones, pool, settings, prevPitches, { nNotes: nNotes, rootPc: root }, rng);
   }
 
-  function addBassUnder(melody, pool, key, settings, prevBass, cadence) {
+  function addBassUnder(melody, pool, key, settings, prevBass, cadence, rng) {
     if (cadence === "tonic" || cadence === "approach") {
-      const voiced = cadenceVoicing(cadence, settings.mallets >= 4 ? 4 : 3, pool, key, settings, [prevBass || 48, melody]);
+      const voiced = cadenceVoicing(cadence, settings.mallets >= 4 ? 4 : 3, pool, key, settings, [prevBass || 48, melody], rng);
       if (voiced) {
         if (voiced.pitches.indexOf(melody) < 0 && melody >= 60) {
           const next = voiced.pitches.slice();
@@ -1030,18 +1218,18 @@
     const topPc = ((melody % 12) + 12) % 12;
     const match = quals.filter((q) => q.q !== "dim" && T.chordTonesFrom(pcs[q.deg], q.q).includes(topPc));
     const list = match.length ? match : quals.filter((q) => q.deg === 0);
-    const deg = T.weightedPick(list, (q) => (q.deg === 0 ? 4 : q.deg === 4 ? 3 : 2));
+    const deg = weightedPick(list, (q) => (q.deg === 0 ? 4 : q.deg === 4 ? 3 : 2), rng);
     const tones = T.chordTonesFrom(pcs[deg.deg], deg.q);
     const prev = prevBass != null ? [prevBass, melody] : [melody];
     const voiced = splitHands(tones, pool, settings, prev, {
       nNotes: settings.mallets >= 4 ? 4 : 3,
       topNote: melody >= 60 ? melody : null,
-    });
+    }, rng);
     if (voiced) return voiced;
     return { pitches: [melody], mallets: [3], bass: prevBass };
   }
 
-  function createBlockWalker(settings, key, pool) {
+  function createBlockWalker(settings, key, pool, rng) {
     const quals = T.diatonicQualities(key);
     const pcs = T.scalePcs(key);
     const prog = settings.texture === "chorale"
@@ -1053,7 +1241,7 @@
 
     return function next(nNotes, kind) {
       if (kind === "tonic" || kind === "approach") {
-        const voiced = cadenceVoicing(kind, nNotes, pool, key, settings, last);
+        const voiced = cadenceVoicing(kind, nNotes, pool, key, settings, last, rng);
         if (voiced && voiced.pitches.length >= 2) {
           last = voiced.pitches;
           return voiced;
@@ -1061,18 +1249,18 @@
       }
       if (hold <= 0) {
         pi = (pi + 1) % prog.length;
-        hold = settings.texture === "chorale" ? 1 : T.pick([1, 1, 2]);
+        hold = settings.texture === "chorale" ? 1 : pick([1, 1, 2], rng);
       }
       hold--;
       const deg = prog[pi];
       const spec = quals.find((q) => q.deg === deg) || quals[0];
       const tones = T.chordTonesFrom(pcs[spec.deg], spec.q);
-      const voiced = splitHands(tones, pool, settings, last, { nNotes: nNotes });
+      const voiced = splitHands(tones, pool, settings, last, { nNotes: nNotes }, rng);
       if (voiced && voiced.pitches.length >= 2) {
         last = voiced.pitches;
         return voiced;
       }
-      const fallback = voiceBlock(nNotes, pool, key, settings, last);
+      const fallback = voiceBlock(nNotes, pool, key, settings, last, rng);
       if (fallback && fallback.pitches && fallback.pitches.length >= 2 && gripShape(fallback.pitches, twoStaff(settings), settings)) {
         last = fallback.pitches;
         return fallback;
@@ -1086,7 +1274,7 @@
     return next;
   }
 
-  function voiceBlock(nNotes, pool, key, settings, prevChord) {
+  function voiceBlock(nNotes, pool, key, settings, prevChord, rng) {
     const pcs = T.scalePcs(key);
     const quals = T.diatonicQualities(key);
     const windowCenter = prevChord
@@ -1099,32 +1287,33 @@
     const preferredDeg = [0, 4, 5, 3, 1];
 
     for (let attempt = 0; attempt < 40; attempt++) {
-      const deg = T.weightedPick(quals, (q) => {
+      const deg = weightedPick(quals, (q) => {
         const idx = preferredDeg.indexOf(q.deg);
         return idx === -1 ? 1 : 6 - idx;
-      });
+      }, rng);
       const root = pcs[deg.deg];
       const quality = deg.q;
       const tones = T.chordTonesFrom(root, quality);
-      const voiced = splitHands(tones, pool, settings, prevChord, { nNotes: nNotes });
+      const voiced = splitHands(tones, pool, settings, prevChord, { nNotes: nNotes }, rng);
       if (voiced) return voiced;
     }
 
     const tonicTones = T.chordTonesFrom(pcs[0], quals[0].q);
-    const fallback = splitHands(tonicTones, pool, settings, prevChord, { nNotes: nNotes, rootPc: pcs[0] });
+    const fallback = splitHands(tonicTones, pool, settings, prevChord, { nNotes: nNotes, rootPc: pcs[0] }, rng);
     if (fallback) return fallback;
     const bass = T.nearestIn(usePool, windowCenter - 4);
     return { pitches: [bass], mallets: [1] };
   }
 
-  function pickNoteCount(settings, cell) {
+  function pickNoteCount(settings, cell, rng) {
+    const rand = rng || Math.random;
     if (settings.texture === "melody") return 1;
     if (settings.mallets === 2) {
       if (settings.texture === "doublestops" || settings.texture === "mixed") {
         const base = settings.chordChance || settings.doubleStopChance || 0.28;
         const chance = settings.texture === "doublestops" ? Math.max(base, 0.7) : base;
         const weight = cell.dur.ticks >= T.TICKS.quarter ? 1 : cell.dur.ticks >= T.TICKS.eighth ? 0.55 : 0.12;
-        return Math.random() < chance * weight ? 2 : 1;
+        return rand() < chance * weight ? 2 : 1;
       }
       return 1;
     }
@@ -1132,20 +1321,20 @@
       const chance = settings.chordChance == null ? 0.28 : settings.chordChance;
       /* Chords land on longer values so the line still reads as a melody. */
       const weight = cell.dur.ticks >= T.TICKS.quarter ? 1 : cell.dur.ticks >= T.TICKS.eighth ? 0.45 : 0.08;
-      if (Math.random() > chance * weight) return 1;
-      if (settings.mallets === 3) return Math.random() < 0.7 ? 3 : 2;
-      return Math.random() < 0.55 ? 3 : Math.random() < 0.5 ? 2 : 4;
+      if (rand() > chance * weight) return 1;
+      if (settings.mallets === 3) return rand() < 0.7 ? 3 : 2;
+      return rand() < 0.55 ? 3 : rand() < 0.5 ? 2 : 4;
     }
     if (settings.texture === "block" || settings.texture === "chorale") {
       if (settings.blockSize === "3") return 3;
       if (settings.blockSize === "4") return Math.min(4, settings.mallets);
       if (settings.mallets === 3) return 3;
-      const r = Math.random();
+      const r = rand();
       if (r < 0.2) return 3;
       return 4;
     }
     if (settings.mallets === 3) return 3;
-    if (settings.texture === "chorale") return Math.random() < 0.3 ? 3 : 4;
+    if (settings.texture === "chorale") return rand() < 0.3 ? 3 : 4;
     return 4;
   }
 
@@ -1161,7 +1350,8 @@
     return sorted[j];
   }
 
-  function addDoubleStop(melody, pool, settings, mem) {
+  function addDoubleStop(melody, pool, settings, mem, rng) {
+    const rand = rng || Math.random;
     mem = mem || {};
     const names = settings.stopIntervals && settings.stopIntervals.length
       ? settings.stopIntervals
@@ -1170,10 +1360,10 @@
     const dirs =
       settings.stopPlace === "above" ? [1] :
       settings.stopPlace === "below" ? [-1] :
-      Math.random() < 0.75 ? [-1, 1] : [1, -1];
+      rand() < 0.75 ? [-1, 1] : [1, -1];
     const preferred = ["3", "3", "4", "5", "6", "8"].filter((n) => names.indexOf(n) >= 0);
     const order = [];
-    if (mem.stop && names.indexOf(mem.stop) >= 0 && Math.random() < 0.7) {
+    if (mem.stop && names.indexOf(mem.stop) >= 0 && rand() < 0.7) {
       order.push(mem.stop);
     }
     preferred.forEach((n) => {
@@ -1198,16 +1388,16 @@
   }
 
   /* Keep the melody note as the top of a chord underneath it. */
-  function harmonizeMelody(top, nNotes, pool, key, settings) {
+  function harmonizeMelody(top, nNotes, pool, key, settings, rng) {
     const pcs = T.scalePcs(key);
     const quals = T.diatonicQualities(key);
     const topPc = ((top % 12) + 12) % 12;
     const candidates = quals.filter((q) => q.q !== "dim" && T.chordTonesFrom(pcs[q.deg], q.q).includes(topPc));
     const list = candidates.length ? candidates : quals.filter((q) => q.deg === 0);
     for (let attempt = 0; attempt < 8; attempt++) {
-      const deg = T.weightedPick(list, (q) => (q.deg === 0 ? 4 : q.deg === 4 ? 3 : 2));
+      const deg = weightedPick(list, (q) => (q.deg === 0 ? 4 : q.deg === 4 ? 3 : 2), rng);
       const tones = T.chordTonesFrom(pcs[deg.deg], deg.q);
-      const voiced = splitHands(tones, pool, settings, [top], { nNotes: nNotes, topNote: top });
+      const voiced = splitHands(tones, pool, settings, [top], { nNotes: nNotes, topNote: top }, rng);
       if (voiced) return voiced;
     }
     return { pitches: [top], mallets: [settings.mallets >= 4 ? 3 : 1] };
@@ -1232,7 +1422,8 @@
     return ordered[idx];
   }
 
-  function applyDynamics(measures, settings) {
+  function applyDynamics(measures, settings, rng) {
+    const rand = rng || Math.random;
     if (!settings.dynamics) return;
     const notes = [];
     measures.forEach((m) => {
@@ -1242,7 +1433,7 @@
     });
     if (!notes.length) return;
     const ladder = ["p", "mp", "mf", "f"];
-    let step = 1 + (Math.random() < 0.5 ? 1 : 0);
+    let step = 1 + (rand() < 0.5 ? 1 : 0);
     notes[0].dynamic = ladder[step];
     function hairpin(from, to, up) {
       if (to <= from || to >= notes.length) return;
@@ -1253,7 +1444,7 @@
     }
     if (notes.length >= 6) {
       const a = Math.min(2, notes.length - 4);
-      const b = Math.min(notes.length - 2, a + 3 + Math.floor(Math.random() * 2));
+      const b = Math.min(notes.length - 2, a + 3 + Math.floor(rand() * 2));
       hairpin(a, b, step < 2);
     }
     if (notes.length >= 14) {
@@ -1318,7 +1509,7 @@
   }
 
   /* Phrase ending: half note on beat 3, or a quarter on beat 4. */
-  function breathLanding(ticks, beat) {
+  function breathLanding(ticks, beat, rng) {
     const q = T.TICKS.quarter;
     const h = T.TICKS.half;
     const b = beat || q;
@@ -1343,12 +1534,12 @@
       const dur = durByTicks(b);
       if (dur) options.push({ cut: ticks - b, dur: dur });
     }
-    return options.length ? T.pick(options) : null;
+    return options.length ? pick(options, rng) : null;
   }
 
-  function phraseBreath(events, ticks, beat, endTonic) {
+  function phraseBreath(events, ticks, beat, endTonic, rng) {
     if (!events.length || !ticks) return null;
-    const landing = breathLanding(ticks, beat);
+    const landing = breathLanding(ticks, beat, rng);
     if (!landing || !landing.dur) return null;
     const start = landing.cut;
     let head = null;
@@ -1400,21 +1591,19 @@
   }
 
   function generate(rawSettings) {
+    const rng = makeRng(rawSettings && rawSettings.seed);
     const instSpec = T.INSTRUMENTS.find((i) => i.id === rawSettings.instrumentId);
     const settings =
       instSpec && instSpec.monophonic
         ? Object.assign({}, rawSettings, { mallets: 1, texture: "melody", rolls: "off", clef: "treble" })
         : rawSettings;
     const key = resolveKey(settings);
-    const time =
-      settings.timeId === "random"
-        ? T.pick(T.TIMES.filter((t) => ["4/4", "3/4", "2/4", "6/8"].includes(t.id)))
-        : T.TIMES.find((t) => t.id === settings.timeId) || T.TIMES[0];
+    const time = resolveTimeSignature(settings, ["4/4", "3/4", "2/4", "6/8"], rng);
 
     const pool = pitchPool(settings, key);
     const treblePool = twoStaff(settings) ? pool.filter((p) => p >= 60) : pool;
     const melodyPool = (treblePool.length >= 5 ? treblePool : pool).slice().sort((a, b) => a - b);
-    const melodyNext = createMelodyWalker(settings, key, melodyPool);
+    const melodyNext = createMelodyWalker(settings, key, melodyPool, rng);
     const measures = [];
     let prevPitch = null;
     let prevChord = null;
@@ -1423,18 +1612,18 @@
     const lineMem = { stop: null };
     const blockNext =
       settings.texture === "block" || settings.texture === "chorale"
-        ? createBlockWalker(settings, key, pool)
+        ? createBlockWalker(settings, key, pool, rng)
         : null;
 
     for (let m = 0; m < settings.measures; m++) {
-      let rhythm = buildRhythm(settings, time.ticks, time.beatTicks, recentRhythms.slice(-2));
+      let rhythm = buildRhythm(settings, time.ticks, time.beatTicks, recentRhythms.slice(-2), rng);
       if (rhythm.cellKey) recentRhythms.push(rhythm.cellKey);
-      if (rhythm.syncOk) rhythm = applySyncopation(rhythm, time.ticks, time.beatTicks, settings);
+      if (rhythm.syncOk) rhythm = applySyncopation(rhythm, time.ticks, time.beatTicks, settings, rng);
 
       const lastBar = m === settings.measures - 1;
       const phraseEnd = (m + 1) % 4 === 0;
       if (phraseEnd) {
-        const breathed = phraseBreath(rhythm, time.ticks, time.beatTicks, settings.endTonic !== false);
+        const breathed = phraseBreath(rhythm, time.ticks, time.beatTicks, settings.endTonic !== false, rng);
         if (breathed && rhythmAllowed(breathed, settings)) rhythm = breathed;
         else if (lastBar) {
           const settled = settleEnding(rhythm, time.ticks, time.beatTicks, settings.endTonic !== false);
@@ -1470,7 +1659,7 @@
           continue;
         }
 
-        let n = pickNoteCount(settings, cell);
+        let n = pickNoteCount(settings, cell, rng);
         if (cell.dur.ticks < T.TICKS.quarter && n > 1 && !(twoStaff(settings) && cell.tuplet)) n = 1;
         let pitches;
         let mallets;
@@ -1479,7 +1668,7 @@
 
         if (cadenceKind && settings.texture !== "melody") {
           const want = settings.mallets <= 2 ? 2 : Math.min(4, settings.mallets);
-          const voiced = cadenceVoicing(cadenceKind, want, pool, key, settings, prevChord);
+          const voiced = cadenceVoicing(cadenceKind, want, pool, key, settings, prevChord, rng);
           if (voiced && voiced.pitches.length >= 2) {
             pitches = voiced.pitches;
             const pcs = T.scalePcs(key);
@@ -1504,7 +1693,7 @@
 
         if (!pitches && settings.texture === "melody") {
           pitches = [melodyPitch];
-          mallets = settings.mallets === 4 ? [T.pick([2, 3])] : [settings.mallets === 3 ? 2 : 1];
+          mallets = settings.mallets === 4 ? [pick([2, 3], rng)] : [settings.mallets === 3 ? 2 : 1];
           prevPitch = melodyPitch;
           prevChord = pitches;
         } else if (!pitches && twoStaff(settings) && settings.texture === "mixed") {
@@ -1512,9 +1701,9 @@
             n > 1 ||
             !!cell.tuplet ||
             cell.dur.ticks >= T.TICKS.quarter ||
-            (cell.dur.ticks >= T.TICKS.eighth && Math.random() < 0.55);
+            (cell.dur.ticks >= T.TICKS.eighth && rng() < 0.55);
           if (addBass || cell.cadence) {
-            const voiced = addBassUnder(melodyPitch, pool, key, settings, prevBass, cell.cadence || null);
+            const voiced = addBassUnder(melodyPitch, pool, key, settings, prevBass, cell.cadence || null, rng);
             pitches = voiced.pitches;
             mallets = voiced.mallets;
             prevBass = voiced.bass;
@@ -1526,17 +1715,17 @@
           prevChord = pitches;
         } else if (!pitches && n === 1) {
           pitches = [melodyPitch];
-          mallets = settings.mallets === 4 ? [T.pick([2, 3])] : [settings.mallets === 3 ? 2 : 1];
+          mallets = settings.mallets === 4 ? [pick([2, 3], rng)] : [settings.mallets === 3 ? 2 : 1];
           prevPitch = melodyPitch;
           prevChord = pitches;
         } else if (!pitches && settings.mallets === 2 && (settings.texture === "mixed" || settings.texture === "doublestops")) {
-          const voiced = addDoubleStop(melodyPitch, pool, settings, lineMem);
+          const voiced = addDoubleStop(melodyPitch, pool, settings, lineMem, rng);
           pitches = voiced.pitches;
           mallets = voiced.mallets;
           prevPitch = melodyPitch;
           prevChord = pitches;
         } else if (!pitches && settings.texture === "mixed") {
-          const voiced = harmonizeMelody(melodyPitch, n, pool, key, settings);
+          const voiced = harmonizeMelody(melodyPitch, n, pool, key, settings, rng);
           pitches = voiced.pitches;
           mallets = voiced.mallets;
           prevPitch = melodyPitch;
@@ -1563,7 +1752,7 @@
           prevPitch = pitches[pitches.length - 1];
           prevChord = pitches;
         } else if (!pitches) {
-          const voiced = voiceBlock(n, pool, key, settings, prevChord);
+          const voiced = voiceBlock(n, pool, key, settings, prevChord, rng);
           pitches = voiced.pitches;
           mallets = voiced.mallets;
           prevPitch = pitches[pitches.length - 1];
@@ -1571,8 +1760,8 @@
         }
 
         const art = [];
-        if (settings.accents && Math.random() < 0.12) art.push("a");
-        if (settings.staccato && Math.random() < 0.14) art.push("staccato");
+        if (settings.accents && rng() < 0.12) art.push("a");
+        if (settings.staccato && rng() < 0.14) art.push("staccato");
 
         const roll =
           settings.rolls !== "off" &&
@@ -1581,7 +1770,7 @@
           (settings.rolls === "always"
             ? cell.dur.ticks >= T.TICKS.quarter
             : cell.dur.ticks >= T.TICKS.half) &&
-          Math.random() < (settings.rolls === "always"
+          rng() < (settings.rolls === "always"
             ? (cell.dur.ticks >= T.TICKS.half ? 0.8 : 0.45)
             : 0.8);
 
@@ -1610,7 +1799,7 @@
           const same =
             a.pitches.length === b.pitches.length &&
             a.pitches.every((p, j) => p === b.pitches[j]);
-          if (same || Math.random() < 0.22) {
+          if (same || rng() < 0.22) {
             b.pitches = a.pitches.slice();
             if (a.mallets) b.mallets = a.mallets.slice();
             a.tie = true;
@@ -1649,13 +1838,13 @@
 
       /* Legato: group 2–4 consecutive sounding notes under a slur */
       if (settings.legato) {
-        applyLegatoGroups(events);
+        applyLegatoGroups(events, rng);
       }
 
       measures.push({ events });
     }
 
-    applyDynamics(measures, settings);
+    applyDynamics(measures, settings, rng);
 
     let clef = settings.clef;
     const writeOff = T.writtenOff(settings.instrumentId);
@@ -1689,23 +1878,29 @@
       clef = "auto";
     }
 
+    const settingsSnapshot = {
+      mallets: settings.mallets,
+      texture: settings.texture,
+      showSticking: settings.showSticking,
+      instrument: settings.instrumentId,
+      tempo: settings.tempo,
+      legato: !!settings.legato,
+    };
+    if (hasNumericSeed(rawSettings && rawSettings.seed)) {
+      settingsSnapshot.seed = Number(rawSettings.seed) >>> 0;
+    }
+
     return {
       key,
       time,
       clef,
       measures,
-      settingsSnapshot: {
-        mallets: settings.mallets,
-        texture: settings.texture,
-        showSticking: settings.showSticking,
-        instrument: settings.instrumentId,
-        tempo: settings.tempo,
-        legato: !!settings.legato,
-      },
+      settingsSnapshot,
     };
   }
 
-  function applyLegatoGroups(events) {
+  function applyLegatoGroups(events, rng) {
+    const rand = rng || Math.random;
     let i = 0;
     while (i < events.length - 1) {
       const start = events[i];
@@ -1713,7 +1908,7 @@
         i++;
         continue;
       }
-      const targetLen = 2 + Math.floor(Math.random() * 3); // 2, 3, or 4
+      const targetLen = 2 + Math.floor(rand() * 3); // 2, 3, or 4
       let len = 1;
       while (len < targetLen && i + len < events.length) {
         const prev = events[i + len - 1];
@@ -1744,16 +1939,14 @@
   }
 
   function generateDuet(rawSettings) {
+    const rng = makeRng(rawSettings && rawSettings.seed);
     // Menu key is the Trumpet's key (e.g. C-dur = 0 accidentals for trumpet)
     const trumpetKey = resolveKey(rawSettings);
     // Mallets in C transpose to concert key (e.g. Trumpet C-dur -> Marimba Bb-dur / B-dur med 2 b-er)
     const concertKey = T.transposeTrumpetToConcert
       ? T.transposeTrumpetToConcert(trumpetKey)
       : trumpetKey;
-    const time =
-      rawSettings.timeId === "random"
-        ? T.pick(T.TIMES.filter((t) => ["4/4", "3/4", "2/4"].includes(t.id)))
-        : T.TIMES.find((t) => t.id === rawSettings.timeId) || T.TIMES[0];
+    const time = resolveTimeSignature(rawSettings, ["4/4", "3/4", "2/4"], rng);
 
     const malletInstId = rawSettings.malletInstrument || rawSettings.duetMalletInstrument || "xylo";
     const malletInst = T.INSTRUMENTS.find((i) => i.id === malletInstId) || T.INSTRUMENTS.find((i) => i.id === "xylo");
@@ -1781,8 +1974,7 @@
     const malletHigh = Math.min(malletInst.high, malletWrittenHigh - (malletInst.writtenOff || 0));
     const malletScale = scale.filter((p) => p >= malletLow && p <= malletHigh);
     function snapMalletPitch(targetMidi) {
-      if (malletScale.length) return T.nearestIn(malletScale, targetMidi);
-      return T.clamp(targetMidi, malletLow, malletHigh);
+      return snapPitchToScale(malletScale, targetMidi, malletLow, malletHigh);
     }
 
     // Find all valid diatonic scale indices whose written trumpet pitch (scale[i] + 2) is within [tptLow, tptHigh]
@@ -1857,8 +2049,8 @@
     ];
 
     const progChoice = numMeasures <= 4
-      ? T.pick(isMinorKey ? PROGRESSIONS_4_MINOR : PROGRESSIONS_4_MAJOR)
-      : T.pick(isMinorKey ? PROGRESSIONS_8_MINOR : PROGRESSIONS_8_MAJOR);
+      ? pick(isMinorKey ? PROGRESSIONS_4_MINOR : PROGRESSIONS_4_MAJOR, rng)
+      : pick(isMinorKey ? PROGRESSIONS_8_MINOR : PROGRESSIONS_8_MAJOR, rng);
     const CHORDS_8 = progChoice.map((sym) => CHORD_DEFS[sym] || CHORD_DEFS.I);
     function getBarChord(m) {
       return CHORDS_8[m % CHORDS_8.length];
@@ -1867,7 +2059,6 @@
     // Procedural theme generator: creates endless fresh, cantabile melodies
     // with classical periodic form (antecedent & consequent / question & answer),
     // strictly conforming to the user's selected rhythms and difficulty level.
-    const d = (id) => T.DURATIONS.find((x) => x.id === id) || T.DURATIONS[0];
     const meterKey = ["4/4", "3/4", "2/4", "2/2", "6/8", "3/8", "5/8", "7/8"].includes(time.id) ? time.id : "4/4";
     const level = Math.max(1, Math.min(10, Number(rawSettings.level) || 3));
     const rhythmDensity = Math.max(1, Math.min(3, Number(rawSettings.rhythmDensity) || 2));
@@ -1916,37 +2107,37 @@
             if (allowed.has("q") && cadPatterns.length === 0) {
               cadPatterns.push([["q", "q"], ["q", "q"], ["q", "q"], ["q", "q"]]);
             }
-            if (cadPatterns.length) return T.pick(cadPatterns);
+            if (cadPatterns.length) return pick(cadPatterns, rng);
           } else if (meterKey === "3/4") {
             if (allowed.has("hd")) cadPatterns.push([["hd", "hd"]]);
             if (allowed.has("h") && allowed.has("q")) cadPatterns.push([["h", "h"], ["q", "q"]]);
             if (allowed.has("q") && cadPatterns.length === 0) cadPatterns.push([["q", "q"], ["q", "q"], ["q", "q"]]);
-            if (cadPatterns.length) return T.pick(cadPatterns);
+            if (cadPatterns.length) return pick(cadPatterns, rng);
           } else if (meterKey === "2/4") {
             if (allowed.has("h")) cadPatterns.push([["h", "h"]]);
             if (allowed.has("q") && cadPatterns.length === 0) cadPatterns.push([["q", "q"], ["q", "q"]]);
-            if (cadPatterns.length) return T.pick(cadPatterns);
+            if (cadPatterns.length) return pick(cadPatterns, rng);
           } else if (meterKey === "6/8") {
             if (allowed.has("hd")) cadPatterns.push([["hd", "hd"]]);
             if (allowed.has("qd")) cadPatterns.push([["qd", "qd"], ["qd", "qd"]]);
             if (allowed.has("q") && allowed.has("8")) cadPatterns.push([["q", "q"], ["8", "8"], ["q", "q"], ["8", "8"]]);
-            if (cadPatterns.length) return T.pick(cadPatterns);
+            if (cadPatterns.length) return pick(cadPatterns, rng);
           } else if (meterKey === "3/8") {
             if (allowed.has("qd")) cadPatterns.push([["qd", "qd"]]);
             if (allowed.has("q") && allowed.has("8")) cadPatterns.push([["q", "q"], ["8", "8"]]);
             if (allowed.has("8") && cadPatterns.length === 0) cadPatterns.push([["8", "8"], ["8", "8"], ["8", "8"]]);
-            if (cadPatterns.length) return T.pick(cadPatterns);
+            if (cadPatterns.length) return pick(cadPatterns, rng);
           } else if (meterKey === "5/8") {
             if (allowed.has("qd") && allowed.has("q")) cadPatterns.push([["qd", "qd"], ["q", "q"]], [["q", "q"], ["qd", "qd"]]);
             if (allowed.has("h") && allowed.has("8")) cadPatterns.push([["h", "h"], ["8", "8"]]);
             if (allowed.has("q") && allowed.has("8")) cadPatterns.push([["q", "q"], ["q", "q"], ["8", "8"]]);
-            if (cadPatterns.length) return T.pick(cadPatterns);
+            if (cadPatterns.length) return pick(cadPatterns, rng);
           } else if (meterKey === "7/8") {
             if (allowed.has("hd") && allowed.has("8")) cadPatterns.push([["hd", "hd"], ["8", "8"]]);
             if (allowed.has("h") && allowed.has("qd")) cadPatterns.push([["h", "h"], ["qd", "qd"]], [["qd", "qd"], ["h", "h"]]);
             if (allowed.has("qd") && allowed.has("q")) cadPatterns.push([["qd", "qd"], ["q", "q"], ["q", "q"]]);
             if (allowed.has("q") && allowed.has("8")) cadPatterns.push([["q", "q"], ["q", "q"], ["q", "q"], ["8", "8"]]);
-            if (cadPatterns.length) return T.pick(cadPatterns);
+            if (cadPatterns.length) return pick(cadPatterns, rng);
           }
         }
 
@@ -2063,15 +2254,15 @@
           }
         }
 
-        return patterns.length ? T.pick(patterns) : tileTicks(time.ticks);
+        return patterns.length ? pick(patterns, rng) : tileTicks(time.ticks);
       }
 
       const motifRhythm = getBarRhythm(0, false);
       const bars = [];
       const startChoices = [0, 2, 4, -3].filter((x) => x >= minDeg && x <= maxDeg);
-      let currentDeg = startChoices.length ? T.pick(startChoices) : clampDeg(0);
+      let currentDeg = startChoices.length ? pick(startChoices, rng) : clampDeg(0);
       let prevPrevDeg = null;
-      let dir = Math.random() < 0.5 ? 1 : -1;
+      let dir = rng() < 0.5 ? 1 : -1;
       let sameDegRun = 0;
 
       const motifIntervals = [];
@@ -2081,7 +2272,7 @@
 
       for (let m = 0; m < numMeasures; m++) {
         const isFinalBar = m === numMeasures - 1;
-        const isPhraseEnd = (m + 1) % 4 === 0 || isFinalBar;
+        const isPhraseEnd = isPhraseCadenceBar(m, numMeasures);
         const chord = getBarChord(m);
 
         // Melodic arc target: rise toward bars 5-6 (or bar 3 in 4-bar), resolve in final bar
@@ -2099,22 +2290,22 @@
         let seqShift = 0;
         let invertMotif = false;
 
-        if (!isPhraseEnd && m === 4 && numMeasures >= 8 && Math.random() < 0.75) {
+        if (!isPhraseEnd && m === 4 && numMeasures >= 8 && rng() < 0.75) {
           rhythm = motifRhythm;
           useMotifSeq = motifIntervals.length > 0 && maxDeg > minDeg;
-          seqShift = T.pick([1, 2, -1]);
-        } else if (!isPhraseEnd && m === 2 && Math.random() < 0.6) {
+          seqShift = pick([1, 2, -1], rng);
+        } else if (!isPhraseEnd && m === 2 && rng() < 0.6) {
           rhythm = motifRhythm;
           useMotifSeq = motifIntervals.length > 0 && maxDeg > minDeg;
-          seqShift = T.pick([1, -1, 2]);
-          invertMotif = Math.random() < 0.35;
+          seqShift = pick([1, -1, 2], rng);
+          invertMotif = rng() < 0.35;
         } else {
           rhythm = getBarRhythm(m, isPhraseEnd);
         }
 
         // Occasional natural breathing rest on final beat of bar 4 (antecedent phrase end)
         const insertBreathRest = allowRests && !isWOnly && !isFinalBar && m === 3 && numMeasures >= 8
-          && rhythm.length >= 2 && Math.random() < 0.45;
+          && rhythm.length >= 2 && rng() < 0.45;
 
         const notes = [];
         rhythm.forEach((item, idx) => {
@@ -2154,7 +2345,7 @@
             ].filter((x) => x >= minDeg && x <= maxDeg && x !== prevDeg);
             if (chordCadOpts.length) {
               const nonOsc = chordCadOpts.filter((x) => x !== prevPrevDeg);
-              currentDeg = T.pick(nonOsc.length ? nonOsc : chordCadOpts);
+              currentDeg = pick(nonOsc.length ? nonOsc : chordCadOpts, rng);
             } else if (maxDeg > minDeg) {
               currentDeg = prevDeg + 1 <= maxDeg ? prevDeg + 1 : prevDeg - 1;
             }
@@ -2200,7 +2391,7 @@
               const candidates = [-3, -2, -1, 1, 2, 3]
                 .map((dlt) => prevDeg + dlt)
                 .filter((c) => c >= minDeg && c <= maxDeg && c !== prevDeg);
-              if (!mustMove && Math.random() < 0.06) {
+              if (!mustMove && rng() < 0.06) {
                 currentDeg = prevDeg;
               } else if (candidates.length) {
                 candidates.sort((a, b) => {
@@ -2210,16 +2401,16 @@
                     + (Math.abs(stepA) === 1 ? 0 : Math.abs(stepA) === 2 ? 0.8 : 2.2)
                     + Math.abs(a - arcTarget) * 0.35
                     + (a === prevPrevDeg ? 7 : 0)
-                    + Math.random() * 1.6;
+                    + rng() * 1.6;
                   const sB = (Math.sign(stepB) === dir ? 0 : 2.5)
                     + (Math.abs(stepB) === 1 ? 0 : Math.abs(stepB) === 2 ? 0.8 : 2.2)
                     + Math.abs(b - arcTarget) * 0.35
                     + (b === prevPrevDeg ? 7 : 0)
-                    + Math.random() * 1.6;
+                    + rng() * 1.6;
                   return sA - sB;
                 });
                 currentDeg = candidates[0];
-                if (Math.abs(currentDeg - prevDeg) >= 2 && Math.random() < 0.5) dir *= -1;
+                if (Math.abs(currentDeg - prevDeg) >= 2 && rng() < 0.5) dir *= -1;
                 else dir = Math.sign(currentDeg - prevDeg) || dir;
               }
             }
@@ -2317,9 +2508,7 @@
         let targetIdx = baseIdx + (isHighPercussion ? 2 : -2);
         while (targetIdx < 0 && targetIdx + 7 < scale.length) targetIdx += 7;
         while (targetIdx >= scale.length && targetIdx - 7 >= 0) targetIdx -= 7;
-        let fallbackMidi = scale[Math.max(0, Math.min(scale.length - 1, targetIdx))];
-        while (fallbackMidi < malletLow && fallbackMidi + 12 <= malletHigh) fallbackMidi += 12;
-        while (fallbackMidi > malletHigh && fallbackMidi - 12 >= malletLow) fallbackMidi -= 12;
+        const fallbackMidi = fitOctaveInRange(scalePitchAt(scale, targetIdx), malletLow, malletHigh);
         const fallback = snapMalletPitch(fallbackMidi);
         lastMalPitch = fallback;
         lastTptSounding = tptSoundingMidi;
@@ -2368,100 +2557,25 @@
       // - Xylo: +12 semitones (written unison)
       // - Marimba / Vibes: +0 semitones (sounding & written unison)
       const octOffset = malletInstId === "glock" ? 24 : malletInstId === "xylo" ? 12 : 0;
-      let targetMidi = tptSoundingMidi + octOffset;
-      while (targetMidi < malletInst.low) targetMidi += 12;
-      while (targetMidi > malletInst.high) targetMidi -= 12;
-
-      while (targetMidi < malletLow && targetMidi + 12 <= malletHigh) targetMidi += 12;
-      while (targetMidi > malletHigh && targetMidi - 12 >= malletLow) targetMidi -= 12;
-
+      let targetMidi = fitOctaveInRange(tptSoundingMidi + octOffset, malletInst.low, malletInst.high);
+      targetMidi = fitOctaveInRange(targetMidi, malletLow, malletHigh);
       return snapMalletPitch(targetMidi);
     }
 
     function getMalletVoicing(mIndex, isFinalBar, isPhraseEnd, baseMalletPitch) {
-      const safeBase = snapMalletPitch(baseMalletPitch);
-      if (!allowChords || malletCount < 2) {
-        return { pitches: [safeBase], mallets: [1] };
-      }
-      const chord = getBarChord(mIndex);
-      const rootDeg = chord.rootDeg;
-      const thirdDeg = chord.thirdDeg;
-      const fifthDeg = chord.fifthDeg;
-
-      let rPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + rootDeg))];
-      let tPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + thirdDeg))];
-      let fPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + fifthDeg))];
-
-      if (isHighPercussion) {
-        const add = malletInstId === "glock" ? 24 : 12;
-        rPitch += add;
-        tPitch += add;
-        fPitch += add;
-      } else {
-        while (rPitch - 12 >= malletLow) rPitch -= 12;
-        while (tPitch - 12 >= malletLow && tPitch > malletHigh) tPitch -= 12;
-        while (fPitch - 12 >= malletLow && fPitch > malletHigh) fPitch -= 12;
-      }
-      while (rPitch < malletLow && rPitch + 12 <= malletHigh) rPitch += 12;
-      while (rPitch > malletHigh && rPitch - 12 >= malletLow) rPitch -= 12;
-      while (tPitch < malletLow && tPitch + 12 <= malletHigh) tPitch += 12;
-      while (tPitch > malletHigh && tPitch - 12 >= malletLow) tPitch -= 12;
-      while (fPitch < malletLow && fPitch + 12 <= malletHigh) fPitch += 12;
-      while (fPitch > malletHigh && fPitch - 12 >= malletLow) fPitch -= 12;
-
-      rPitch = snapMalletPitch(rPitch);
-      tPitch = snapMalletPitch(tPitch);
-      fPitch = snapMalletPitch(fPitch);
-
-      if (malletCount === 2) {
-        // Dyad (2 mallets): root + 3rd or root + 5th
-        let upper = (tPitch !== rPitch && Math.abs(tPitch - rPitch) >= 3 && Math.abs(tPitch - rPitch) <= 16)
-          ? tPitch
-          : fPitch;
-        if (upper === rPitch || Math.abs(upper - rPitch) < 3) {
-          upper = (rPitch + 7 <= malletHigh)
-            ? snapMalletPitch(rPitch + 7)
-            : (rPitch + 4 <= malletHigh ? snapMalletPitch(rPitch + 4) : safeBase);
-        }
-        upper = snapMalletPitch(upper);
-        const pitches = [...new Set([rPitch, upper])].sort((a, b) => a - b);
-        if (pitches.length === 1 && pitches[0] + 7 <= malletHigh) {
-          const fifthUp = snapMalletPitch(pitches[0] + 7);
-          if (fifthUp !== pitches[0]) pitches.push(fifthUp);
-        }
-        pitches.sort((a, b) => a - b);
-        return {
-          pitches: pitches.length ? pitches : [safeBase],
-          mallets: pitches.length >= 2 ? [1, 2] : [1],
-        };
-      } else if (malletCount === 3) {
-        // Triad (3 mallets): root + 3rd + 5th
-        let triad = [...new Set([rPitch, tPitch, fPitch])].filter((p) => p >= malletLow && p <= malletHigh).sort((a, b) => a - b);
-        if (triad.length < 3 && triad[0] + 12 <= malletHigh) {
-          triad.push(snapMalletPitch(triad[0] + 12));
-          triad = [...new Set(triad)];
-        }
-        triad.sort((a, b) => a - b);
-        return {
-          pitches: triad.length ? triad : [safeBase],
-          mallets: [1, 2, 3].slice(0, triad.length),
-        };
-      } else {
-        // 4 mallets: root + 5th + 3rd + octave
-        const oct = rPitch + 12 <= malletHigh ? snapMalletPitch(rPitch + 12) : snapMalletPitch(malletHigh);
-        let quad = [...new Set([rPitch, fPitch, tPitch, oct])].filter((p) => p >= malletLow && p <= malletHigh).sort((a, b) => a - b);
-        if (quad.length < 4 && quad[quad.length - 1] + 12 <= malletHigh) {
-          quad.push(snapMalletPitch(quad[quad.length - 1] + 12));
-        }
-        if (quad.length < 4 && quad[0] - 12 >= malletLow) {
-          quad.unshift(snapMalletPitch(quad[0] - 12));
-        }
-        quad = [...new Set(quad)].sort((a, b) => a - b);
-        return {
-          pitches: quad.length ? quad : [safeBase],
-          mallets: [1, 2, 3, 4].slice(0, quad.length),
-        };
-      }
+      return buildDiatonicChordVoicing({
+        scale,
+        tIdx,
+        chord: getBarChord(mIndex),
+        malletCount,
+        allowChords,
+        malletLow,
+        malletHigh,
+        malletScale,
+        isHighPercussion,
+        malletInstId,
+        basePitch: baseMalletPitch,
+      });
     }
 
     // Active rhythm features based on user settings:
@@ -2481,46 +2595,117 @@
       if (!step1) return null;
 
       if (durId === "q") {
-        if (hasTriplets && Math.random() < 0.35 * densityScale) {
-          let dir = Math.random() < 0.5 ? 1 : -1;
+        if (hasTriplets && rng() < 0.35 * densityScale) {
+          let dir = rng() < 0.5 ? 1 : -1;
           if (deg + dir < minDeg || deg + dir > maxDeg) dir = step1;
           return [
-            { deg: deg, dur: d("8t"), tuplet: "start" },
-            { deg: deg + dir, dur: d("8t"), tuplet: null },
-            { deg: deg, dur: d("8t"), tuplet: "end" },
+            { deg: deg, dur: durById("8t"), tuplet: "start" },
+            { deg: deg + dir, dur: durById("8t"), tuplet: null },
+            { deg: deg, dur: durById("8t"), tuplet: "end" },
           ];
         }
-        if (has16 && Math.random() < 0.45 * densityScale) {
-          const r = Math.random();
+        if (has16 && rng() < 0.45 * densityScale) {
+          const r = rng();
           if (hasDotted8 && r < 0.35) {
             return [
-              { deg: deg, dur: d("8d"), tuplet: null },
-              { deg: deg + step1, dur: d("16"), tuplet: null },
+              { deg: deg, dur: durById("8d"), tuplet: null },
+              { deg: deg + step1, dur: durById("16"), tuplet: null },
             ];
           } else if (r < 0.70 && deg + step2 * 2 >= minDeg && deg + step2 * 2 <= maxDeg) {
             return [
-              { deg: deg, dur: d("16"), tuplet: null },
-              { deg: deg + step2, dur: d("16"), tuplet: null },
-              { deg: deg + step2 * 2, dur: d("16"), tuplet: null },
-              { deg: deg + step2, dur: d("16"), tuplet: null },
+              { deg: deg, dur: durById("16"), tuplet: null },
+              { deg: deg + step2, dur: durById("16"), tuplet: null },
+              { deg: deg + step2 * 2, dur: durById("16"), tuplet: null },
+              { deg: deg + step2, dur: durById("16"), tuplet: null },
             ];
           } else if (allowedRhythms.has("8")) {
             return [
-              { deg: deg, dur: d("16"), tuplet: null },
-              { deg: deg + step1, dur: d("16"), tuplet: null },
-              { deg: deg, dur: d("8"), tuplet: null },
+              { deg: deg, dur: durById("16"), tuplet: null },
+              { deg: deg + step1, dur: durById("16"), tuplet: null },
+              { deg: deg, dur: durById("8"), tuplet: null },
             ];
           }
         }
       } else if (durId === "8") {
-        if (has16 && Math.random() < 0.28 * densityScale) {
+        if (has16 && rng() < 0.28 * densityScale) {
           return [
-            { deg: deg, dur: d("16"), tuplet: null },
-            { deg: deg + step1, dur: d("16"), tuplet: null },
+            { deg: deg, dur: durById("16"), tuplet: null },
+            { deg: deg + step1, dur: durById("16"), tuplet: null },
           ];
         }
       }
       return null;
+    }
+
+    function pickDiatonicNeighbor(baseMidi, nextTargetMidi) {
+      if (!malletScale.length) return baseMidi;
+      let idx = malletScale.indexOf(baseMidi);
+      if (idx < 0) {
+        const nearest = T.nearestIn(malletScale, baseMidi);
+        idx = malletScale.indexOf(nearest);
+      }
+      if (idx < 0) return baseMidi;
+      const stepMag = rng() < 0.35 ? 2 : 1;
+      const cands = [];
+      if (idx + stepMag < malletScale.length) cands.push(malletScale[idx + stepMag]);
+      if (idx - stepMag >= 0) cands.push(malletScale[idx - stepMag]);
+      if (!cands.length) {
+        if (idx + 1 < malletScale.length) cands.push(malletScale[idx + 1]);
+        if (idx - 1 >= 0) cands.push(malletScale[idx - 1]);
+      }
+      if (!cands.length) return baseMidi;
+      if (nextTargetMidi != null && cands.length > 1) {
+        cands.sort((a, b) => Math.abs(a - nextTargetMidi) - Math.abs(b - nextTargetMidi));
+        return cands[0];
+      }
+      return pick(cands, rng);
+    }
+
+    function splitLongHarmonyCell(origDur, malPitch, nextTargetMidi, mIndex, isPhraseCadence, isFinalBar, isLastNote, isTrumpetRest) {
+      if (isLastNote) return null;
+      let pair = null;
+      if (origDur.id === "w" && allowedRhythms.has("h")) {
+        pair = [durById("h"), durById("h")];
+      } else if (origDur.id === "hd" && allowedRhythms.has("h") && allowedRhythms.has("q")) {
+        pair = [durById("h"), durById("q")];
+      } else if (origDur.id === "h" && allowedRhythms.has("q")) {
+        pair = [durById("q"), durById("q")];
+      }
+      if (!pair || !pair[0] || !pair[1]) return null;
+      if (pair[0].ticks + pair[1].ticks !== origDur.ticks) return null;
+
+      if (isTrumpetRest) {
+        if (!isPhraseCadence || isFinalBar) return null;
+        if (rng() >= 0.65) return null;
+        const leadBase = snapMalletPitch(lastMalPitch != null ? lastMalPitch : malletLow);
+        const leadPitch = pickDiatonicNeighbor(leadBase, nextTargetMidi);
+        const cadVoicing = getMalletVoicing(mIndex, false, true, leadPitch);
+        lastMalPitch = cadVoicing.pitches[0];
+        return [
+          { rest: false, dur: pair[0], pitches: [leadPitch], mallets: [1] },
+          { rest: false, dur: pair[1], pitches: cadVoicing.pitches, mallets: cadVoicing.mallets },
+        ];
+      }
+
+      const prob = isPhraseCadence ? 0.65 : 0.55;
+      if (rng() >= prob) return null;
+
+      const passPitch = pickDiatonicNeighbor(malPitch, nextTargetMidi);
+      if (passPitch === malPitch && !isPhraseCadence) return null;
+
+      let secondPitches = [passPitch];
+      let secondMallets = [1];
+      if (isPhraseCadence && malletCount >= 2 && allowChords) {
+        const cadVoicing = getMalletVoicing(mIndex, false, true, passPitch);
+        secondPitches = cadVoicing.pitches;
+        secondMallets = cadVoicing.mallets;
+      }
+      lastMalPitch = secondPitches[0];
+
+      return [
+        { rest: false, dur: pair[0], pitches: [malPitch], mallets: [1] },
+        { rest: false, dur: pair[1], pitches: secondPitches, mallets: secondMallets },
+      ];
     }
 
     const trumpetMeasures = [];
@@ -2532,8 +2717,7 @@
 
     function pickCompUpperVoicing(chord, bassPitch) {
       const targetPcs = [chord.thirdDeg, chord.fifthDeg, chord.rootDeg].map((deg) => {
-        const si = Math.max(0, Math.min(scale.length - 1, tIdx + deg));
-        return ((scale[si] % 12) + 12) % 12;
+        return ((scalePitchAt(scale, tIdx + deg) % 12) + 12) % 12;
       });
       const thirdPc = targetPcs[0];
       const fifthPc = targetPcs[1];
@@ -2592,12 +2776,14 @@
       return [fallback];
     }
 
+    const duetDur = (id) => durById(id) || T.DURATIONS[0];
+
     for (let m = 0; m < numMeasures; m++) {
       const barNotes = chosenTheme[m % chosenTheme.length] || chosenTheme[0];
       const isFinalBar = m === numMeasures - 1;
-      const isPhraseEnd = (m + 1) % 4 === 0 || isFinalBar;
+      const isPhraseEnd = isPhraseCadenceBar(m, numMeasures);
       if (m % 4 === 0) {
-        phraseCompVariant = Math.floor(Math.random() * 4);
+        phraseCompVariant = Math.floor(rng() * 4);
       }
 
       const tptEvents = [];
@@ -2628,12 +2814,12 @@
         }
 
         if (role === "tpt") {
-          barNotes.forEach((item, ni) => {
+          barNotes.forEach((item) => {
             const sub = subdivideCell(item, isFinalBar);
             if (!sub) {
               const deg = item[0];
-              const dur = d(item[1]);
-              const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+              const dur = duetDur(item[1]);
+              const tptSounding = scalePitchAt(scale, tIdx + deg);
               const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
               tptEvents.push({
                 rest: false,
@@ -2645,7 +2831,7 @@
               malletEvents.push({ rest: true, dur: dur, pitches: [], mallets: [] });
             } else {
               sub.forEach((sn) => {
-                const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+                const tptSounding = scalePitchAt(scale, tIdx + sn.deg);
                 const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
                 tptEvents.push({
                   rest: false,
@@ -2679,8 +2865,8 @@
           } else {
             barNotes.forEach((item) => {
               const deg = item[0];
-              const dur = d(item[1]);
-              const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+              const dur = duetDur(item[1]);
+              const tptSounding = scalePitchAt(scale, tIdx + deg);
               tptEvents.push({ rest: true, dur: dur, pitches: [], mallets: [] });
               const malPitch = getEchoPitch(tptSounding);
               malletEvents.push({ rest: false, dur: dur, pitches: [malPitch], mallets: [1] });
@@ -2692,8 +2878,8 @@
             const isLastInBar = (ni === barNotes.length - 1);
             const isLastNote = isFinalBar && isLastInBar;
             const deg = isLastNote ? 0 : item[0];
-            const dur = d(item[1]);
-            const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+            const dur = duetDur(item[1]);
+            const tptSounding = scalePitchAt(scale, tIdx + deg);
             const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
             const malPitch = getMalletPitch(tptSounding, isLastNote);
 
@@ -2713,14 +2899,14 @@
       } else if (style === "melody_comp") {
         barNotes.forEach((item) => {
           if (item[2]) {
-            tptEvents.push({ rest: true, dur: d(item[1]), pitches: [], mallets: [] });
+            tptEvents.push({ rest: true, dur: duetDur(item[1]), pitches: [], mallets: [] });
             return;
           }
           const sub = subdivideCell(item, isFinalBar);
           if (!sub) {
             const deg = item[0];
-            const dur = d(item[1]);
-            const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+            const dur = duetDur(item[1]);
+            const tptSounding = scalePitchAt(scale, tIdx + deg);
             const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
 
             tptEvents.push({
@@ -2732,7 +2918,7 @@
             });
           } else {
             sub.forEach((sn) => {
-              const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+              const tptSounding = scalePitchAt(scale, tIdx + sn.deg);
               const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
               tptEvents.push({
                 rest: false,
@@ -2747,13 +2933,7 @@
         });
 
         const chord = getBarChord(m);
-        const rootDeg = chord.rootDeg;
-        const thirdDeg = chord.thirdDeg;
-        const fifthDeg = chord.fifthDeg;
-
-        let rootPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + rootDeg))];
-        let thirdPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + thirdDeg))];
-        let fifthPitch = scale[Math.max(0, Math.min(scale.length - 1, tIdx + fifthDeg))];
+        const rootPitch = scalePitchAt(scale, tIdx + chord.rootDeg);
 
         const rootPc = ((rootPitch % 12) + 12) % 12;
         const bassCands = malletScale.filter((p) => ((p % 12) + 12) % 12 === rootPc);
@@ -2770,46 +2950,38 @@
         }
         prevCompBass = bassPitch;
 
-        while (thirdPitch < malletLow && thirdPitch + 12 <= malletHigh) thirdPitch += 12;
-        while (thirdPitch > malletHigh && thirdPitch - 12 >= malletLow) thirdPitch -= 12;
-        while (fifthPitch < malletLow && fifthPitch + 12 <= malletHigh) fifthPitch += 12;
-        while (fifthPitch > malletHigh && fifthPitch - 12 >= malletLow) fifthPitch -= 12;
-        thirdPitch = snapMalletPitch(thirdPitch);
-        fifthPitch = snapMalletPitch(fifthPitch);
-
         const upperPitches = pickCompUpperVoicing(chord, bassPitch);
         const upperMallets = !allowChords ? [1] : (malletCount >= 4 ? [3, 4].slice(0, upperPitches.length) : malletCount === 3 ? [2, 3].slice(0, upperPitches.length) : [2].slice(0, upperPitches.length));
 
         if (isFinalBar) {
-          let finalPitches = [bassPitch];
-          let finalMallets = [1];
-          if (allowChords) {
-            if (malletCount === 2) {
-              const v2 = getMalletVoicing(m, true, true, bassPitch);
-              finalPitches = v2.pitches;
-              finalMallets = v2.mallets;
-            } else if (malletCount === 3) {
-              finalPitches = [...new Set([bassPitch, ...upperPitches])].sort((a, b) => a - b);
-              if (finalPitches.length < 3 && thirdPitch !== bassPitch) finalPitches.push(thirdPitch);
-              finalPitches = [...new Set(finalPitches)].sort((a, b) => a - b).slice(0, 3);
-              finalMallets = [1, 2, 3].slice(0, finalPitches.length);
-            } else if (malletCount >= 4) {
-              const oct = bassPitch + 12 <= malletHigh ? snapMalletPitch(bassPitch + 12) : snapMalletPitch(malletHigh);
-              finalPitches = [...new Set([bassPitch, ...upperPitches, fifthPitch, thirdPitch, oct])].sort((a, b) => a - b).slice(0, 4);
-              finalMallets = [1, 2, 3, 4].slice(0, finalPitches.length);
-            }
-          }
+          const finalVoicing = buildDiatonicChordVoicing({
+            scale,
+            tIdx,
+            chord,
+            malletCount,
+            allowChords,
+            malletLow,
+            malletHigh,
+            malletScale,
+            isHighPercussion,
+            malletInstId,
+            basePitch: bassPitch,
+            bassPitch,
+            upperPitches,
+          });
+          const finalPitches = finalVoicing.pitches;
+          const finalMallets = finalVoicing.mallets;
           if (meterKey === "5/8") {
-            malletEvents.push({ rest: false, dur: d("qd"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: finalPitches, mallets: finalMallets });
+            malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: finalPitches, mallets: finalMallets });
           } else if (meterKey === "7/8") {
-            malletEvents.push({ rest: false, dur: d("h"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("qd"), pitches: finalPitches, mallets: finalMallets });
+            malletEvents.push({ rest: false, dur: duetDur("h"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: finalPitches, mallets: finalMallets });
           } else {
-            const finalDur = (meterKey === "4/4" || meterKey === "2/2") ? d("w")
-              : (meterKey === "3/4" || meterKey === "6/8") ? d("hd")
-              : meterKey === "3/8" ? d("qd")
-              : d("h");
+            const finalDur = (meterKey === "4/4" || meterKey === "2/2") ? duetDur("w")
+              : (meterKey === "3/4" || meterKey === "6/8") ? duetDur("hd")
+              : meterKey === "3/8" ? duetDur("qd")
+              : duetDur("h");
             malletEvents.push({
               rest: false,
               dur: finalDur,
@@ -2820,49 +2992,49 @@
         } else if (meterKey === "3/4") {
           const pat34 = phraseCompVariant % 3;
           if (pat34 === 1) {
-            malletEvents.push({ rest: false, dur: d("h"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("h"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
           } else if (pat34 === 2 && allowedRhythms.has("qd") && allowedRhythms.has("8")) {
-            malletEvents.push({ rest: false, dur: d("qd"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("8"), pitches: upperPitches, mallets: upperMallets });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("8"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
           } else {
-            malletEvents.push({ rest: false, dur: d("q"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
           }
         } else if (meterKey === "2/4") {
           if (phraseCompVariant % 2 === 1 && allowedRhythms.has("8")) {
-            malletEvents.push({ rest: false, dur: d("q"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("8"), pitches: upperPitches, mallets: upperMallets });
-            malletEvents.push({ rest: false, dur: d("8"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("8"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("8"), pitches: upperPitches, mallets: upperMallets });
           } else {
-            malletEvents.push({ rest: false, dur: d("q"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
           }
         } else if (meterKey === "6/8") {
           if (phraseCompVariant % 2 === 1 && allowedRhythms.has("8")) {
-            malletEvents.push({ rest: false, dur: d("q"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("8"), pitches: upperPitches, mallets: upperMallets });
-            malletEvents.push({ rest: false, dur: d("qd"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("8"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: upperPitches, mallets: upperMallets });
           } else {
-            malletEvents.push({ rest: false, dur: d("qd"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("qd"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: upperPitches, mallets: upperMallets });
           }
         } else if (meterKey === "3/8") {
-          malletEvents.push({ rest: false, dur: d("q"), pitches: [bassPitch], mallets: [1] });
-          malletEvents.push({ rest: false, dur: d("8"), pitches: upperPitches, mallets: upperMallets });
+          malletEvents.push({ rest: false, dur: duetDur("q"), pitches: [bassPitch], mallets: [1] });
+          malletEvents.push({ rest: false, dur: duetDur("8"), pitches: upperPitches, mallets: upperMallets });
         } else if (meterKey === "5/8") {
           if (phraseCompVariant % 2 === 1) {
-            malletEvents.push({ rest: false, dur: d("q"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("qd"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: upperPitches, mallets: upperMallets });
           } else {
-            malletEvents.push({ rest: false, dur: d("qd"), pitches: [bassPitch], mallets: [1] });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: [bassPitch], mallets: [1] });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
           }
         } else if (meterKey === "7/8") {
-          malletEvents.push({ rest: false, dur: d("h"), pitches: [bassPitch], mallets: [1] });
-          malletEvents.push({ rest: false, dur: d("qd"), pitches: upperPitches, mallets: upperMallets });
+          malletEvents.push({ rest: false, dur: duetDur("h"), pitches: [bassPitch], mallets: [1] });
+          malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: upperPitches, mallets: upperMallets });
         } else {
           // 4/4 and 2/2 with phrase-level comping patterns
           let bassP = [bassPitch];
@@ -2873,48 +3045,55 @@
           }
           if (isPhraseEnd && allowChords) {
             // Half-cadence phrase end: sustained chord
-            malletEvents.push({ rest: false, dur: d("h"), pitches: bassP, mallets: bassM });
+            malletEvents.push({ rest: false, dur: duetDur("h"), pitches: bassP, mallets: bassM });
             const phraseChord = getMalletVoicing(m, false, true, bassPitch);
             malletEvents.push({
               rest: false,
-              dur: d("h"),
+              dur: duetDur("h"),
               pitches: phraseChord.pitches,
               mallets: phraseChord.mallets,
             });
           } else if (phraseCompVariant === 1) {
-            malletEvents.push({ rest: false, dur: d("q"), pitches: bassP, mallets: bassM });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
-            malletEvents.push({ rest: false, dur: d("h"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: bassP, mallets: bassM });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("h"), pitches: upperPitches, mallets: upperMallets });
           } else if (phraseCompVariant === 2 && allowedRhythms.has("qd") && allowedRhythms.has("8")) {
-            malletEvents.push({ rest: false, dur: d("qd"), pitches: bassP, mallets: bassM });
-            malletEvents.push({ rest: false, dur: d("8"), pitches: upperPitches, mallets: upperMallets });
-            malletEvents.push({ rest: false, dur: d("h"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("qd"), pitches: bassP, mallets: bassM });
+            malletEvents.push({ rest: false, dur: duetDur("8"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("h"), pitches: upperPitches, mallets: upperMallets });
           } else if (phraseCompVariant === 3) {
-            malletEvents.push({ rest: false, dur: d("q"), pitches: bassP, mallets: bassM });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: bassP, mallets: bassM });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: bassP, mallets: bassM });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: bassP, mallets: bassM });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
           } else {
-            malletEvents.push({ rest: false, dur: d("h"), pitches: bassP, mallets: bassM });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
-            malletEvents.push({ rest: false, dur: d("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("h"), pitches: bassP, mallets: bassM });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
+            malletEvents.push({ rest: false, dur: duetDur("q"), pitches: upperPitches, mallets: upperMallets });
           }
         }
       } else {
         // "harmony": contrapuntal 3rds & 6ths with contrary/oblique motion & phrase-end chords
-        const halfBarTex = [Math.random(), Math.random()];
+        const halfBarTex = [rng(), rng()];
         let tickPos = 0;
 
         barNotes.forEach((item, ni) => {
           const isLastInBar = (ni === barNotes.length - 1);
           const isLastNote = isFinalBar && isLastInBar;
           const isPhraseCadence = isPhraseEnd && isLastInBar;
-          const origDur = d(item[1]);
+          const origDur = duetDur(item[1]);
+          const nextItem = ni + 1 < barNotes.length ? barNotes[ni + 1] : null;
+          const nextTargetMidi = (nextItem && !nextItem[2])
+            ? scalePitchAt(scale, tIdx + nextItem[0])
+            : null;
 
           if (item[2]) {
-            // Trumpet breathing rest: mallet plays cadential note/chord or rests cleanly
+            // Trumpet breathing rest: mallet plays contrapuntal lead-in/cadential chord or rests cleanly
             tptEvents.push({ rest: true, dur: origDur, pitches: [], mallets: [] });
-            if (isPhraseCadence && malletCount >= 2 && allowChords) {
+            const splitRest = splitLongHarmonyCell(origDur, lastMalPitch || malletLow, nextTargetMidi, m, isPhraseCadence, isFinalBar, false, true);
+            if (splitRest) {
+              splitRest.forEach((ev) => malletEvents.push(ev));
+            } else if (isPhraseCadence && malletCount >= 2 && allowChords) {
               const voicing = getMalletVoicing(m, false, true, lastMalPitch || malletLow);
               malletEvents.push({ rest: false, dur: origDur, pitches: voicing.pitches, mallets: voicing.mallets });
             } else {
@@ -2930,7 +3109,7 @@
           tickPos += origDur.ticks;
 
           if (!sub) {
-            const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+            const tptSounding = scalePitchAt(scale, tIdx + deg);
             const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
             const malPitch = getMalletPitch(tptSounding, isLastNote);
 
@@ -2942,23 +3121,28 @@
               sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
             });
 
-            // Reserve duetAllowChords for phrase endings and cadences
-            let voicing = { pitches: [malPitch], mallets: [1] };
-            if ((isLastNote || isPhraseCadence) && malletCount >= 2 && allowChords) {
-              voicing = getMalletVoicing(m, isLastNote, isPhraseCadence, malPitch);
-            }
+            const splitNotes = splitLongHarmonyCell(origDur, malPitch, nextTargetMidi, m, isPhraseCadence, isFinalBar, isLastNote, false);
+            if (splitNotes) {
+              splitNotes.forEach((ev) => malletEvents.push(ev));
+            } else {
+              // Reserve duetAllowChords for phrase endings and cadences
+              let voicing = { pitches: [malPitch], mallets: [1] };
+              if ((isLastNote || isPhraseCadence) && malletCount >= 2 && allowChords) {
+                voicing = getMalletVoicing(m, isLastNote, isPhraseCadence, malPitch);
+              }
 
-            malletEvents.push({
-              rest: false,
-              dur: origDur,
-              pitches: voicing.pitches,
-              mallets: voicing.mallets,
-            });
+              malletEvents.push({
+                rest: false,
+                dur: origDur,
+                pitches: voicing.pitches,
+                mallets: voicing.mallets,
+              });
+            }
           } else {
             if (textureRoll < 0.40) {
               // Both play the flourish in counterpoint
               sub.forEach((sn) => {
-                const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+                const tptSounding = scalePitchAt(scale, tIdx + sn.deg);
                 const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
                 const malPitch = getMalletPitch(tptSounding, false);
 
@@ -2981,7 +3165,7 @@
             } else if (textureRoll < 0.70) {
               // Dialogue: Trumpet flourish, Mallet holds sustained contrapuntal note
               sub.forEach((sn) => {
-                const tptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+                const tptSounding = scalePitchAt(scale, tIdx + sn.deg);
                 const writtenTpt = T.clamp(tptSounding + 2, tptLow, tptHigh);
                 tptEvents.push({
                   rest: false,
@@ -2992,7 +3176,7 @@
                   sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
                 });
               });
-              const baseTptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+              const baseTptSounding = scalePitchAt(scale, tIdx + deg);
               const malPitch = getMalletPitch(baseTptSounding, false);
               const voicing = (isPhraseCadence && malletCount >= 2 && allowChords)
                 ? getMalletVoicing(m, false, true, malPitch)
@@ -3005,7 +3189,7 @@
               });
             } else {
               // Dialogue: Trumpet holds sustained note, Mallet plays flourish
-              const baseTptSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + deg))];
+              const baseTptSounding = scalePitchAt(scale, tIdx + deg);
               const writtenTpt = T.clamp(baseTptSounding + 2, tptLow, tptHigh);
               tptEvents.push({
                 rest: false,
@@ -3015,7 +3199,7 @@
                 sticking: rawSettings.showSticking ? T.trumpetValve(writtenTpt) : null,
               });
               sub.forEach((sn) => {
-                const harmSounding = scale[Math.max(0, Math.min(scale.length - 1, tIdx + sn.deg))];
+                const harmSounding = scalePitchAt(scale, tIdx + sn.deg);
                 const malPitch = getMalletPitch(harmSounding, false);
                 malletEvents.push({
                   rest: false,
@@ -3031,22 +3215,36 @@
       }
 
       if (rawSettings.legato) {
-        applyLegatoGroups(tptEvents);
-        applyLegatoGroups(malletEvents);
+        applyLegatoGroups(tptEvents, rng);
+        applyLegatoGroups(malletEvents, rng);
       }
 
       trumpetMeasures.push({ events: tptEvents });
       malletMeasures.push({ events: malletEvents });
     }
 
-    applyDynamics(trumpetMeasures, rawSettings);
-    applyDynamics(malletMeasures, rawSettings);
+    applyDynamics(trumpetMeasures, rawSettings, rng);
+    applyDynamics(malletMeasures, rawSettings, rng);
 
     let malletClef = "treble";
     if (malletInstId === "mar50" || malletInstId === "mar43") {
       const allM = malletMeasures.flatMap((m) => m.events.flatMap((e) => e.pitches));
       const avg = allM.reduce((a, b) => a + b, 0) / (allM.length || 1);
       malletClef = avg < 57 ? "bass" : "treble";
+    }
+
+    const settingsSnapshot = {
+      instrument: "duet",
+      duetMalletInstrument: malletInst.id,
+      duetMallets: malletCount,
+      mallets: malletCount,
+      duetAllowChords: allowChords,
+      duetStyle: style,
+      tempo: rawSettings.tempo || 80,
+      legato: !!rawSettings.legato,
+    };
+    if (hasNumericSeed(rawSettings && rawSettings.seed)) {
+      settingsSnapshot.seed = Number(rawSettings.seed) >>> 0;
     }
 
     return {
@@ -3062,16 +3260,7 @@
       trumpetMeasures: trumpetMeasures,
       malletMeasures: malletMeasures,
       measures: trumpetMeasures,
-      settingsSnapshot: {
-        instrument: "duet",
-        duetMalletInstrument: malletInst.id,
-        duetMallets: malletCount,
-        mallets: malletCount,
-        duetAllowChords: allowChords,
-        duetStyle: style,
-        tempo: rawSettings.tempo || 80,
-        legato: !!rawSettings.legato,
-      },
+      settingsSnapshot,
     };
   }
 
