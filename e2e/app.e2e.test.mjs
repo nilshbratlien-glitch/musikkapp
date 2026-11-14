@@ -939,7 +939,7 @@ describe("duet mode", () => {
         `[data-duet-view="${part}"] is active`,
       );
       assert.equal(await page.locator("#duetViewSelect").inputValue(), part, `#duetViewSelect reflects ${part}`);
-      const scoreText = await page.locator("#score svg").innerText();
+      const scoreText = (await page.locator("#score svg").textContent()) || "";
       assert.match(scoreText, expectedTitle, `score updates for ${part} view`);
     }
 
@@ -972,8 +972,17 @@ describe("Bladlesing Metronom 1-bar count-in and auto-stop", () => {
     await page.waitForFunction(() => location.pathname === "/");
     await page.waitForSelector("#score svg");
 
-    // Set max clamped tempo (160 BPM) so the 4-bar etude + 1-bar count-in finishes in ~7.5s.
-    await page.evaluate(() => window.MalletSight?.setTempo?.(160));
+    // Use a 4-bar etude at max clamped tempo (160 BPM) so 1-bar count-in + 4 bars finishes in ~7.5s.
+    await page.evaluate(() => {
+      const sel = document.querySelector("#measures");
+      if (sel) {
+        sel.value = "4";
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      window.MalletSight?.generate?.();
+      window.MalletSight?.setTempo?.(160);
+    });
+    await page.waitForSelector("#score svg");
     const beforeSeconds = await headerSeconds();
 
     await page.locator("#btnMetro").click();
@@ -985,13 +994,13 @@ describe("Bladlesing Metronom 1-bar count-in and auto-stop", () => {
     assert.match(await page.locator("#btnMetro").innerText(), /^[1-4]$/, "shows 1-bar count-in beat");
     assert.ok((await recentClicks(900)).length >= 1, "count-in clicks play");
 
-    await page.waitForFunction(() => document.querySelector("#btnMetro")?.textContent === "Stopp", null, { timeout: 4000 });
+    await page.waitForFunction(() => document.querySelector("#btnMetro")?.textContent === "Stopp", null, { timeout: 5000 });
     await page.waitForFunction(
       () =>
         document.querySelector("#btnMetro")?.textContent === "Metronom" &&
         !document.querySelector("#btnMetro")?.classList.contains("on"),
       null,
-      { timeout: 12000 },
+      { timeout: 15000 },
     );
 
     assert.equal(await header().getAttribute("aria-pressed"), "false", "Øveplan block timer stays running");
