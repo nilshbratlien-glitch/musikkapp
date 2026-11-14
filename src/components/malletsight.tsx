@@ -2,7 +2,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import { getProfile, getProfileVersion, subscribeProfile } from "@/lib/profile";
 import "@/lib/pulse";
 
-const ASSET_VER = "v20";
+const ASSET_VER = "v22";
 const SCRIPTS = [
   `/malletsight/abcjs.js?${ASSET_VER}`,
   `/malletsight/theory.js?${ASSET_VER}`,
@@ -33,8 +33,15 @@ declare global {
       isReady?: () => boolean;
       setProfile?: (profile?: string) => boolean;
       generate?: () => boolean;
+      getScore?: () => unknown;
+      getTempo?: () => number;
+      applyScore?: (score: unknown, tempo?: number) => boolean;
       togglePlay?: () => boolean;
       toggleMetro?: () => boolean;
+      startPlay?: () => boolean;
+      stopPlay?: () => boolean;
+      startMetro?: () => boolean;
+      stopMetro?: () => boolean;
       again?: () => boolean;
       stopAll?: () => void;
       setTempo?: (bpm: number) => boolean;

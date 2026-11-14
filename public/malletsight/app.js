@@ -907,13 +907,22 @@
     btn.textContent = "Spill";
   }
 
+  function resetMetroButton() {
+    const btn = $("#btnMetro");
+    if (!btn) return;
+    btn.classList.remove("on");
+    btn.textContent = "Metronom";
+  }
+
   function haltPlay() {
     if (typeof AudioEngine === "undefined" || !AudioEngine.isPlaying()) return;
+    if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+      window.MusikkSync.sightAction("stopPlay");
+    }
     AudioEngine.stopPlayback();
     resetPlayButton();
     if (!AudioEngine.isMetro()) {
-      const metro = $("#btnMetro");
-      if (metro) metro.classList.remove("on");
+      resetMetroButton();
     }
     if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
   }
@@ -926,6 +935,10 @@
 
   function paintScore() {
     haltPlay();
+    if (typeof AudioEngine !== "undefined" && AudioEngine.isMetro()) {
+      AudioEngine.stopMetronome();
+      resetMetroButton();
+    }
     ScoreRenderer.clearBeat();
     currentVisual = ScoreRenderer.renderScore($("#score"), currentScore, renderOptions());
     const beatTicks = cursorBeatTicks(currentScore && currentScore.time);
@@ -1009,6 +1022,9 @@
       if (n > 1) keyStep = (keyStep + 1) % n;
       if ($("#keyModeHint")) $("#keyModeHint").textContent = keyModeText();
       paintScore();
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController() && window.MusikkSync.sightScore && currentScore) {
+        window.MusikkSync.sightScore(currentScore, settings.tempo);
+      }
     } catch (err) {
       console.error(err);
       $("#score").innerHTML =
@@ -1128,9 +1144,6 @@
     });
     function generateFresh() {
       openSettings(false);
-      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
-        window.MusikkSync.sightAction("generate");
-      }
       requestAnimationFrame(() => requestAnimationFrame(generate));
     }
     $("#btnGenerate").addEventListener("click", generateFresh);
@@ -1328,18 +1341,45 @@
       const spec = metroSpec();
       drawLamps(spec.beats);
       practiceBeat = 0;
+      const musicClicks =
+        typeof AudioEngine.scoreMusicClicks === "function"
+          ? AudioEngine.scoreMusicClicks(currentScore, spec.beats)
+          : 0;
       AudioEngine.setClicks(true);
       AudioEngine.ac();
+      $("#btnMetro").classList.add("on");
+      $("#btnMetro").textContent = "1";
+      ScoreRenderer.showBeat(beatMap, 0);
       AudioEngine.startMetronome(spec.bpm, spec.beats, {
         subdiv: metroSubdiv,
-        onBeat: (i, count, fromClick) => {
-          lightBeat(i, count);
-          if (!fromClick || !beatMap.length || AudioEngine.isPlaying()) return;
-          ScoreRenderer.showBeat(beatMap, practiceBeat % beatMap.length);
-          practiceBeat++;
+        countIn: 1,
+        musicClicks,
+        onBeat: (i, count, fromClick, cue) => {
+          if (!fromClick) {
+            lightBeat(i, count);
+            return;
+          }
+          if (AudioEngine.isPlaying()) return;
+          if (cue && cue.phase === "countin") {
+            lightBeat(cue.beat, count);
+            $("#btnMetro").textContent = String(cue.beat + 1);
+            ScoreRenderer.showBeat(beatMap, 0);
+          } else {
+            const beatIdx = cue ? cue.beat : practiceBeat;
+            lightBeat(beatIdx % count, count);
+            $("#btnMetro").textContent = "Stopp";
+            if (beatMap.length) {
+              ScoreRenderer.showBeat(beatMap, Math.min(beatIdx, beatMap.length - 1));
+            }
+            practiceBeat = beatIdx + 1;
+          }
+        },
+        done: () => {
+          resetMetroButton();
+          lightBeat(-1, spec.beats);
+          ScoreRenderer.clearBeat();
         },
       });
-      $("#btnMetro").classList.add("on");
     }
 
     function endPlay(restartMetro) {
@@ -1347,33 +1387,43 @@
       ScoreRenderer.clearBeat();
       lightBeat(-1, metroSpec().beats);
       if (restartMetro) startMetro();
-      else $("#btnMetro").classList.remove("on");
+      else resetMetroButton();
     }
 
     $("#btnMetro").addEventListener("click", () => {
-      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
-        window.MusikkSync.sightAction("toggleMetro");
-      }
       if (AudioEngine.isPlaying()) {
         const on = !$("#btnMetro").classList.contains("on");
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          window.MusikkSync.sightAction(on ? "startMetro" : "stopMetro");
+        }
         $("#btnMetro").classList.toggle("on", on);
         AudioEngine.setClicks(on);
         return;
       }
       if (AudioEngine.isMetro()) {
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          window.MusikkSync.sightAction("stopMetro");
+        }
         AudioEngine.stopMetronome();
-        $("#btnMetro").classList.remove("on");
+        resetMetroButton();
         lightBeat(-1, metroSpec().beats);
         ScoreRenderer.clearBeat();
       } else {
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          window.MusikkSync.sightAction("startMetro");
+        }
         startMetro();
       }
     });
 
     // Another tool took the shared pulse: show Metronome and Play as off.
     AudioEngine.onHalt(() => {
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+        window.MusikkSync.sightAction("stopPlay");
+        window.MusikkSync.sightAction("stopMetro");
+      }
       resetPlayButton();
-      $("#btnMetro").classList.remove("on");
+      resetMetroButton();
       lightBeat(-1, metroSpec().beats);
       ScoreRenderer.clearBeat();
     });
@@ -1401,15 +1451,18 @@
     }
 
     $("#btnPlay").addEventListener("click", () => {
-      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
-        if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
-        window.MusikkSync.sightAction("togglePlay");
-      }
       if (AudioEngine.isPlaying()) {
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          window.MusikkSync.sightAction("stopPlay");
+        }
         const resume = metroBeforePlay;
         AudioEngine.stopPlayback();
         endPlay(resume);
         return;
+      }
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+        if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
+        window.MusikkSync.sightAction("startPlay");
       }
       if (!currentScore) generate();
       if (!currentScore) return;
@@ -1502,6 +1555,12 @@
   function unmount() {
     try {
       if (window.AudioEngine) {
+        const wasPlaying = AudioEngine.isPlaying();
+        const wasMetro = AudioEngine.isMetro();
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          if (wasPlaying) window.MusikkSync.sightAction("stopPlay");
+          if (wasMetro) window.MusikkSync.sightAction("stopMetro");
+        }
         AudioEngine.onHalt(null);
         AudioEngine.stopPlayback();
         AudioEngine.stopMetronome();
@@ -1574,6 +1633,38 @@
       }
       return true;
     },
+    getScore() {
+      return currentScore || null;
+    },
+    getTempo() {
+      return settings.tempo;
+    },
+    applyScore(score, tempo) {
+      if (!wired || !score) return false;
+      remoteCall = true;
+      try {
+        openSettings(false);
+        currentScore = score;
+        settings.duetEnabled = Boolean(score.isDuet);
+        if ($("#duetEnabled")) $("#duetEnabled").checked = settings.duetEnabled;
+        if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
+        if (typeof tempo === "number" && Number.isFinite(tempo)) {
+          const clamped = Math.max(40, Math.min(160, Math.round(tempo)));
+          settings.tempo = clamped;
+          if ($("#tempo")) $("#tempo").value = String(clamped);
+          if ($("#tempoVal")) $("#tempoVal").textContent = String(clamped);
+          if ($("#tempoRead")) $("#tempoRead").textContent = String(clamped);
+        }
+        if (score.isDuet && window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
+          AudioEngine.loadInstrument("trumpet");
+          AudioEngine.loadInstrument(score.malletInstrumentId || "xylo");
+        }
+        paintScore();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
     togglePlay() {
       if (!wired) return false;
       const btn = $("#btnPlay");
@@ -1586,6 +1677,39 @@
       }
       return true;
     },
+    startPlay() {
+      if (!wired) return false;
+      const btn = $("#btnPlay");
+      if (!btn) return false;
+      remoteCall = true;
+      try {
+        if (typeof AudioEngine !== "undefined" && AudioEngine.isPlaying()) {
+          AudioEngine.stopPlayback();
+          endPlay(false);
+        }
+        btn.click();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
+    stopPlay() {
+      if (!wired) return false;
+      remoteCall = true;
+      try {
+        if (typeof AudioEngine !== "undefined" && AudioEngine.isPlaying()) {
+          const resume = metroBeforePlay;
+          AudioEngine.stopPlayback();
+          endPlay(resume);
+        } else {
+          resetPlayButton();
+          if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
+        }
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
     toggleMetro() {
       if (!wired) return false;
       const btn = $("#btnMetro");
@@ -1593,6 +1717,42 @@
       remoteCall = true;
       try {
         btn.click();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
+    startMetro() {
+      if (!wired) return false;
+      const btn = $("#btnMetro");
+      if (!btn) return false;
+      remoteCall = true;
+      try {
+        if (typeof AudioEngine !== "undefined" && AudioEngine.isPlaying()) {
+          btn.classList.add("on");
+          AudioEngine.setClicks(true);
+        } else if (typeof AudioEngine === "undefined" || !AudioEngine.isMetro()) {
+          btn.click();
+        }
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
+    stopMetro() {
+      if (!wired) return false;
+      const btn = $("#btnMetro");
+      remoteCall = true;
+      try {
+        if (typeof AudioEngine !== "undefined" && AudioEngine.isPlaying()) {
+          if (btn) btn.classList.remove("on");
+          AudioEngine.setClicks(false);
+        } else if (typeof AudioEngine !== "undefined" && AudioEngine.isMetro()) {
+          AudioEngine.stopMetronome();
+          resetMetroButton();
+          lightBeat(-1, metroSpec().beats);
+          if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
+        }
       } finally {
         remoteCall = false;
       }
@@ -1617,8 +1777,7 @@
         haltPlay();
         if (typeof AudioEngine !== "undefined" && AudioEngine.isMetro()) {
           AudioEngine.stopMetronome();
-          const metro = $("#btnMetro");
-          if (metro) metro.classList.remove("on");
+          resetMetroButton();
           if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
         }
       } finally {

@@ -19,6 +19,7 @@ export type SyncPayload =
       sub: number;
       durationSec: number;
       endsAt: number;
+      remainMs?: number;
     }
   | {
       type: "PLAN_ARM";
@@ -31,7 +32,7 @@ export type SyncPayload =
       chime?: boolean;
     }
   | { type: "PLAN_PAUSE"; remainMs: number }
-  | { type: "PLAN_RESUME"; endsAt: number }
+  | { type: "PLAN_RESUME"; endsAt: number; remainMs?: number }
   | { type: "PLAN_STOP"; chime?: boolean }
   | { type: "PLAN_NAVIGATE"; to: string }
   // Metronome events
@@ -39,8 +40,11 @@ export type SyncPayload =
   | { type: "METRO_START"; bpm: number; beats?: number; sub?: number }
   | { type: "METRO_STOP" }
   // Sight-Reading events
-  | { type: "SIGHT_SET"; level?: number; seed?: number; instrument?: string }
-  | { type: "SIGHT_ACTION"; action: "generate" | "togglePlay" | "toggleMetro" | "again" }
+  | { type: "SIGHT_SET"; level?: number; seed?: number; instrument?: string; score?: unknown; tempo?: number }
+  | {
+      type: "SIGHT_ACTION";
+      action: "generate" | "togglePlay" | "toggleMetro" | "startPlay" | "stopPlay" | "startMetro" | "stopMetro" | "again";
+    }
   // Instrument profile switch
   | { type: "PROFILE_SET"; profile: "mallets" | "trumpet" }
   // State synchronization request from a newly connected display

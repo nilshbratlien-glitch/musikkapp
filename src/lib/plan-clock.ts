@@ -462,12 +462,14 @@ export function beginBlockRemote(
   beats: number,
   sub: number,
   endsAt: number,
+  remainMs?: number,
 ) {
   if (clock.activeId && clock.activeId !== blockId) saveBlockBpm(clock.activeId);
   clock.forceSetup = false;
   clock.activeId = blockId;
-  clock.blockEndsAt = endsAt;
-  clock.blockRemainMs = Math.max(0, endsAt - Date.now());
+  const safeRemain = remainMs != null ? Math.max(0, remainMs) : Math.max(0, endsAt - Date.now());
+  clock.blockEndsAt = remainMs != null ? Date.now() + safeRemain : endsAt;
+  clock.blockRemainMs = safeRemain;
   clock.blockPaused = false;
   clock.metroHeld = false;
   clock.store.bpm = clampBpm(bpm);
@@ -540,12 +542,13 @@ export function pauseBlockRemote(remainMs: number) {
   touchPlanClock();
 }
 
-export function resumeBlockRemote(endsAt: number) {
+export function resumeBlockRemote(endsAt: number, remainMs?: number) {
   if (!clock.activeId) return;
   clock.forceSetup = false;
   clock.blockPaused = false;
-  clock.blockEndsAt = endsAt;
-  clock.blockRemainMs = Math.max(0, endsAt - Date.now());
+  const safeRemain = remainMs != null ? Math.max(0, remainMs) : Math.max(0, endsAt - Date.now());
+  clock.blockEndsAt = remainMs != null ? Date.now() + safeRemain : endsAt;
+  clock.blockRemainMs = safeRemain;
   clock.startLabel = "Pause";
   syncLeft();
   startTimer();

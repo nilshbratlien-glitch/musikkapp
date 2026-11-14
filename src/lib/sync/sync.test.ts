@@ -162,5 +162,31 @@ describe("plan-clock sync transitions", () => {
     assert.equal(clock.activeId, null);
     assert.equal(clock.blockLeft, 0);
   });
+
+  it("ignores wall-clock skew on remote start and resume when remainMs is provided", async () => {
+    const {
+      beginBlockRemote,
+      pauseBlockRemote,
+      resumeBlockRemote,
+      stopPlanRemote,
+      getPlanClock,
+    } = await import("../plan-clock.ts");
+    const clock = getPlanClock();
+    const skewedOffsetMs = 12_000;
+
+    beginBlockRemote("twomallet", 5, 100, 4, 1, Date.now() + 300_000 + skewedOffsetMs, 300_000);
+    assert.equal(clock.blockLeft, 300);
+
+    pauseBlockRemote(295_000);
+    assert.equal(clock.blockPaused, true);
+    assert.equal(clock.blockLeft, 295);
+
+    resumeBlockRemote(Date.now() + 295_000 + skewedOffsetMs, 295_000);
+    assert.equal(clock.blockPaused, false);
+    assert.equal(clock.blockLeft, 295);
+
+    stopPlanRemote();
+  });
 });
+
 
