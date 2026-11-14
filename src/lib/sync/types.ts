@@ -8,6 +8,8 @@ export interface DevicePresence {
   onlineAt: number;
 }
 
+export type DuetViewPart = "score" | "trumpet" | "mallets";
+
 export type SyncPayload =
   // Øveplan events
   | {
@@ -35,12 +37,22 @@ export type SyncPayload =
   | { type: "PLAN_RESUME"; endsAt: number; remainMs?: number }
   | { type: "PLAN_STOP"; chime?: boolean }
   | { type: "PLAN_NAVIGATE"; to: string }
+  | { type: "PLAN_HEARTBEAT"; blockId: string; remainMs: number }
   // Metronome events
   | { type: "METRO_SET"; bpm: number; beats?: number; sub?: number }
   | { type: "METRO_START"; bpm: number; beats?: number; sub?: number }
   | { type: "METRO_STOP" }
   // Sight-Reading events
-  | { type: "SIGHT_SET"; level?: number; seed?: number; instrument?: string; score?: unknown; tempo?: number }
+  | {
+      type: "SIGHT_SET";
+      level?: number;
+      seed?: number;
+      instrument?: string;
+      settings?: Record<string, unknown>;
+      score?: unknown;
+      tempo?: number;
+    }
+  | { type: "SIGHT_DUET_VIEW"; duetViewPart: DuetViewPart }
   | {
       type: "SIGHT_ACTION";
       action: "generate" | "togglePlay" | "toggleMetro" | "startPlay" | "stopPlay" | "startMetro" | "stopMetro" | "again";

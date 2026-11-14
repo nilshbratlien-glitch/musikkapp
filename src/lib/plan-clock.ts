@@ -560,6 +560,20 @@ export function resumeBlockRemote(endsAt: number, remainMs?: number) {
   touchPlanClock();
 }
 
+const HEARTBEAT_DRIFT_THRESHOLD_MS = 1500;
+
+/** Re-anchors the running remote block deadline only when drift exceeds 1500ms. */
+export function syncRemainRemote(blockId: string, remainMs: number) {
+  if (!clock.activeId || clock.activeId !== blockId || clock.blockPaused || clock.timer == null) return;
+  const safeRemain = Math.max(0, remainMs);
+  const currentRemain = Math.max(0, clock.blockEndsAt - Date.now());
+  if (Math.abs(currentRemain - safeRemain) <= HEARTBEAT_DRIFT_THRESHOLD_MS) return;
+  clock.blockEndsAt = Date.now() + safeRemain;
+  clock.blockRemainMs = safeRemain;
+  syncLeft();
+  touchPlanClock();
+}
+
 export function startPlanMetroRemote(bpm: number, beats: number, sub: number) {
   clock.store.bpm = clampBpm(bpm);
   clock.store.beats = beats;

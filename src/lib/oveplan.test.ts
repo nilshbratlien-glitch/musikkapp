@@ -68,8 +68,39 @@ describe("oveplan", () => {
       },
     });
     const store = loadPlanStore(new Date(), "trumpet");
-    assert.equal(store.presets.length, 3);
+    assert.equal(store.presets.length, 4);
     assert.equal(store.presets[0]?.name, "Kjapp 10 min");
+    assert.equal(store.presets[3]?.id, "samspill-duett");
+    assert.equal(store.presets[3]?.duet, true);
+  });
+
+  it("includes Samspill / Duett preset for both mallets and trumpet and enables Bladlesing duet", async () => {
+    const { SAMSPILL_DUET_PRESET, enableBladlesingDuet } = await import("./oveplan.ts");
+    const data = new Map<string, string>();
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => data.get(key) ?? null,
+        setItem: (key: string, value: string) => data.set(key, value),
+      },
+    });
+    const malletsStore = loadPlanStore(new Date(), "mallets");
+    assert.equal(malletsStore.presets.length, 1);
+    assert.equal(malletsStore.presets[0]?.id, SAMSPILL_DUET_PRESET.id);
+    assert.equal(malletsStore.presets[0]?.duet, true);
+    assert.deepEqual(malletsStore.presets[0]?.blocks, [
+      { id: "srf", mins: 10 },
+      { id: "rep", mins: 5 },
+    ]);
+
+    savePlanStore(malletsStore, "mallets");
+    const reloaded = loadPlanStore(new Date(), "mallets");
+    assert.equal(reloaded.presets[0]?.duet, true);
+
+    enableBladlesingDuet(true, "mallets");
+    assert.equal(JSON.parse(data.get("musikkapp.bladlesing")!).duetEnabled, true);
+    enableBladlesingDuet(true, "trumpet");
+    assert.equal(JSON.parse(data.get("musikkapp.trumpet.bladlesing")!).duetEnabled, true);
   });
 
   it("bumps minutes inside 1–90 and finds the next undone block", () => {

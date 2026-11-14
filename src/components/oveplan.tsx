@@ -1,12 +1,14 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   applyPreset,
   blockName,
   bpmFromTaps,
   bumpItem,
+  enableBladlesingDuet,
   fmtClock,
   liveItems,
   playingSum,
+  SAMSPILL_DUET_PRESET,
   savePlanStore,
   BLOCK_COLOR,
   type PlanItem,
@@ -33,7 +35,17 @@ import {
   touchPlanClock,
 } from "@/lib/plan-clock";
 import { getProfileVersion, subscribeProfile } from "@/lib/profile";
-import { syncPlanPause, syncPlanResume, syncPlanStop, syncSightAction } from "@/lib/sync/bridge";
+import {
+  isDuetViewPaired,
+  setDuetViewPaired,
+  subscribeDuetViewPaired,
+  syncDuetViewPart,
+  syncPlanPause,
+  syncPlanResume,
+  syncPlanStop,
+  syncSightAction,
+} from "@/lib/sync/bridge";
+import type { DuetViewPart } from "@/lib/sync/types";
 
 type Clock = ReturnType<typeof getPlanClock>;
 
@@ -41,6 +53,8 @@ export function Oveplan() {
   const clock = { get current(): Clock { return getPlanClock(); } };
   useSyncExternalStore(subscribePlanClock, getPlanClockVersion, getPlanClockVersion);
   useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
+  const duetViewPaired = useSyncExternalStore(subscribeDuetViewPaired, isDuetViewPaired, () => false);
+  const [pairedPart, setPairedPart] = useState<DuetViewPart>("score");
   const redraw = () => touchPlanClock();
 
   function persist() {
@@ -143,6 +157,7 @@ export function Oveplan() {
                     cur.activeId = null;
                     clearClock();
                     cur.live = "Klar";
+                    if (preset.duet) enableBladlesingDuet(true);
                     persist();
                     redraw();
                     syncPlanStop();
@@ -165,6 +180,25 @@ export function Oveplan() {
                 </button>
               </span>
             ))}
+            {!cur.store.presets.some((preset) => preset.id === SAMSPILL_DUET_PRESET.id) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  cur.store.items = applyPreset(SAMSPILL_DUET_PRESET);
+                  cur.store.done = [];
+                  cur.activeId = null;
+                  clearClock();
+                  cur.live = "Klar";
+                  enableBladlesingDuet(true);
+                  persist();
+                  redraw();
+                  syncPlanStop();
+                }}
+                className="metro-press min-h-10 rounded-full border border-accent/50 bg-accent/10 px-3 text-sm font-semibold text-accent"
+              >
+                {SAMSPILL_DUET_PRESET.name}
+              </button>
+            ) : null}
           </div>
           <div className="mb-3 flex flex-wrap gap-1.5">
             <input
@@ -362,9 +396,27 @@ export function Oveplan() {
         <p className="text-sm font-semibold text-accent">{cur.live}</p>
         {cur.activeId === "srf" ? (
           <div className="rounded-xl border border-line bg-header p-3">
-            <p className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
-              Bladlesing på skjerm
-            </p>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold tracking-wide text-muted uppercase">
+                Bladlesing på skjerm
+              </p>
+              <button
+                type="button"
+                aria-pressed={duetViewPaired}
+                onClick={() => {
+                  const next = !duetViewPaired;
+                  setDuetViewPaired(next);
+                  if (next) syncDuetViewPart(pairedPart);
+                }}
+                className={
+                  duetViewPaired
+                    ? "metro-press min-h-8 rounded-full bg-accent px-2.5 text-xs font-semibold text-bg"
+                    : "metro-press min-h-8 rounded-full border border-line bg-surface px-2.5 text-xs font-semibold text-muted"
+                }
+              >
+                {duetViewPaired ? "Speil visning: På" : "Speil visning: Av"}
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -401,6 +453,33 @@ export function Oveplan() {
                 Igjen −10
               </button>
             </div>
+            {duetViewPaired ? (
+              <div className="mt-2 grid grid-cols-3 gap-1.5" role="group" aria-label="Speilet duettvisning">
+                {(
+                  [
+                    { id: "score", label: "Partitur" },
+                    { id: "trumpet", label: "Trompet (B)" },
+                    { id: "mallets", label: "Slagverk (C)" },
+                  ] as const
+                ).map((part) => (
+                  <button
+                    key={part.id}
+                    type="button"
+                    onClick={() => {
+                      setPairedPart(part.id);
+                      syncDuetViewPart(part.id);
+                    }}
+                    className={
+                      pairedPart === part.id
+                        ? "metro-press min-h-9 rounded-lg bg-accent px-2 text-xs font-semibold text-bg"
+                        : "metro-press min-h-9 rounded-lg border border-line bg-surface px-2 text-xs font-semibold text-fg"
+                    }
+                  >
+                    {part.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
         <div className="grid grid-cols-2 gap-2">

@@ -887,3 +887,117 @@ describe("audio after the screen was locked", () => {
     assert.ok(await replaced(), "the stuck context was replaced in the tap");
   });
 });
+
+describe("duet mode", () => {
+  it("toggles duet mode, switches parts, toggles mutes, preloads audio, and fits mobile 390x844 without overflow", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    const sampleRequests = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+    page.on("request", (req) => {
+      if (/\/malletsight\/sample-.*\.mp3/.test(req.url())) sampleRequests.push(req.url());
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open("/");
+    await page.waitForSelector("#score svg");
+
+    await page.locator("#btnDuetToggle").click();
+    await page.locator("#duetToolbar").waitFor({ state: "visible" });
+    assert.equal(
+      await page.locator("#btnDuetToggle").evaluate((el) => el.classList.contains("on")),
+      true,
+      "#btnDuetToggle activates duet mode",
+    );
+
+    const overflow = await page.evaluate(() => {
+      const toolbar = document.querySelector("#duetToolbar");
+      return {
+        docOverflow: document.documentElement.scrollWidth > window.innerWidth,
+        toolbarOverflow: toolbar ? toolbar.scrollWidth > toolbar.clientWidth : true,
+      };
+    });
+    assert.deepEqual(
+      overflow,
+      { docOverflow: false, toolbarOverflow: false },
+      "duet toolbar and page fit 390x844 without horizontal overflow",
+    );
+
+    for (const [part, expectedTitle] of [
+      ["trumpet", /Trompet/],
+      ["mallets", /Xylofon|Marimba|Vibrafon|Klokkespill/],
+      ["score", /Duett/],
+    ]) {
+      await page.locator(`[data-duet-view="${part}"]`).click();
+      await page.waitForTimeout(150);
+      assert.equal(
+        await page.locator(`[data-duet-view="${part}"]`).evaluate((el) => el.classList.contains("active")),
+        true,
+        `[data-duet-view="${part}"] is active`,
+      );
+      assert.equal(await page.locator("#duetViewSelect").inputValue(), part, `#duetViewSelect reflects ${part}`);
+      const scoreText = await page.locator("#score svg").innerText();
+      assert.match(scoreText, expectedTitle, `score updates for ${part} view`);
+    }
+
+    for (const muteId of ["#btnMuteTrumpet", "#btnMuteMallets"]) {
+      const btn = page.locator(muteId);
+      assert.equal(await btn.evaluate((el) => el.classList.contains("muted")), false, `${muteId} starts unmuted`);
+      await btn.click();
+      assert.equal(await btn.evaluate((el) => el.classList.contains("muted")), true, `${muteId} toggles to muted`);
+      await btn.click();
+      assert.equal(await btn.evaluate((el) => el.classList.contains("muted")), false, `${muteId} toggles back to unmuted`);
+    }
+
+    await page.waitForTimeout(300);
+    const audioReady = await page.evaluate(() => {
+      const ctx = window.MusikkPulse?.audio?.();
+      return !!ctx && ctx.state !== "closed";
+    });
+    assert.equal(audioReady, true, "AudioContext is initialized and not closed");
+    assert.ok(sampleRequests.length >= 1, `expected /malletsight/sample-*.mp3 preload requests, got ${sampleRequests.length}`);
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+    await noReload();
+  });
+});
+
+describe("Bladlesing Metronom 1-bar count-in and auto-stop", () => {
+  it("plays 1-bar count-in then Stopp, auto-stops at etude end, and keeps the Øveplan timer running", async () => {
+    await open("/oveplan", plan(["srf"]));
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForSelector("#score svg");
+
+    // Set max clamped tempo (160 BPM) so the 4-bar etude + 1-bar count-in finishes in ~7.5s.
+    await page.evaluate(() => window.MalletSight?.setTempo?.(160));
+    const beforeSeconds = await headerSeconds();
+
+    await page.locator("#btnMetro").click();
+    assert.equal(
+      await page.locator("#btnMetro").evaluate((el) => el.classList.contains("on")),
+      true,
+      "#btnMetro turns on",
+    );
+    assert.match(await page.locator("#btnMetro").innerText(), /^[1-4]$/, "shows 1-bar count-in beat");
+    assert.ok((await recentClicks(900)).length >= 1, "count-in clicks play");
+
+    await page.waitForFunction(() => document.querySelector("#btnMetro")?.textContent === "Stopp", null, { timeout: 4000 });
+    await page.waitForFunction(
+      () =>
+        document.querySelector("#btnMetro")?.textContent === "Metronom" &&
+        !document.querySelector("#btnMetro")?.classList.contains("on"),
+      null,
+      { timeout: 12000 },
+    );
+
+    assert.equal(await header().getAttribute("aria-pressed"), "false", "Øveplan block timer stays running");
+    const afterSeconds = await headerSeconds();
+    assert.ok(afterSeconds < beforeSeconds, `Øveplan timer kept counting down (${beforeSeconds}s -> ${afterSeconds}s)`);
+    await noReload();
+  });
+});
+
