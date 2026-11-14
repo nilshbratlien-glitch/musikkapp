@@ -22,7 +22,15 @@ import { setFollowerMode, setMasterMuted } from "@/lib/pulse";
 import { broadcastSync, getSyncState, onSyncPayload, subscribeSyncState } from "./room";
 import type { SyncPayload } from "./types";
 
-export type SightAction = "generate" | "togglePlay" | "toggleMetro" | "again";
+export type SightAction =
+  | "generate"
+  | "togglePlay"
+  | "toggleMetro"
+  | "startPlay"
+  | "stopPlay"
+  | "startMetro"
+  | "stopMetro"
+  | "again";
 
 declare global {
   interface Window {
@@ -30,6 +38,7 @@ declare global {
       isController: () => boolean;
       isAudioActive: () => boolean;
       sightAction: (action: SightAction) => void;
+      sightScore: (score: unknown, tempo?: number) => void;
       setTempo: (bpm: number) => void;
     };
   }
@@ -46,6 +55,10 @@ const SIGHT_BTN_MAP: Record<SightAction, string> = {
   generate: "#malletsight-root #btnGenerate",
   togglePlay: "#malletsight-root #btnPlay",
   toggleMetro: "#malletsight-root #btnMetro",
+  startPlay: "#malletsight-root #btnPlay",
+  stopPlay: "#malletsight-root #btnPlay",
+  startMetro: "#malletsight-root #btnMetro",
+  stopMetro: "#malletsight-root #btnMetro",
   again: "#malletsight-root #btnAgain",
 };
 
@@ -62,7 +75,7 @@ export function runSightAction(action: SightAction, attempt = 0) {
     return;
   }
 
-  if (action === "togglePlay" || action === "again") {
+  if (action === "togglePlay" || action === "startPlay" || action === "stopPlay" || action === "again") {
     stopPlanMetroRemote();
   }
 
@@ -94,6 +107,19 @@ function applyRemoteSightTempo(bpm: number, attempt = 0) {
   }
 }
 
+function applyRemoteSightScore(score: unknown, tempo?: number, attempt = 0) {
+  if (typeof window === "undefined" || !score) return;
+  const ms = window.MalletSight;
+  const ready = ms?.isReady ? ms.isReady() : false;
+  if (ready && ms && typeof ms.applyScore === "function") {
+    const ok = ms.applyScore(score, tempo);
+    if (ok !== false) return;
+  }
+  if (attempt < 30) {
+    window.setTimeout(() => applyRemoteSightScore(score, tempo, attempt + 1), 100);
+  }
+}
+
 function stopRemoteSightPlayback() {
   if (typeof window === "undefined") return;
   window.MalletSight?.stopAll?.();
@@ -103,6 +129,16 @@ export function broadcastControllerSnapshot() {
   const state = getSyncState();
   if (!state.connected || state.role !== "controller") return;
   broadcastSync({ type: "PROFILE_SET", profile: getProfile() });
+  if (typeof window !== "undefined" && window.MalletSight?.getScore) {
+    const score = window.MalletSight.getScore();
+    if (score) {
+      broadcastSync({
+        type: "SIGHT_SET",
+        score,
+        tempo: window.MalletSight.getTempo?.(),
+      });
+    }
+  }
   const clock = getPlanClock();
   if (clock.activeId) {
     const item = clock.store.items.find((i) => i.id === clock.activeId);
@@ -169,6 +205,12 @@ export function initSyncBridge() {
         const s = getSyncState();
         if (s.connected && s.role === "controller") {
           broadcastSync({ type: "SIGHT_ACTION", action });
+        }
+      },
+      sightScore: (score: unknown, tempo?: number) => {
+        const s = getSyncState();
+        if (s.connected && s.role === "controller" && score) {
+          broadcastSync({ type: "SIGHT_SET", score, tempo });
         }
       },
       setTempo: (bpm: number) => {
@@ -341,6 +383,18 @@ export function initSyncBridge() {
 
       case "METRO_STOP": {
         stopPlanMetroRemote();
+        break;
+      }
+
+      case "SIGHT_SET": {
+        if (payload.score) {
+          if (routerNavigate) {
+            routerNavigate("/");
+          }
+          applyRemoteSightScore(payload.score, payload.tempo);
+        } else if (typeof payload.tempo === "number") {
+          applyRemoteSightTempo(payload.tempo);
+        }
         break;
       }
 

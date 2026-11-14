@@ -909,6 +909,9 @@
 
   function haltPlay() {
     if (typeof AudioEngine === "undefined" || !AudioEngine.isPlaying()) return;
+    if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+      window.MusikkSync.sightAction("stopPlay");
+    }
     AudioEngine.stopPlayback();
     resetPlayButton();
     if (!AudioEngine.isMetro()) {
@@ -1009,6 +1012,9 @@
       if (n > 1) keyStep = (keyStep + 1) % n;
       if ($("#keyModeHint")) $("#keyModeHint").textContent = keyModeText();
       paintScore();
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController() && window.MusikkSync.sightScore && currentScore) {
+        window.MusikkSync.sightScore(currentScore, settings.tempo);
+      }
     } catch (err) {
       console.error(err);
       $("#score").innerHTML =
@@ -1128,9 +1134,6 @@
     });
     function generateFresh() {
       openSettings(false);
-      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
-        window.MusikkSync.sightAction("generate");
-      }
       requestAnimationFrame(() => requestAnimationFrame(generate));
     }
     $("#btnGenerate").addEventListener("click", generateFresh);
@@ -1351,27 +1354,37 @@
     }
 
     $("#btnMetro").addEventListener("click", () => {
-      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
-        window.MusikkSync.sightAction("toggleMetro");
-      }
       if (AudioEngine.isPlaying()) {
         const on = !$("#btnMetro").classList.contains("on");
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          window.MusikkSync.sightAction(on ? "startMetro" : "stopMetro");
+        }
         $("#btnMetro").classList.toggle("on", on);
         AudioEngine.setClicks(on);
         return;
       }
       if (AudioEngine.isMetro()) {
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          window.MusikkSync.sightAction("stopMetro");
+        }
         AudioEngine.stopMetronome();
         $("#btnMetro").classList.remove("on");
         lightBeat(-1, metroSpec().beats);
         ScoreRenderer.clearBeat();
       } else {
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          window.MusikkSync.sightAction("startMetro");
+        }
         startMetro();
       }
     });
 
     // Another tool took the shared pulse: show Metronome and Play as off.
     AudioEngine.onHalt(() => {
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+        window.MusikkSync.sightAction("stopPlay");
+        window.MusikkSync.sightAction("stopMetro");
+      }
       resetPlayButton();
       $("#btnMetro").classList.remove("on");
       lightBeat(-1, metroSpec().beats);
@@ -1401,15 +1414,18 @@
     }
 
     $("#btnPlay").addEventListener("click", () => {
-      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
-        if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
-        window.MusikkSync.sightAction("togglePlay");
-      }
       if (AudioEngine.isPlaying()) {
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          window.MusikkSync.sightAction("stopPlay");
+        }
         const resume = metroBeforePlay;
         AudioEngine.stopPlayback();
         endPlay(resume);
         return;
+      }
+      if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+        if (window.MusikkPlan) window.MusikkPlan.resumeFromBladlesing();
+        window.MusikkSync.sightAction("startPlay");
       }
       if (!currentScore) generate();
       if (!currentScore) return;
@@ -1502,6 +1518,12 @@
   function unmount() {
     try {
       if (window.AudioEngine) {
+        const wasPlaying = AudioEngine.isPlaying();
+        const wasMetro = AudioEngine.isMetro();
+        if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
+          if (wasPlaying) window.MusikkSync.sightAction("stopPlay");
+          if (wasMetro) window.MusikkSync.sightAction("stopMetro");
+        }
         AudioEngine.onHalt(null);
         AudioEngine.stopPlayback();
         AudioEngine.stopMetronome();
@@ -1574,6 +1596,38 @@
       }
       return true;
     },
+    getScore() {
+      return currentScore || null;
+    },
+    getTempo() {
+      return settings.tempo;
+    },
+    applyScore(score, tempo) {
+      if (!wired || !score) return false;
+      remoteCall = true;
+      try {
+        openSettings(false);
+        currentScore = score;
+        settings.duetEnabled = Boolean(score.isDuet);
+        if ($("#duetEnabled")) $("#duetEnabled").checked = settings.duetEnabled;
+        if ($("#btnDuetToggle")) $("#btnDuetToggle").classList.toggle("on", settings.duetEnabled);
+        if (typeof tempo === "number" && Number.isFinite(tempo)) {
+          const clamped = Math.max(40, Math.min(160, Math.round(tempo)));
+          settings.tempo = clamped;
+          if ($("#tempo")) $("#tempo").value = String(clamped);
+          if ($("#tempoVal")) $("#tempoVal").textContent = String(clamped);
+          if ($("#tempoRead")) $("#tempoRead").textContent = String(clamped);
+        }
+        if (score.isDuet && window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
+          AudioEngine.loadInstrument("trumpet");
+          AudioEngine.loadInstrument(score.malletInstrumentId || "xylo");
+        }
+        paintScore();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
     togglePlay() {
       if (!wired) return false;
       const btn = $("#btnPlay");
@@ -1586,6 +1640,39 @@
       }
       return true;
     },
+    startPlay() {
+      if (!wired) return false;
+      const btn = $("#btnPlay");
+      if (!btn) return false;
+      remoteCall = true;
+      try {
+        if (typeof AudioEngine !== "undefined" && AudioEngine.isPlaying()) {
+          AudioEngine.stopPlayback();
+          endPlay(false);
+        }
+        btn.click();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
+    stopPlay() {
+      if (!wired) return false;
+      remoteCall = true;
+      try {
+        if (typeof AudioEngine !== "undefined" && AudioEngine.isPlaying()) {
+          const resume = metroBeforePlay;
+          AudioEngine.stopPlayback();
+          endPlay(resume);
+        } else {
+          resetPlayButton();
+          if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
+        }
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
     toggleMetro() {
       if (!wired) return false;
       const btn = $("#btnMetro");
@@ -1593,6 +1680,42 @@
       remoteCall = true;
       try {
         btn.click();
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
+    startMetro() {
+      if (!wired) return false;
+      const btn = $("#btnMetro");
+      if (!btn) return false;
+      remoteCall = true;
+      try {
+        if (typeof AudioEngine !== "undefined" && AudioEngine.isPlaying()) {
+          btn.classList.add("on");
+          AudioEngine.setClicks(true);
+        } else if (typeof AudioEngine === "undefined" || !AudioEngine.isMetro()) {
+          btn.click();
+        }
+      } finally {
+        remoteCall = false;
+      }
+      return true;
+    },
+    stopMetro() {
+      if (!wired) return false;
+      const btn = $("#btnMetro");
+      remoteCall = true;
+      try {
+        if (typeof AudioEngine !== "undefined" && AudioEngine.isPlaying()) {
+          if (btn) btn.classList.remove("on");
+          AudioEngine.setClicks(false);
+        } else if (typeof AudioEngine !== "undefined" && AudioEngine.isMetro()) {
+          AudioEngine.stopMetronome();
+          if (btn) btn.classList.remove("on");
+          lightBeat(-1, metroSpec().beats);
+          if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
+        }
       } finally {
         remoteCall = false;
       }
