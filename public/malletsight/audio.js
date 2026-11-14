@@ -366,38 +366,127 @@
     return (global.Theory && global.Theory.TICKS && global.Theory.TICKS.quarter) || 24;
   }
 
+  function scoreMusicClicks(score, beats) {
+    if (!score) return 0;
+    const qTicks = quarterTicks();
+    let tickPos = 0;
+    if (score.isDuet) {
+      let tptTick = 0;
+      (score.trumpetMeasures || []).forEach((m) => {
+        (m.events || []).forEach((ev) => {
+          tptTick += ev.dur && ev.dur.ticks ? ev.dur.ticks : qTicks;
+        });
+      });
+      let malletTick = 0;
+      (score.malletMeasures || []).forEach((m) => {
+        (m.events || []).forEach((ev) => {
+          malletTick += ev.dur && ev.dur.ticks ? ev.dur.ticks : qTicks;
+        });
+      });
+      tickPos = Math.max(tptTick, malletTick);
+    } else if (score.measures) {
+      score.measures.forEach((m) => {
+        (m.events || []).forEach((ev) => {
+          tickPos += ev.dur && ev.dur.ticks ? ev.dur.ticks : qTicks;
+        });
+      });
+    }
+    if (!tickPos) return 0;
+    const safeBeats = Math.max(1, beats || 4);
+    const barTicks = score.time && score.time.ticks ? score.time.ticks : safeBeats * qTicks;
+    const clickTicks = barTicks / safeBeats;
+    return Math.max(1, Math.round(tickPos / clickTicks));
+  }
+
+  let metroToken = 0;
+  let metroEndTimer = null;
+  let onMetroDone = null;
+
+  function clearMetroEnd() {
+    if (metroEndTimer) {
+      clearTimeout(metroEndTimer);
+      metroEndTimer = null;
+    }
+  }
+
   function startMetronome(bpm, beats, opts) {
     opts = opts || {};
+    clearMetroEnd();
+    const token = ++metroToken;
     tempo = bpm || 80;
     beatsPerBar = Math.max(1, beats || 4);
     subdiv = opts.subdiv === 2 ? 2 : opts.subdiv === 4 ? 4 : 1;
     onBeat = opts.onBeat || null;
+    onMetroDone = opts.done || null;
+    const countIn = Math.max(0, opts.countIn | 0);
+    const countBeats = countIn * beatsPerBar;
+    const musicClicks = Math.max(0, opts.musicClicks | 0);
+    const totalClicks = musicClicks > 0 ? countBeats + musicClicks : 0;
+    const steps = subdiv;
+    const c = ac();
+    const t0 = (c ? c.currentTime : 0) + 0.05;
     selfStop = true;
     Pulse.start({
       owner: "bladlesing",
       bpm: tempo,
       beats: beatsPerBar,
-      sub: subdiv,
+      sub: steps,
+      at: t0,
+      count: totalClicks > 0 ? totalClicks * steps : undefined,
       onClick: (click) => {
-        if (!click.downbeat || !onBeat) return;
-        const c = ac();
-        const wait = c && c.state === "running" ? Math.max(0, Math.min(150, (click.time - c.currentTime) * 1000)) : 0;
-        setTimeout(() => {
-          if (metroOn && onBeat) onBeat(click.beatIndex, beatsPerBar, true);
-        }, wait);
+        if (!click.downbeat) return;
+        const i = Math.floor(click.tick / steps);
+        const inCount = i < countBeats;
+        const cue = {
+          phase: inCount ? "countin" : "play",
+          beat: inCount ? i % beatsPerBar : i - countBeats,
+          beats: beatsPerBar,
+          musicBeats: musicClicks,
+        };
+        const cur = ac();
+        const wait = cur && cur.state === "running" ? Math.max(0, Math.min(150, (click.time - cur.currentTime) * 1000)) : 0;
+        if (totalClicks > 0 && i === totalClicks - 1) {
+          clearMetroEnd();
+          const tailMs = (60 / tempo + 0.08) * 1000;
+          metroEndTimer = setTimeout(() => {
+            if (token !== metroToken || !metroOn) return;
+            metroToken++;
+            metroOn = false;
+            const cb = onMetroDone;
+            onMetroDone = null;
+            onBeat = null;
+            selfStop = true;
+            Pulse.stop("bladlesing");
+            selfStop = false;
+            if (cb) cb();
+          }, wait + tailMs);
+        }
+        if (onBeat) {
+          setTimeout(() => {
+            if (token === metroToken && metroOn && onBeat) onBeat(cue.beat, beatsPerBar, true, cue);
+          }, wait);
+        }
       },
       onStop: () => {
+        if (token !== metroToken) return;
+        metroToken++;
         const was = metroOn;
         metroOn = false;
+        clearMetroEnd();
+        onMetroDone = null;
+        onBeat = null;
         if (was && !selfStop && onHalt) onHalt();
       },
     });
     selfStop = false;
     metroOn = true;
-    if (onBeat) onBeat(0, beatsPerBar, false);
+    if (onBeat) onBeat(0, beatsPerBar, false, { phase: countBeats > 0 ? "countin" : "play", beat: 0, beats: beatsPerBar, musicBeats: musicClicks });
   }
 
   function stopMetronome() {
+    metroToken++;
+    clearMetroEnd();
+    onMetroDone = null;
     selfStop = true;
     if (metroOn) Pulse.stop("bladlesing");
     selfStop = false;
@@ -634,6 +723,7 @@
 
   global.AudioEngine = {
     loadInstrument,
+    scoreMusicClicks,
     startMetronome,
     stopMetronome,
     setTempo,

@@ -907,6 +907,13 @@
     btn.textContent = "Spill";
   }
 
+  function resetMetroButton() {
+    const btn = $("#btnMetro");
+    if (!btn) return;
+    btn.classList.remove("on");
+    btn.textContent = "Metronom";
+  }
+
   function haltPlay() {
     if (typeof AudioEngine === "undefined" || !AudioEngine.isPlaying()) return;
     if (!remoteCall && window.MusikkSync && window.MusikkSync.isController && window.MusikkSync.isController()) {
@@ -915,8 +922,7 @@
     AudioEngine.stopPlayback();
     resetPlayButton();
     if (!AudioEngine.isMetro()) {
-      const metro = $("#btnMetro");
-      if (metro) metro.classList.remove("on");
+      resetMetroButton();
     }
     if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
   }
@@ -929,6 +935,10 @@
 
   function paintScore() {
     haltPlay();
+    if (typeof AudioEngine !== "undefined" && AudioEngine.isMetro()) {
+      AudioEngine.stopMetronome();
+      resetMetroButton();
+    }
     ScoreRenderer.clearBeat();
     currentVisual = ScoreRenderer.renderScore($("#score"), currentScore, renderOptions());
     const beatTicks = cursorBeatTicks(currentScore && currentScore.time);
@@ -1331,18 +1341,45 @@
       const spec = metroSpec();
       drawLamps(spec.beats);
       practiceBeat = 0;
+      const musicClicks =
+        typeof AudioEngine.scoreMusicClicks === "function"
+          ? AudioEngine.scoreMusicClicks(currentScore, spec.beats)
+          : 0;
       AudioEngine.setClicks(true);
       AudioEngine.ac();
+      $("#btnMetro").classList.add("on");
+      $("#btnMetro").textContent = "1";
+      ScoreRenderer.showBeat(beatMap, 0);
       AudioEngine.startMetronome(spec.bpm, spec.beats, {
         subdiv: metroSubdiv,
-        onBeat: (i, count, fromClick) => {
-          lightBeat(i, count);
-          if (!fromClick || !beatMap.length || AudioEngine.isPlaying()) return;
-          ScoreRenderer.showBeat(beatMap, practiceBeat % beatMap.length);
-          practiceBeat++;
+        countIn: 1,
+        musicClicks,
+        onBeat: (i, count, fromClick, cue) => {
+          if (!fromClick) {
+            lightBeat(i, count);
+            return;
+          }
+          if (AudioEngine.isPlaying()) return;
+          if (cue && cue.phase === "countin") {
+            lightBeat(cue.beat, count);
+            $("#btnMetro").textContent = String(cue.beat + 1);
+            ScoreRenderer.showBeat(beatMap, 0);
+          } else {
+            const beatIdx = cue ? cue.beat : practiceBeat;
+            lightBeat(beatIdx % count, count);
+            $("#btnMetro").textContent = "Stopp";
+            if (beatMap.length) {
+              ScoreRenderer.showBeat(beatMap, Math.min(beatIdx, beatMap.length - 1));
+            }
+            practiceBeat = beatIdx + 1;
+          }
+        },
+        done: () => {
+          resetMetroButton();
+          lightBeat(-1, spec.beats);
+          ScoreRenderer.clearBeat();
         },
       });
-      $("#btnMetro").classList.add("on");
     }
 
     function endPlay(restartMetro) {
@@ -1350,7 +1387,7 @@
       ScoreRenderer.clearBeat();
       lightBeat(-1, metroSpec().beats);
       if (restartMetro) startMetro();
-      else $("#btnMetro").classList.remove("on");
+      else resetMetroButton();
     }
 
     $("#btnMetro").addEventListener("click", () => {
@@ -1368,7 +1405,7 @@
           window.MusikkSync.sightAction("stopMetro");
         }
         AudioEngine.stopMetronome();
-        $("#btnMetro").classList.remove("on");
+        resetMetroButton();
         lightBeat(-1, metroSpec().beats);
         ScoreRenderer.clearBeat();
       } else {
@@ -1386,7 +1423,7 @@
         window.MusikkSync.sightAction("stopMetro");
       }
       resetPlayButton();
-      $("#btnMetro").classList.remove("on");
+      resetMetroButton();
       lightBeat(-1, metroSpec().beats);
       ScoreRenderer.clearBeat();
     });
@@ -1712,7 +1749,7 @@
           AudioEngine.setClicks(false);
         } else if (typeof AudioEngine !== "undefined" && AudioEngine.isMetro()) {
           AudioEngine.stopMetronome();
-          if (btn) btn.classList.remove("on");
+          resetMetroButton();
           lightBeat(-1, metroSpec().beats);
           if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
         }
@@ -1740,8 +1777,7 @@
         haltPlay();
         if (typeof AudioEngine !== "undefined" && AudioEngine.isMetro()) {
           AudioEngine.stopMetronome();
-          const metro = $("#btnMetro");
-          if (metro) metro.classList.remove("on");
+          resetMetroButton();
           if (typeof ScoreRenderer !== "undefined") ScoreRenderer.clearBeat();
         }
       } finally {
