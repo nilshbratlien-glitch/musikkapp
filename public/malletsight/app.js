@@ -1029,14 +1029,14 @@
   function generate(seedOverride) {
     readInputs();
     applyInstrumentRange(false);
-    if (!remoteCall && typeof seedOverride !== "number") {
+    if (!remoteCall) {
       resetKeyStepIfNeeded();
       settings.keyIndex = keyStep;
     } else if (typeof settings.keyIndex === "number" && Number.isFinite(settings.keyIndex)) {
       keyStep = settings.keyIndex;
       keyStepFor = selectionToken();
     }
-    const seed = typeof seedOverride === "number" && Number.isFinite(seedOverride)
+    const seed = remoteCall && typeof seedOverride === "number" && Number.isFinite(seedOverride)
       ? (seedOverride >>> 0)
       : ((Math.random() * 0xffffffff) >>> 0);
     currentSeed = seed;
@@ -1184,7 +1184,7 @@
     });
     function generateFresh() {
       openSettings(false);
-      requestAnimationFrame(() => requestAnimationFrame(generate));
+      requestAnimationFrame(() => requestAnimationFrame(() => generate()));
     }
     $("#btnGenerate").addEventListener("click", generateFresh);
     $("#btnLevelDown").addEventListener("click", () => stepLevel(-1));
