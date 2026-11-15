@@ -25,6 +25,12 @@ export const TOOLS = [
     to: "/notekort",
     body: "Notekort for nøkler, register og ventilgrep. Kort, utvalg og treff kommer her.",
   },
+  {
+    id: "noter",
+    label: "Noter",
+    to: "/noter",
+    body: "PDF-bibliotek med fullskjerm, sveip, pedal og hurtig-metronom.",
+  },
 ] as const;
 
 export type ToolId = (typeof TOOLS)[number]["id"];

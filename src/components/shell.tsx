@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Drum, FileText, Music, Pause, Piano, Play, Wifi } from "lucide-react";
+import { BookOpen, Drum, FileText, Music, Pause, Piano, Play, Wifi } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { SyncModal } from "@/components/sync-modal";
 import { blockName, blockStyle, fmtClock, type BlockId } from "@/lib/oveplan";
@@ -32,6 +32,7 @@ const ICONS: Record<ToolId, typeof Music> = {
   metronom: Drum,
   oveplan: Piano,
   notekort: FileText,
+  noter: BookOpen,
 };
 
 type InstallPrompt = Event & {
@@ -255,7 +256,7 @@ export function Shell() {
     setProfileModalOpen(false);
   }
 
-  const sheet = tool.id === "bladlesing";
+  const sheet = tool.id === "bladlesing" || tool.id === "noter";
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
@@ -339,7 +340,7 @@ export function Shell() {
         aria-label="Verktøy"
         className="shrink-0 border-t border-line bg-header pb-[env(safe-area-inset-bottom)]"
       >
-        <ul className="grid grid-cols-4">
+        <ul className="grid grid-cols-5">
           {TOOLS.map((item) => {
             const Icon = ICONS[item.id];
             const active = item.to === pathname;
@@ -358,8 +359,8 @@ export function Shell() {
                   <span
                     className={
                       active
-                        ? "text-xs font-semibold text-accent"
-                        : "text-xs font-medium text-muted"
+                        ? "max-w-full truncate text-xs font-semibold text-accent"
+                        : "max-w-full truncate text-xs font-medium text-muted"
                     }
                   >
                     {item.label}

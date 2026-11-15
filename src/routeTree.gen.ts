@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MetronomRouteImport } from './routes/metronom'
 import { Route as NotekortRouteImport } from './routes/notekort'
+import { Route as NoterRouteImport } from './routes/noter'
 import { Route as OveplanRouteImport } from './routes/oveplan'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const NotekortRoute = NotekortRouteImport.update({
   path: '/notekort',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NoterRoute = NoterRouteImport.update({
+  id: '/noter',
+  path: '/noter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OveplanRoute = OveplanRouteImport.update({
   id: '/oveplan',
   path: '/oveplan',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/metronom': typeof MetronomRoute
   '/notekort': typeof NotekortRoute
+  '/noter': typeof NoterRoute
   '/oveplan': typeof OveplanRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/metronom': typeof MetronomRoute
   '/notekort': typeof NotekortRoute
+  '/noter': typeof NoterRoute
   '/oveplan': typeof OveplanRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/metronom': typeof MetronomRoute
   '/notekort': typeof NotekortRoute
+  '/noter': typeof NoterRoute
   '/oveplan': typeof OveplanRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/metronom' | '/notekort' | '/oveplan'
+  fullPaths: '/' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/metronom' | '/notekort' | '/oveplan'
-  id: '__root__' | '/' | '/metronom' | '/notekort' | '/oveplan'
+  to: '/' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
+  id: '__root__' | '/' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MetronomRoute: typeof MetronomRoute
   NotekortRoute: typeof NotekortRoute
+  NoterRoute: typeof NoterRoute
   OveplanRoute: typeof OveplanRoute
 }
 
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotekortRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/noter': {
+      id: '/noter'
+      path: '/noter'
+      fullPath: '/noter'
+      preLoaderRoute: typeof NoterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/oveplan': {
       id: '/oveplan'
       path: '/oveplan'
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MetronomRoute: MetronomRoute,
   NotekortRoute: NotekortRoute,
+  NoterRoute: NoterRoute,
   OveplanRoute: OveplanRoute,
 }
 export const routeTree = rootRouteImport

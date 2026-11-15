@@ -442,7 +442,7 @@ describe("layout", () => {
     it(`no horizontal overflow at ${width}x${height}`, async () => {
       await page.setViewportSize({ width, height });
       await open("/");
-      for (const path of ["/", "/metronom", "/oveplan", "/notekort"]) {
+      for (const path of ["/", "/metronom", "/oveplan", "/notekort", "/noter"]) {
         await tab(path);
         await page.waitForTimeout(path === "/" ? 800 : 200);
         const overflow = await page.evaluate(() =>
@@ -1009,4 +1009,24 @@ describe("Bladlesing Metronom 1-bar count-in and auto-stop", () => {
     await noReload();
   });
 });
+
+describe("Noter library", () => {
+  it("renders the Noter library view at /noter without console or page errors", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await open("/noter");
+    await page.getByRole("heading", { name: "Noter", exact: true }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Last opp PDF" }).waitFor({ state: "visible" });
+    assert.match(await page.locator("main").innerText(), /Ingen noter lastet opp ennå/);
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+    await noReload();
+  });
+});
+
 

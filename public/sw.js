@@ -1,9 +1,10 @@
 const CACHE = "musikkapp-shell-v8";
 const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg", "/icons/icon-192.png", "/icons/icon-512.png"];
+const PDFJS_CDN_PREFIX = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/";
 
 function isAsset(url) {
   if (url.pathname === "/sw.js") return false;
-  return url.pathname.endsWith(".js") || url.pathname.endsWith(".css");
+  return url.pathname.endsWith(".js") || url.pathname.endsWith(".mjs") || url.pathname.endsWith(".css");
 }
 
 async function putIfOk(request, response) {
@@ -43,7 +44,22 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
+  const isPinnedPdfJs = url.href.startsWith(PDFJS_CDN_PREFIX);
+  if (url.origin !== self.location.origin && !isPinnedPdfJs) return;
+
+  if (isPinnedPdfJs) {
+    event.respondWith(
+      caches.match(event.request).then(
+        (cached) =>
+          cached ||
+          fetch(event.request).then((response) => {
+            putIfOk(event.request, response);
+            return response;
+          }),
+      ),
+    );
+    return;
+  }
 
   if (event.request.mode === "navigate") {
     event.respondWith(
