@@ -39,15 +39,13 @@ export function NoterNavDrawer({
   setlistContext,
 }: NoterNavDrawerProps) {
   const [tab, setTab] = useState<NavDrawerTab>(initialTab);
-  const [thumbs, setThumbs] = useState<Record<number, string>>({});
+  const [thumbsState, setThumbsState] = useState<{
+    doc: LoadedPdfDocument | null;
+    urls: Record<number, string>;
+  }>({ doc: null, urls: {} });
   const [bookmarkLabel, setBookmarkLabel] = useState("");
 
-  useEffect(() => {
-    if (open) {
-      setTab(initialTab);
-      setBookmarkLabel("");
-    }
-  }, [open, initialTab]);
+  const thumbs = thumbsState.doc === doc ? thumbsState.urls : {};
 
   useEffect(() => {
     if (!open || tab !== "pages" || !doc) return;
@@ -56,10 +54,13 @@ export function NoterNavDrawer({
     const loadPages = async () => {
       for (let p = 1; p <= pageCount; p++) {
         if (cancelled) return;
-        if (thumbs[p]) continue;
         const url = await doc.renderThumbnail(p, 160);
         if (!cancelled && url) {
-          setThumbs((prev) => (prev[p] ? prev : { ...prev, [p]: url }));
+          setThumbsState((prev) => {
+            const base = prev.doc === doc ? prev.urls : {};
+            if (base[p]) return prev;
+            return { doc, urls: { ...base, [p]: url } };
+          });
         }
       }
     };
@@ -68,11 +69,7 @@ export function NoterNavDrawer({
     return () => {
       cancelled = true;
     };
-  }, [open, tab, doc, pageCount, thumbs]);
-
-  useEffect(() => {
-    setThumbs({});
-  }, [doc]);
+  }, [open, tab, doc, pageCount]);
 
   if (!open) return null;
 

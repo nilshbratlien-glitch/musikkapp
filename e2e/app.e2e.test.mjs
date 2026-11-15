@@ -1352,7 +1352,7 @@ describe("Noter setlists, navigation & backup", () => {
 
     // 4. Nav drawer thumbnails & bookmark
     await viewer.getByRole("button", { name: "Sideoversikt og bokmerker", exact: true }).click();
-    const drawer = page.getByRole("dialog", { name: "Sidenavigasjon" });
+    const drawer = page.getByRole("dialog", { name: "Sider og bokmerker" });
     await drawer.waitFor({ state: "visible" });
     await drawer.getByRole("button", { name: /Side 1/i }).click();
     await drawer.waitFor({ state: "detached" });
@@ -1360,10 +1360,10 @@ describe("Noter setlists, navigation & backup", () => {
 
     await viewer.getByRole("button", { name: "Sideoversikt og bokmerker", exact: true }).click();
     await drawer.getByRole("tab", { name: /Bokmerker/i }).click();
-    await drawer.getByLabel("Bokmerkenavn", { exact: true }).fill("Trio");
-    await drawer.getByRole("button", { name: "Legg til", exact: true }).click();
+    await drawer.getByLabel("Navn på bokmerke", { exact: true }).fill("Trio");
+    await drawer.getByRole("button", { name: "Side 1", exact: true }).click();
     await drawer.getByText("Trio").waitFor({ state: "visible" });
-    await drawer.getByRole("button", { name: "Lukk navigasjon", exact: true }).click();
+    await drawer.getByRole("button", { name: "Lukk sideoversikt", exact: true }).click();
 
     // 5. Jump link creation, activation, and Tilbake button
     await viewer.getByRole("button", { name: "Lenke", exact: true }).click();

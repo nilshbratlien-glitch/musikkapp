@@ -142,6 +142,7 @@ export function NoterViewer({
   }
 
   const [docReady, setDocReady] = useState(false);
+  const [loadedDoc, setLoadedDoc] = useState<LoadedPdfDocument | null>(null);
   const [pageCount, setPageCount] = useState(() => Math.max(1, sheet.pageCount || 1));
   const [halfPageTurn, setHalfPageTurn] = useState(() => Boolean(sheet.halfPageTurn));
   const [autoCrop, setAutoCrop] = useState(() => Boolean(sheet.autoCrop));
@@ -1664,28 +1665,30 @@ export function NoterViewer({
         </footer>
       ) : null}
 
-      <NoterNavDrawer
-        open={navDrawerOpen}
-        initialTab={navDrawerTab}
-        onClose={() => setNavDrawerOpen(false)}
-        doc={docRef.current}
-        pageCount={pageCount}
-        currentPage={page}
-        onSelectPage={goToPage}
-        bookmarks={sheet.bookmarks ?? []}
-        onAddBookmark={handleAddBookmark}
-        onDeleteBookmark={handleDeleteBookmark}
-        setlistContext={
-          setlistContext
-            ? {
-                setlist: setlistContext.setlist,
-                sheets: setlistContext.sheets,
-                activeIndex: setlistContext.activeIndex,
-                onSelectSheetIndex: (idx) => setlistContext.onSelectSheetIndex(idx, 1),
-              }
-            : null
-        }
-      />
+      {navDrawerOpen ? (
+        <NoterNavDrawer
+          open={navDrawerOpen}
+          initialTab={navDrawerTab}
+          onClose={() => setNavDrawerOpen(false)}
+          doc={loadedDoc}
+          pageCount={pageCount}
+          currentPage={page}
+          onSelectPage={goToPage}
+          bookmarks={sheet.bookmarks ?? []}
+          onAddBookmark={handleAddBookmark}
+          onDeleteBookmark={handleDeleteBookmark}
+          setlistContext={
+            setlistContext
+              ? {
+                  setlist: setlistContext.setlist,
+                  sheets: setlistContext.sheets,
+                  activeIndex: setlistContext.activeIndex,
+                  onSelectSheetIndex: (idx) => setlistContext.onSelectSheetIndex(idx, 1),
+                }
+              : null
+          }
+        />
+      ) : null}
     </div>
   );
 }
