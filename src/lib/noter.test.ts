@@ -52,6 +52,7 @@ import {
   normalizeHalfPagePosition,
   stepPageBackward,
   stepPageForward,
+  type HalfPagePosition,
 } from "./noter-input.ts";
 import {
   NOTER_ANNOTATIONS_SHEET_INDEX,
@@ -685,7 +686,7 @@ describe("noter input mapping and half-page turn", () => {
     assert.deepEqual(stepPageBackward({ page: 1, halfOffset: 0 }, 3, false), { page: 1, halfOffset: 0 });
 
     // Half-page ON across 3 pages
-    let pos = { page: 1, halfOffset: 0 as const };
+    let pos: HalfPagePosition = { page: 1, halfOffset: 0 };
     pos = stepPageForward(pos, 3, true);
     assert.deepEqual(pos, { page: 1, halfOffset: 1 });
     pos = stepPageForward(pos, 3, true);
