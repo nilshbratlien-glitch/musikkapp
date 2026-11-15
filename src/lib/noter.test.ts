@@ -44,6 +44,9 @@ import {
   getHalfPageRegions,
   isFullPageRect,
   normalizeCropRect,
+  normalizeManualCropsMap,
+  resizeCropRect,
+  resolveEffectiveCropRect,
 } from "./noter-crop.ts";
 import {
   detectSwipeDirection,
@@ -84,6 +87,7 @@ import {
   parsePageRangeInput,
   remapBookmarks,
   remapJumpLinks,
+  remapManualCrops,
   remapSheetPageAnnotations,
   trimPdfBytes,
 } from "./noter-trim.ts";
@@ -1395,5 +1399,62 @@ describe("noter-trim page selection, remapping, and DB integration", () => {
     assert.equal(replacedAnns[0]?.page, 2);
   });
 });
+
+describe("noter-crop manual crop resizing, resolution, and remapping", () => {
+  it("resizes corners, edges, and moves crop box within [0, 1] and minFraction", () => {
+    const start = { x: 0.2, y: 0.2, width: 0.6, height: 0.6 };
+
+    const nw = resizeCropRect(start, "nw", 0.1, 0.05);
+    assert.ok(Math.abs(nw.x - 0.3) < 1e-6);
+    assert.ok(Math.abs(nw.y - 0.25) < 1e-6);
+    assert.ok(Math.abs(nw.width - 0.5) < 1e-6);
+    assert.ok(Math.abs(nw.height - 0.55) < 1e-6);
+
+    // Prevent collapsing below minFraction
+    const clampedMin = resizeCropRect(start, "se", -0.9, -0.9, 0.15);
+    assert.ok(clampedMin.width >= 0.15 - 1e-6);
+    assert.ok(clampedMin.height >= 0.15 - 1e-6);
+
+    // Move clamped to [0, 1]
+    const moved = resizeCropRect(start, "move", 0.5, -0.5);
+    assert.ok(Math.abs(moved.x - 0.4) < 1e-6);
+    assert.ok(Math.abs(moved.y - 0) < 1e-6);
+    assert.ok(Math.abs(moved.width - 0.6) < 1e-6);
+    assert.ok(Math.abs(moved.height - 0.6) < 1e-6);
+  });
+
+  it("prioritizes manual crop over autoCrop and remaps on page trim", () => {
+    const manual = { 1: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 } };
+    const auto = {
+      1: { x: 0.05, y: 0.05, width: 0.9, height: 0.9 },
+      2: { x: 0.08, y: 0.08, width: 0.84, height: 0.84 },
+    };
+
+    // Manual overrides autoCrop even when autoCrop is false
+    assert.deepEqual(resolveEffectiveCropRect(1, false, manual, auto), manual[1]);
+    assert.deepEqual(resolveEffectiveCropRect(1, true, manual, auto), manual[1]);
+    assert.deepEqual(resolveEffectiveCropRect(2, true, manual, auto), auto[2]);
+    assert.deepEqual(resolveEffectiveCropRect(2, false, manual, auto), FULL_PAGE_RECT);
+
+    // normalizeManualCropsMap strips full-page entries
+    const cleaned = normalizeManualCropsMap({
+      1: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
+      2: FULL_PAGE_RECT,
+    });
+    assert.deepEqual(Object.keys(cleaned), ["1"]);
+
+    // Remapping on PDF trim
+    const pageMap = buildPageRemapMap([2, 4]);
+    const remapped = remapManualCrops(
+      {
+        1: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
+        4: { x: 0.15, y: 0.15, width: 0.7, height: 0.7 },
+      },
+      pageMap,
+    );
+    assert.deepEqual(remapped, { 2: { x: 0.15, y: 0.15, width: 0.7, height: 0.7 } });
+  });
+});
+
 
 

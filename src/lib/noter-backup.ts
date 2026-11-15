@@ -1,5 +1,6 @@
 import type { JumpLink, SetlistRecord, SheetBookmark, SheetMeta } from "./noter.ts";
 import { cloneAnnotationItems, type AnnotationItem } from "./noter-annotations.ts";
+import { normalizeManualCropsMap, type NormalizedRect } from "./noter-crop.ts";
 import {
   listAllAnnotations,
   listSetlists,
@@ -25,6 +26,7 @@ export type SheetMetadataBackup = {
   halfPageTurn: boolean;
   bookmarks: SheetBookmark[];
   jumpLinks: JumpLink[];
+  manualCrops?: Record<number, NormalizedRect>;
 };
 
 export type NoterBackupPayload = {
@@ -61,6 +63,7 @@ export function buildNoterBackupPayload(
       halfPageTurn: s.halfPageTurn ?? false,
       bookmarks: (s.bookmarks ?? []).map((b) => ({ ...b })),
       jumpLinks: (s.jumpLinks ?? []).map((l) => ({ ...l })),
+      manualCrops: normalizeManualCropsMap(s.manualCrops),
     })),
     annotations: annotations
       .filter((a) => Array.isArray(a.items) && a.items.length > 0)
@@ -146,6 +149,7 @@ export async function restoreNoterBackup(
       halfPageTurn: bSheet.halfPageTurn,
       bookmarks: Array.isArray(bSheet.bookmarks) ? bSheet.bookmarks : [],
       jumpLinks: Array.isArray(bSheet.jumpLinks) ? bSheet.jumpLinks : [],
+      manualCrops: normalizeManualCropsMap(bSheet.manualCrops),
     });
   }
 

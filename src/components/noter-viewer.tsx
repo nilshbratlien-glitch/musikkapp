@@ -13,6 +13,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  SlidersHorizontal,
   Sun,
   Undo2,
   Volume2,
@@ -24,6 +25,7 @@ import {
   type AnnotationTool,
   type PencilThickness,
 } from "@/components/noter-annotation-layer";
+import { NoterCropModal } from "@/components/noter-crop-modal";
 import { NoterNavDrawer, type NavDrawerTab } from "@/components/noter-nav-drawer";
 import { NoterPageTrimModal } from "@/components/noter-page-trim-modal";
 import { NoterToolbar } from "@/components/noter-toolbar";
@@ -53,7 +55,14 @@ import {
   type AnnotationItem,
   type StampId,
 } from "@/lib/noter-annotations";
-import { FULL_PAGE_RECT, getHalfPageRegions, type NormalizedRect } from "@/lib/noter-crop";
+import {
+  FULL_PAGE_RECT,
+  getHalfPageRegions,
+  isFullPageRect,
+  normalizeManualCropsMap,
+  resolveEffectiveCropRect,
+  type NormalizedRect,
+} from "@/lib/noter-crop";
 import {
   getPageAnnotations,
   replaceSheetWithTrimmedPdf,
@@ -222,6 +231,10 @@ export function NoterViewer({
   );
 
   const [cropRects, setCropRects] = useState<Record<number, NormalizedRect>>({});
+  const [manualCrops, setManualCrops] = useState<Record<number, NormalizedRect>>(() =>
+    normalizeManualCropsMap(sheet.manualCrops),
+  );
+  const [cropModalOpen, setCropModalOpen] = useState(false);
   const [pageDims, setPageDims] = useState<Record<number, PageDimensions>>({});
   const [singleCanvasSize, setSingleCanvasSize] = useState<PageDimensions>({ width: 0, height: 0 });
   const [topCanvasSize, setTopCanvasSize] = useState<PageDimensions>({ width: 0, height: 0 });
@@ -266,6 +279,8 @@ export function NoterViewer({
     setAnnotationsByPage({});
     setHistoryByPage({});
     setCropRects({});
+    setManualCrops(normalizeManualCropsMap(s.manualCrops));
+    setCropModalOpen(false);
     setPageDims({});
     setSingleCanvasSize({ width: 0, height: 0 });
     setTopCanvasSize({ width: 0, height: 0 });
@@ -480,20 +495,20 @@ export function NoterViewer({
   }, [docReady, page, pageCount, autoCrop, halfPageTurn, isSplitView, pageDims, cropRects]);
 
   const singleRegion = useMemo<NormalizedRect>(() => {
-    return autoCrop ? (cropRects[page] ?? FULL_PAGE_RECT) : FULL_PAGE_RECT;
-  }, [autoCrop, cropRects, page]);
+    return resolveEffectiveCropRect(page, autoCrop, manualCrops, cropRects);
+  }, [autoCrop, manualCrops, cropRects, page]);
 
   const topRegion = useMemo<NormalizedRect>(() => {
     if (!isSplitView) return FULL_PAGE_RECT;
-    const base = autoCrop ? (cropRects[page + 1] ?? FULL_PAGE_RECT) : FULL_PAGE_RECT;
+    const base = resolveEffectiveCropRect(page + 1, autoCrop, manualCrops, cropRects);
     return getHalfPageRegions(base).top;
-  }, [isSplitView, autoCrop, cropRects, page]);
+  }, [isSplitView, autoCrop, manualCrops, cropRects, page]);
 
   const bottomRegion = useMemo<NormalizedRect>(() => {
     if (!isSplitView) return FULL_PAGE_RECT;
-    const base = autoCrop ? (cropRects[page] ?? FULL_PAGE_RECT) : FULL_PAGE_RECT;
+    const base = resolveEffectiveCropRect(page, autoCrop, manualCrops, cropRects);
     return getHalfPageRegions(base).bottom;
-  }, [isSplitView, autoCrop, cropRects, page]);
+  }, [isSplitView, autoCrop, manualCrops, cropRects, page]);
 
   const baseScale = useMemo(() => {
     const availableWidth = Math.max(240, viewportSize.width - 24);
@@ -1191,6 +1206,23 @@ export function NoterViewer({
 
             <button
               type="button"
+              onClick={() => setCropModalOpen(true)}
+              aria-label="Manuell beskjæring"
+              title="Manuell beskjæring av denne siden"
+              style={
+                manualCrops[page] ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined
+              }
+              className={
+                manualCrops[page]
+                  ? "metro-press flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent"
+                  : "metro-press flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-2 text-xs font-medium text-muted hover:text-fg"
+              }
+            >
+              <SlidersHorizontal className="size-4 shrink-0" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
               onClick={toggleHalfPageTurn}
               aria-pressed={halfPageTurn}
               aria-label={halfPageTurn ? "Slå av halvside-vending" : "Slå på halvside-vending"}
@@ -1720,6 +1752,7 @@ export function NoterViewer({
             setAnnotationsByPage({});
             setHistoryByPage({});
             setCropRects({});
+            setManualCrops(normalizeManualCropsMap(updated.manualCrops));
             setPageDims({});
             setJumpHistory([]);
             setPageCount(updated.pageCount);
@@ -1740,6 +1773,36 @@ export function NoterViewer({
               keptPages,
             });
             onSheetCopied?.(created);
+          }}
+        />
+      ) : null}
+
+      {cropModalOpen ? (
+        <NoterCropModal
+          open={cropModalOpen}
+          onClose={() => setCropModalOpen(false)}
+          doc={loadedDoc}
+          pageNumber={page}
+          pageCount={pageCount}
+          initialRect={resolveEffectiveCropRect(page, autoCrop, manualCrops, cropRects)}
+          onSave={async (nextRect, applyToAllPages) => {
+            const nextMap = { ...manualCrops };
+            if (applyToAllPages) {
+              for (let p = 1; p <= pageCount; p += 1) {
+                if (isFullPageRect(nextRect)) {
+                  delete nextMap[p];
+                } else {
+                  nextMap[p] = nextRect;
+                }
+              }
+            } else if (isFullPageRect(nextRect)) {
+              delete nextMap[page];
+            } else {
+              nextMap[page] = nextRect;
+            }
+            const normalized = normalizeManualCropsMap(nextMap);
+            setManualCrops(normalized);
+            await onUpdateMetaRef.current({ manualCrops: normalized });
           }}
         />
       ) : null}

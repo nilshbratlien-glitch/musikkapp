@@ -141,3 +141,90 @@ export function getHalfPageRegions(region?: NormalizedRect): {
     }),
   };
 }
+
+export const MIN_CROP_FRACTION = 0.1;
+
+export type CropDragHandle = "move" | "nw" | "ne" | "sw" | "se" | "n" | "s" | "w" | "e";
+
+export function resizeCropRect(
+  rect: NormalizedRect,
+  handle: CropDragHandle,
+  dx: number,
+  dy: number,
+  minFraction = MIN_CROP_FRACTION,
+): NormalizedRect {
+  const safeMin = Math.max(0.02, Math.min(0.5, minFraction));
+  const base = normalizeCropRect(rect);
+  const safeDx = Number.isFinite(dx) ? dx : 0;
+  const safeDy = Number.isFinite(dy) ? dy : 0;
+
+  if (handle === "move") {
+    const nextX = Math.min(1 - base.width, Math.max(0, base.x + safeDx));
+    const nextY = Math.min(1 - base.height, Math.max(0, base.y + safeDy));
+    return clampNormalizedRect({
+      x: nextX,
+      y: nextY,
+      width: base.width,
+      height: base.height,
+    });
+  }
+
+  let left = base.x;
+  let top = base.y;
+  let right = base.x + base.width;
+  let bottom = base.y + base.height;
+
+  if (handle.includes("w")) {
+    left = Math.min(right - safeMin, Math.max(0, left + safeDx));
+  }
+  if (handle.includes("e")) {
+    right = Math.max(left + safeMin, Math.min(1, right + safeDx));
+  }
+  if (handle.includes("n")) {
+    top = Math.min(bottom - safeMin, Math.max(0, top + safeDy));
+  }
+  if (handle.includes("s")) {
+    bottom = Math.max(top + safeMin, Math.min(1, bottom + safeDy));
+  }
+
+  return clampNormalizedRect({
+    x: left,
+    y: top,
+    width: Math.max(safeMin, right - left),
+    height: Math.max(safeMin, bottom - top),
+  });
+}
+
+export function normalizeManualCropsMap(
+  raw?: Record<number, NormalizedRect> | null,
+): Record<number, NormalizedRect> {
+  if (!raw || typeof raw !== "object") return {};
+  const next: Record<number, NormalizedRect> = {};
+  for (const [key, rect] of Object.entries(raw)) {
+    const pageNum = Number.parseInt(key, 10);
+    if (!Number.isFinite(pageNum) || pageNum < 1 || !rect) continue;
+    const norm = normalizeCropRect(rect);
+    if (!isFullPageRect(norm)) {
+      next[pageNum] = norm;
+    }
+  }
+  return next;
+}
+
+export function resolveEffectiveCropRect(
+  page: number,
+  autoCrop: boolean,
+  manualCrops?: Record<number, NormalizedRect> | null,
+  autoCropRects?: Record<number, NormalizedRect> | null,
+): NormalizedRect {
+  const manual = manualCrops?.[page];
+  if (manual) {
+    const norm = normalizeCropRect(manual);
+    if (!isFullPageRect(norm)) {
+      return norm;
+    }
+  }
+  if (!autoCrop) return FULL_PAGE_RECT;
+  return autoCropRects?.[page] ?? FULL_PAGE_RECT;
+}
+

@@ -1,3 +1,5 @@
+import type { NormalizedRect } from "./noter-crop.ts";
+
 export type SheetBookmark = {
   id: string;
   page: number;
@@ -36,6 +38,7 @@ export type SheetMeta = {
   halfPageTurn?: boolean;
   bookmarks?: SheetBookmark[];
   jumpLinks?: JumpLink[];
+  manualCrops?: Record<number, NormalizedRect>;
   createdAt: number;
   updatedAt: number;
   lastOpenedAt: number;

@@ -10,10 +10,12 @@ import {
   type SheetRecord,
 } from "./noter.ts";
 import { cloneAnnotationItems, type AnnotationItem } from "./noter-annotations.ts";
+import type { NormalizedRect } from "./noter-crop.ts";
 import {
   buildPageRemapMap,
   remapBookmarks,
   remapJumpLinks,
+  remapManualCrops,
   remapSheetPageAnnotations,
 } from "./noter-trim.ts";
 
@@ -46,6 +48,7 @@ export type SaveSheetInput = {
   halfPageTurn?: boolean;
   bookmarks?: SheetBookmark[];
   jumpLinks?: JumpLink[];
+  manualCrops?: Record<number, NormalizedRect>;
   pdfData: ArrayBuffer;
 };
 
@@ -62,6 +65,7 @@ export type UpdateSheetMetaPatch = Partial<
     | "halfPageTurn"
     | "bookmarks"
     | "jumpLinks"
+    | "manualCrops"
     | "lastOpenedAt"
   >
 >;
@@ -86,6 +90,7 @@ function stripPdfData(record: SheetRecord): SheetMeta {
     halfPageTurn: meta.halfPageTurn ?? false,
     bookmarks: meta.bookmarks ?? [],
     jumpLinks: meta.jumpLinks ?? [],
+    manualCrops: meta.manualCrops ?? {},
   };
 }
 
@@ -267,6 +272,7 @@ export async function saveSheet(input: SaveSheetInput): Promise<SheetRecord> {
     halfPageTurn: Boolean(input.halfPageTurn),
     bookmarks: input.bookmarks ?? [],
     jumpLinks: input.jumpLinks ?? [],
+    manualCrops: input.manualCrops ?? {},
     createdAt: now,
     updatedAt: now,
     lastOpenedAt: now,
@@ -340,6 +346,8 @@ export async function updateSheetMeta(id: string, patch: UpdateSheetMetaPatch): 
                 : (existing.halfPageTurn ?? false),
             bookmarks: patch.bookmarks !== undefined ? patch.bookmarks : (existing.bookmarks ?? []),
             jumpLinks: patch.jumpLinks !== undefined ? patch.jumpLinks : (existing.jumpLinks ?? []),
+            manualCrops:
+              patch.manualCrops !== undefined ? patch.manualCrops : (existing.manualCrops ?? {}),
             lastOpenedAt: patch.lastOpenedAt !== undefined ? patch.lastOpenedAt : existing.lastOpenedAt,
             updatedAt: Date.now(),
           };
@@ -763,6 +771,7 @@ export async function replaceSheetWithTrimmedPdf(
   );
   const remappedBookmarks = remapBookmarks(existing.bookmarks ?? [], pageMap);
   const remappedJumpLinks = remapJumpLinks(existing.jumpLinks ?? [], pageMap);
+  const remappedManualCrops = remapManualCrops(existing.manualCrops, pageMap);
   const nextPageCount = pageMap.size;
   const remappedLastPage = pageMap.get(existing.lastPage) ?? 1;
   const now = Date.now();
@@ -776,6 +785,7 @@ export async function replaceSheetWithTrimmedPdf(
     lastPage: clampPage(remappedLastPage, nextPageCount),
     bookmarks: remappedBookmarks,
     jumpLinks: remappedJumpLinks,
+    manualCrops: remappedManualCrops,
     updatedAt: now,
   };
 
@@ -812,6 +822,7 @@ export async function saveTrimmedSheetAsCopy(
   const sourceAnnotations = source ? await listSheetAnnotations(source.id) : [];
   const remappedBookmarks = source ? remapBookmarks(source.bookmarks ?? [], pageMap) : [];
   const remappedJumpLinks = source ? remapJumpLinks(source.jumpLinks ?? [], pageMap) : [];
+  const remappedManualCrops = source ? remapManualCrops(source.manualCrops, pageMap) : {};
 
   const created = await saveSheet({
     title: input.title.trim() || `${source?.title ?? "Noteark"} (utdrag)`,
@@ -826,6 +837,7 @@ export async function saveTrimmedSheetAsCopy(
     halfPageTurn: source?.halfPageTurn,
     bookmarks: remappedBookmarks,
     jumpLinks: remappedJumpLinks,
+    manualCrops: remappedManualCrops,
     pdfData: input.pdfData,
   });
 

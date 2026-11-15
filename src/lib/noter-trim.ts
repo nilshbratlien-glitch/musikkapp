@@ -223,6 +223,22 @@ export function remapSheetPageAnnotations(
   return next.sort((a, b) => a.page - b.page);
 }
 
+export function remapManualCrops(
+  manualCrops: Record<number, import("./noter-crop.ts").NormalizedRect> | undefined,
+  pageMap: ReadonlyMap<number, number>,
+): Record<number, import("./noter-crop.ts").NormalizedRect> {
+  if (!manualCrops) return {};
+  const next: Record<number, import("./noter-crop.ts").NormalizedRect> = {};
+  for (const [key, rect] of Object.entries(manualCrops)) {
+    const oldPage = Number.parseInt(key, 10);
+    const newPage = pageMap.get(oldPage);
+    if (newPage !== undefined && rect) {
+      next[newPage] = { ...rect };
+    }
+  }
+  return next;
+}
+
 export async function trimPdfBytes(
   pdfData: ArrayBuffer,
   keptPages: readonly number[],

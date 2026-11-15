@@ -1564,6 +1564,98 @@ describe("Noter PDF page trimming", () => {
   });
 });
 
+describe("Noter manual PDF cropping", () => {
+  it("opens manual crop modal, drags corner handle, applies crop, and persists across reload", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(mockPdfJsLib);
+    await open("/noter");
+
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles({
+      name: "skann-med-stoy.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%noisy-scan"),
+    });
+
+    await page.getByRole("button", { name: /^skann med stoy/i }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: /^skann med stoy/i }).click();
+
+    const viewer = page.locator('[role="dialog"][aria-label^="Noteviser:"]');
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    const annotationSvg = viewer.locator('svg[preserveAspectRatio="none"]').first();
+    assert.equal(await annotationSvg.getAttribute("viewBox"), "0 0 1000 1000");
+
+    // Open manual crop modal
+    await viewer.getByRole("button", { name: "Manuell beskjæring", exact: true }).click();
+    const cropDialog = page.getByRole("dialog", { name: "Manuell beskjæring av side 1" });
+    await cropDialog.waitFor({ state: "visible" });
+
+    // Drag top-left corner handle inward
+    const nwHandle = cropDialog.getByRole("button", { name: "Juster øvre venstre hjørne", exact: true });
+    const handleBox = await nwHandle.boundingBox();
+    assert.ok(handleBox, "nw corner handle bounding box exists");
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      handleBox.x + handleBox.width / 2 + 45,
+      handleBox.y + handleBox.height / 2 + 60,
+      { steps: 5 },
+    );
+    await page.mouse.up();
+
+    // Apply to all pages and save
+    await cropDialog.getByRole("checkbox", { name: /Bruk på alle 3 sider/i }).check();
+    await cropDialog.getByRole("button", { name: "Lagre beskjæring", exact: true }).click();
+    await cropDialog.waitFor({ state: "detached" });
+
+    // Annotation SVG viewBox reflects the manual crop
+    await page.waitForFunction(() => {
+      const svg = document.querySelector('[role="dialog"][aria-label^="Noteviser:"] svg[preserveAspectRatio="none"]');
+      const vb = svg?.getAttribute("viewBox");
+      return Boolean(vb && vb !== "0 0 1000 1000");
+    });
+    const croppedViewBox = await annotationSvg.getAttribute("viewBox");
+    assert.notEqual(croppedViewBox, "0 0 1000 1000");
+
+    // Reload and verify manual crop persists on page 2 as well
+    await page.reload();
+    await page.getByRole("button", { name: /^skann med stoy/i }).click();
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("Side 2 / 3").waitFor({ state: "visible" });
+    await page.waitForFunction(() => {
+      const svg = document.querySelector('[role="dialog"][aria-label^="Noteviser:"] svg[preserveAspectRatio="none"]');
+      const vb = svg?.getAttribute("viewBox");
+      return Boolean(vb && vb !== "0 0 1000 1000");
+    });
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    assert.equal(overflow, false, "no horizontal overflow at 390x844");
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+
+
 
 
 
