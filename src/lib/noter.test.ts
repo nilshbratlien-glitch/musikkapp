@@ -1293,7 +1293,7 @@ describe("noter-trim page selection, remapping, and DB integration", () => {
           key: "s1:14",
           sheetId: "s1",
           page: 14,
-          items: [{ id: "t1", type: "text", x: 100, y: 100, text: "p", color: "#fff" }],
+          items: [{ id: "t1", kind: "text", x: 100, y: 100, text: "p", color: "#fff" }],
           updatedAt: 20,
         },
       ],
@@ -1362,10 +1362,10 @@ describe("noter-trim page selection, remapping, and DB integration", () => {
       pdfData: new Uint8Array([1, 2, 3, 4]).buffer,
     });
     await savePageAnnotations(original.id, 1, [
-      { id: "a1", type: "text", x: 10, y: 10, text: "Drop", color: "#fff" },
+      { id: "a1", kind: "text", x: 10, y: 10, text: "Drop", color: "#fff" },
     ]);
     await savePageAnnotations(original.id, 4, [
-      { id: "a4", type: "text", x: 20, y: 20, text: "Keep", color: "#fff" },
+      { id: "a4", kind: "text", x: 20, y: 20, text: "Keep", color: "#fff" },
     ]);
 
     const copy = await saveTrimmedSheetAsCopy({

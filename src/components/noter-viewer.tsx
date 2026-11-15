@@ -102,6 +102,8 @@ export type NoterViewerProps = {
   setlistContext?: ViewerSetlistContext | null;
   onClose: () => void;
   onUpdateMeta: (patch: UpdateSheetMetaPatch) => Promise<void> | void;
+  onSheetReplaced?: (updated: SheetRecord) => void;
+  onSheetCopied?: (created: SheetRecord) => void;
 };
 
 function createItemId(prefix: string): string {
@@ -120,6 +122,8 @@ export function NoterViewer({
   setlistContext = null,
   onClose,
   onUpdateMeta,
+  onSheetReplaced,
+  onSheetCopied,
 }: NoterViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -356,7 +360,7 @@ export function NoterViewer({
           page: clampedInitial,
           halfOffset: clampedInitial >= total ? 0 : prev.halfOffset,
         }));
-        setLoadedDoc(doc);
+        setLoadedDoc(loaded);
         setDocReady(true);
         setLoading(false);
         if (total !== initialMeta.pageCount || clampedInitial !== initialMeta.lastPage) {
