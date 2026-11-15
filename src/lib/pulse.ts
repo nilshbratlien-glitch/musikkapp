@@ -5,7 +5,7 @@ import { clickStep } from "./metronome.ts";
  * a single active owner. Starting a new owner stops the previous one (onStop
  * "replaced") and cuts everything it had scheduled.
  */
-export type PulseOwner = "metronom" | "snare" | "oveplan" | "bladlesing";
+export type PulseOwner = "metronom" | "snare" | "oveplan" | "bladlesing" | "noter";
 export type PulseStopReason = "stopped" | "replaced" | "stalled";
 export type PulseClick = { tick: number; time: number; accent: boolean; downbeat: boolean; beatIndex: number };
 export type PulseStart = {
