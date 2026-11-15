@@ -1,3 +1,27 @@
+export type SheetBookmark = {
+  id: string;
+  page: number;
+  label: string;
+  createdAt: number;
+};
+
+export type JumpLink = {
+  id: string;
+  sourcePage: number;
+  x: number;
+  y: number;
+  targetPage: number;
+  label: string;
+};
+
+export type SetlistRecord = {
+  id: string;
+  name: string;
+  sheetIds: string[];
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type SheetMeta = {
   id: string;
   title: string;
@@ -10,6 +34,8 @@ export type SheetMeta = {
   annotationsVisible?: boolean;
   autoCrop?: boolean;
   halfPageTurn?: boolean;
+  bookmarks?: SheetBookmark[];
+  jumpLinks?: JumpLink[];
   createdAt: number;
   updatedAt: number;
   lastOpenedAt: number;

@@ -1,4 +1,6 @@
+import { Link2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { JumpLink } from "@/lib/noter";
 import {
   ANNOTATION_VIEWBOX_SIZE,
   HIGHLIGHTER_OPACITY,
@@ -13,11 +15,12 @@ import {
 } from "@/lib/noter-annotations";
 import { normalizeCropRect, type NormalizedRect } from "@/lib/noter-crop";
 
-export type AnnotationTool = "view" | "pencil" | "highlighter" | "eraser" | "stamp" | "text";
+export type AnnotationTool = "view" | "pencil" | "highlighter" | "eraser" | "stamp" | "text" | "link";
 export type PencilThickness = "thin" | "thick";
 
 export type NoterAnnotationLayerProps = {
   pageNumber: number;
+  pageCount?: number;
   items: readonly AnnotationItem[];
   visible: boolean;
   region: NormalizedRect;
@@ -30,12 +33,23 @@ export type NoterAnnotationLayerProps = {
   activeStampId: StampId;
   stylusOnly: boolean;
   onCommitItems: (pageNumber: number, nextItems: AnnotationItem[]) => void;
+  jumpLinks?: readonly JumpLink[];
+  onAddJumpLink?: (link: Omit<JumpLink, "id">) => void;
+  onDeleteJumpLink?: (id: string) => void;
+  onActivateJumpLink?: (link: JumpLink) => void;
 };
 
 type TextDraft = {
   x: number;
   y: number;
   value: string;
+};
+
+type LinkDraft = {
+  x: number;
+  y: number;
+  targetPage: number;
+  label: string;
 };
 
 const PALM_REJECTION_WINDOW_MS = 800;
@@ -216,6 +230,7 @@ function renderAnnotationItem(item: AnnotationItem) {
 
 export function NoterAnnotationLayer({
   pageNumber,
+  pageCount = 1,
   items,
   visible,
   region,
@@ -228,10 +243,15 @@ export function NoterAnnotationLayer({
   activeStampId,
   stylusOnly,
   onCommitItems,
+  jumpLinks = [],
+  onAddJumpLink,
+  onDeleteJumpLink,
+  onActivateJumpLink,
 }: NoterAnnotationLayerProps) {
   const [draftStroke, setDraftStroke] = useState<StrokeAnnotation | null>(null);
   const [erasedIds, setErasedIds] = useState<Set<string>>(() => new Set());
   const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
+  const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
 
   const activePointerIdRef = useRef<number | null>(null);
   const lastPenTimeRef = useRef<number>(0);
@@ -252,31 +272,77 @@ export function NoterAnnotationLayer({
     if (tool !== "text") {
       setTextDraft(null);
     }
+    if (tool !== "link") {
+      setLinkDraft(null);
+    }
   }, [tool]);
 
   useEffect(() => {
     setTextDraft(null);
+    setLinkDraft(null);
   }, [pageNumber]);
 
   const normRegion = normalizeCropRect(region);
   const viewBox = getAnnotationSvgViewBox(normRegion);
 
+  const visibleJumpLinks = jumpLinks.filter(
+    (link) =>
+      link.sourcePage === pageNumber &&
+      link.x >= normRegion.x &&
+      link.x <= normRegion.x + normRegion.width &&
+      link.y >= normRegion.y &&
+      link.y <= normRegion.y + normRegion.height,
+  );
+
   if (tool === "view") {
-    if (!visible) return null;
+    if (!visible && visibleJumpLinks.length === 0) return null;
     return (
-      <svg
-        aria-hidden="true"
-        viewBox={viewBox}
-        preserveAspectRatio="none"
+      <div
         style={
           width > 0 && height > 0
             ? { width: `${width}px`, height: `${height}px` }
             : undefined
         }
-        className="pointer-events-none absolute inset-0 z-10 block h-full w-full"
+        className="pointer-events-none absolute inset-0 z-10"
       >
-        {items.map((item) => renderAnnotationItem(item))}
-      </svg>
+        {visible ? (
+          <svg
+            aria-hidden="true"
+            viewBox={viewBox}
+            preserveAspectRatio="none"
+            className="pointer-events-none block h-full w-full"
+          >
+            {items.map((item) => renderAnnotationItem(item))}
+          </svg>
+        ) : null}
+
+        {visibleJumpLinks.map((link) => {
+          const leftPct = ((link.x - normRegion.x) / normRegion.width) * 100;
+          const topPct = ((link.y - normRegion.y) / normRegion.height) * 100;
+          return (
+            <button
+              key={link.id}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onActivateJumpLink?.(link);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              style={{
+                left: `${leftPct}%`,
+                top: `${topPct}%`,
+                backgroundColor: "rgba(22, 26, 34, 0.92)",
+              }}
+              aria-label={`Hopp til side ${link.targetPage}: ${link.label}`}
+              className="metro-press pointer-events-auto absolute z-20 flex min-h-8 -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-accent px-2.5 py-1 text-xs font-bold text-accent shadow-lg"
+            >
+              <Link2 className="size-3 shrink-0" aria-hidden="true" />
+              <span>{link.label}</span>
+            </button>
+          );
+        })}
+      </div>
     );
   }
 
@@ -445,6 +511,17 @@ export function NoterAnnotationLayer({
 
     if (tool === "text" && textDraft === null) {
       setTextDraft({ x: pt.x, y: pt.y, value: "" });
+      return;
+    }
+
+    if (tool === "link" && linkDraft === null) {
+      const total = Math.max(1, pageCount ?? 1);
+      setLinkDraft({
+        x: pt.x,
+        y: pt.y,
+        targetPage: pageNumber < total ? pageNumber + 1 : 1,
+        label: "D.S.",
+      });
     }
   };
 
@@ -480,8 +557,29 @@ export function NoterAnnotationLayer({
     setTextDraft(null);
   };
 
+  const handleLinkSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!linkDraft) return;
+    const total = Math.max(1, pageCount ?? 1);
+    const trimmed = linkDraft.label.trim() || `Side ${linkDraft.targetPage}`;
+    const targetPage = Math.min(total, Math.max(1, Math.round(linkDraft.targetPage) || 1));
+    const clampedX = Math.min(0.94, Math.max(0.06, linkDraft.x));
+    const clampedY = Math.min(0.94, Math.max(0.06, linkDraft.y));
+    onAddJumpLink?.({
+      sourcePage: pageNumber,
+      targetPage,
+      x: clampedX,
+      y: clampedY,
+      label: trimmed,
+    });
+    setLinkDraft(null);
+  };
+
   const leftPct = textDraft ? ((textDraft.x - normRegion.x) / normRegion.width) * 100 : 0;
   const topPct = textDraft ? ((textDraft.y - normRegion.y) / normRegion.height) * 100 : 0;
+  const linkLeftPct = linkDraft ? ((linkDraft.x - normRegion.x) / normRegion.width) * 100 : 0;
+  const linkTopPct = linkDraft ? ((linkDraft.y - normRegion.y) / normRegion.height) * 100 : 0;
+  const totalPageCount = Math.max(1, pageCount ?? 1);
 
   return (
     <div
@@ -511,6 +609,42 @@ export function NoterAnnotationLayer({
           : null}
         {draftStroke ? renderAnnotationItem(draftStroke) : null}
       </svg>
+
+      {tool === "link"
+        ? visibleJumpLinks.map((link) => {
+            const jLeftPct = ((link.x - normRegion.x) / normRegion.width) * 100;
+            const jTopPct = ((link.y - normRegion.y) / normRegion.height) * 100;
+            return (
+              <div
+                key={link.id}
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
+                style={{
+                  left: `${jLeftPct}%`,
+                  top: `${jTopPct}%`,
+                  backgroundColor: "rgba(22, 26, 34, 0.94)",
+                }}
+                className="absolute z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-accent py-1 pl-2.5 pr-1 text-xs font-bold text-accent shadow-lg"
+              >
+                <Link2 className="size-3 shrink-0" aria-hidden="true" />
+                <span>
+                  {link.label} → s.{link.targetPage}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteJumpLink?.(link.id);
+                  }}
+                  aria-label={`Slett hoppepunkt ${link.label}`}
+                  className="metro-press flex size-6 items-center justify-center rounded-full text-muted hover:text-fg"
+                >
+                  <X className="size-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })
+        : null}
 
       {textDraft ? (
         <form
@@ -553,6 +687,100 @@ export function NoterAnnotationLayer({
               className="metro-press min-h-9 rounded-lg bg-accent px-3 text-xs font-bold text-[#1a1408]"
             >
               Bekreft
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {linkDraft ? (
+        <form
+          onSubmit={handleLinkSubmit}
+          onPointerDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              setLinkDraft(null);
+            }
+          }}
+          style={{
+            backgroundColor: "rgba(22, 26, 34, 0.97)",
+            left: `clamp(8px, ${linkLeftPct}%, calc(100% - 240px))`,
+            top: `clamp(8px, ${linkTopPct}%, calc(100% - 180px))`,
+          }}
+          className="absolute z-30 flex w-56 flex-col gap-2 rounded-xl border border-accent p-3 shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-fg">Nytt hoppepunkt</span>
+            <span className="text-[11px] text-muted">Fra side {pageNumber}</span>
+          </div>
+
+          <div className="flex flex-wrap gap-1">
+            {["D.S.", "Coda", "Refr."].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setLinkDraft({ ...linkDraft, label: preset })}
+                style={
+                  linkDraft.label === preset
+                    ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                    : undefined
+                }
+                className={
+                  linkDraft.label === preset
+                    ? "metro-press min-h-7 rounded-md border border-accent px-2 text-xs font-bold text-accent"
+                    : "metro-press min-h-7 rounded-md border border-line bg-surface px-2 text-xs font-medium text-muted hover:text-fg"
+                }
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+
+          <input
+            type="text"
+            maxLength={24}
+            value={linkDraft.label}
+            onChange={(e) => setLinkDraft({ ...linkDraft, label: e.target.value })}
+            placeholder="Etikett (f.eks. D.S.)"
+            aria-label="Lenkeetikett"
+            className="w-full rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm text-fg placeholder:text-muted focus:border-accent focus:outline-none"
+          />
+
+          <label className="flex items-center justify-between gap-2 text-xs text-muted">
+            <span>Målside</span>
+            <input
+              type="number"
+              min={1}
+              max={totalPageCount}
+              value={linkDraft.targetPage}
+              onChange={(e) =>
+                setLinkDraft({
+                  ...linkDraft,
+                  targetPage: Math.min(
+                    totalPageCount,
+                    Math.max(1, Number.parseInt(e.target.value || "1", 10) || 1),
+                  ),
+                })
+              }
+              aria-label="Målside"
+              className="w-20 rounded-lg border border-line bg-bg px-2 py-1 text-right text-sm font-semibold tabular-nums text-fg focus:border-accent focus:outline-none"
+            />
+          </label>
+
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => setLinkDraft(null)}
+              className="metro-press min-h-9 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-muted hover:text-fg"
+            >
+              Avbryt
+            </button>
+            <button
+              type="submit"
+              className="metro-press min-h-9 rounded-lg bg-accent px-3 text-xs font-bold text-[#1a1408]"
+            >
+              Lagre lenke
             </button>
           </div>
         </form>

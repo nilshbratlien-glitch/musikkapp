@@ -58,18 +58,39 @@ import {
   NOTER_ANNOTATIONS_SHEET_INDEX,
   NOTER_ANNOTATIONS_STORE_NAME,
   NOTER_DB_VERSION,
+  NOTER_SETLISTS_STORE_NAME,
   NOTER_STORE_NAME,
+  deleteSetlist,
   deleteSheet,
   deleteSheetAnnotations,
   getPageAnnotations,
+  getSetlist,
   getSheet,
+  listAllAnnotations,
+  listSetlists,
   listSheets,
   makePageAnnotationsKey,
   savePageAnnotations,
+  saveSetlist,
   saveSheet,
   updateSheetMeta,
 } from "./noter-db.ts";
+import {
+  buildNoterBackupPayload,
+  parseNoterBackupJson,
+  restoreNoterBackup,
+} from "./noter-backup.ts";
 import { buildRenderKey, computeSliceMetrics } from "./noter-pdf.ts";
+import {
+  getJumpLinksForPage,
+  getSetlistBoundaryStep,
+  moveSetlistItem,
+  popJumpHistory,
+  pushJumpHistory,
+  removeDeletedSheetFromSetlist,
+  sortBookmarks,
+} from "./noter-setlists.ts";
+import { REFERENCE_NOTES, getReferenceFrequency } from "./noter-tuner.ts";
 
 function makeSheet(overrides: Partial<SheetMeta> = {}): SheetMeta {
   return {
@@ -230,6 +251,9 @@ function createFakeIndexedDb(options?: { preExistingStores?: string[] }): FakeIn
                         value,
                         delete: () => {
                           storeMap.delete(entryKey);
+                        },
+                        update: (nextVal: Record<string, unknown>) => {
+                          storeMap.set(entryKey, nextVal);
                         },
                         continue: advance,
                       };
@@ -997,3 +1021,198 @@ describe("noter-pdf render key and slice metrics", () => {
     });
   });
 });
+
+describe("noter-setlists helpers, bookmarks, and jump history", () => {
+  it("reorders setlist items safely and ignores out-of-range moves", () => {
+    assert.deepEqual(moveSetlistItem(["a", "b", "c"], 0, 2), ["b", "c", "a"]);
+    assert.deepEqual(moveSetlistItem(["a", "b", "c"], 2, 1), ["a", "c", "b"]);
+    assert.deepEqual(moveSetlistItem(["a", "b", "c"], -1, 1), ["a", "b", "c"]);
+    assert.deepEqual(moveSetlistItem(["a", "b", "c"], 1, 5), ["a", "b", "c"]);
+    assert.deepEqual(moveSetlistItem(["a", "b", "c"], 1, 1), ["a", "b", "c"]);
+  });
+
+  it("removes deleted sheet IDs from setlists and preserves order of remaining items", () => {
+    const original = {
+      id: "sl-1",
+      title: "Konsert",
+      sheetIds: ["s1", "s2", "s3", "s2"],
+      createdAt: 100,
+      updatedAt: 100,
+    };
+    const cleaned = removeDeletedSheetFromSetlist(original, "s2");
+    assert.deepEqual(cleaned.sheetIds, ["s1", "s3"]);
+    assert.equal(removeDeletedSheetFromSetlist(cleaned, "missing"), cleaned);
+  });
+
+  it("computes seamless next/prev piece transitions across setlist boundaries", () => {
+    const counts = [4, 7, 2];
+    assert.deepEqual(getSetlistBoundaryStep(counts, 0, "next"), { sheetIndex: 1, page: 1 });
+    assert.deepEqual(getSetlistBoundaryStep(counts, 2, "next"), null);
+    assert.deepEqual(getSetlistBoundaryStep(counts, 1, "prev"), { sheetIndex: 0, page: 4 });
+    assert.deepEqual(getSetlistBoundaryStep(counts, 2, "prev"), { sheetIndex: 1, page: 7 });
+    assert.deepEqual(getSetlistBoundaryStep(counts, 0, "prev"), null);
+  });
+
+  it("sorts bookmarks by page then creation time, filters jump links, and manages jump history stack", () => {
+    const sorted = sortBookmarks([
+      { id: "b1", page: 5, label: "Finale", createdAt: 200 },
+      { id: "b2", page: 2, label: "Tema B", createdAt: 300 },
+      { id: "b3", page: 2, label: "Tema A", createdAt: 100 },
+    ]);
+    assert.deepEqual(
+      sorted.map((b) => b.id),
+      ["b3", "b2", "b1"],
+    );
+
+    const links = getJumpLinksForPage(
+      [
+        { id: "j1", sourcePage: 3, targetPage: 1, x: 0.5, y: 0.5, label: "D.S." },
+        { id: "j2", sourcePage: 4, targetPage: 6, x: 0.2, y: 0.2, label: "Coda" },
+      ],
+      3,
+    );
+    assert.deepEqual(
+      links.map((l) => l.id),
+      ["j1"],
+    );
+
+    let history = pushJumpHistory([], 3);
+    history = pushJumpHistory(history, 8);
+    assert.deepEqual(history, [3, 8]);
+    const pop1 = popJumpHistory(history);
+    assert.equal(pop1.targetPage, 8);
+    assert.deepEqual(pop1.history, [3]);
+    const pop2 = popJumpHistory(pop1.history);
+    assert.equal(pop2.targetPage, 3);
+    assert.deepEqual(pop2.history, []);
+    assert.deepEqual(popJumpHistory([]), { targetPage: null, history: [] });
+  });
+});
+
+describe("noter-tuner reference tone frequencies", () => {
+  it("calculates equal-temperament frequencies for 440 Hz and 442 Hz", () => {
+    assert.equal(REFERENCE_NOTES.length, 4);
+    assert.ok(Math.abs(getReferenceFrequency("A", 440) - 440) < 1e-6);
+    assert.ok(Math.abs(getReferenceFrequency("A", 442) - 442) < 1e-6);
+    assert.ok(Math.abs(getReferenceFrequency("Bb", 440) - 466.16376) < 1e-3);
+    assert.ok(Math.abs(getReferenceFrequency("C", 440) - 523.25113) < 1e-3);
+    assert.ok(Math.abs(getReferenceFrequency("F", 440) - 349.22823) < 1e-3);
+  });
+});
+
+describe("noter-db v3 setlists, bookmarks/jumpLinks, and backup restore", () => {
+  const originalIndexedDb = globalThis.indexedDB;
+  const originalKeyRange = globalThis.IDBKeyRange;
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, "indexedDB", {
+      value: originalIndexedDb,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "IDBKeyRange", {
+      value: originalKeyRange,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it("persists setlists, bookmarks, jumpLinks, cleans setlists on deleteSheet, and restores JSON backup", async () => {
+    assert.equal(NOTER_DB_VERSION, 3);
+    assert.equal(NOTER_SETLISTS_STORE_NAME, "setlists");
+
+    const harness = createFakeIndexedDb();
+    Object.defineProperty(globalThis, "indexedDB", {
+      value: harness.fakeIndexedDb,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "IDBKeyRange", {
+      value: {
+        only: (v: unknown) => ({ lower: v, upper: v }),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const pdfBytes = new Uint8Array([37, 80, 68, 70]).buffer;
+    const s1 = await saveSheet({
+      id: "sheet-1",
+      title: "Marsj",
+      fileName: "marsj.pdf",
+      fileSize: 100,
+      pageCount: 4,
+      pdfData: pdfBytes,
+    });
+    const s2 = await saveSheet({
+      id: "sheet-2",
+      title: "Koral",
+      fileName: "koral.pdf",
+      fileSize: 200,
+      pageCount: 2,
+      pdfData: pdfBytes,
+    });
+
+    await updateSheetMeta(s1.id, {
+      bookmarks: [{ id: "bm1", page: 3, label: "Trio", createdAt: 1000 }],
+      jumpLinks: [{ id: "jl1", sourcePage: 4, targetPage: 2, x: 0.8, y: 0.9, label: "D.S." }],
+    });
+    await savePageAnnotations(s1.id, 1, [
+      { id: "t1", kind: "text", x: 0.2, y: 0.3, text: "ff", color: "#e0b15a", fontSize: 18 },
+    ]);
+
+    const sl = await saveSetlist({
+      id: "sl-konsert",
+      name: "17. mai",
+      sheetIds: [s1.id, s2.id],
+    });
+    assert.equal((await getSetlist(sl.id))?.name, "17. mai");
+    assert.equal((await listSetlists()).length, 1);
+
+    // Export backup payload
+    const allSheets = await listSheets();
+    const allAnnotations = await listAllAnnotations();
+    const allSetlists = await listSetlists();
+    const payload = buildNoterBackupPayload(allSheets, allAnnotations, allSetlists, 123456);
+    const parsed = parseNoterBackupJson(JSON.stringify(payload));
+    assert.equal(parsed.sheets.length, 2);
+    assert.equal(parsed.annotations.length, 1);
+    assert.equal(parsed.setlists.length, 1);
+
+    // Deleting s1 cleans s1 out of setlist
+    await deleteSheet(s1.id);
+    const afterDeleteSl = await getSetlist(sl.id);
+    assert.deepEqual(afterDeleteSl?.sheetIds, [s2.id]);
+
+    // Re-upload s1 with a NEW id but same fileName + fileSize, then restore backup
+    const s1Reuploaded = await saveSheet({
+      id: "sheet-1-reupload",
+      title: "marsj",
+      fileName: "marsj.pdf",
+      fileSize: 100,
+      pageCount: 4,
+      pdfData: pdfBytes,
+    });
+
+    const summary = await restoreNoterBackup(parsed);
+    assert.equal(summary.matchedSheets, 2);
+    assert.equal(summary.restoredAnnotationPages, 1);
+    assert.equal(summary.restoredSetlists, 1);
+
+    const restoredMeta = await getSheet(s1Reuploaded.id);
+    assert.equal(restoredMeta?.title, "Marsj");
+    assert.equal(restoredMeta?.bookmarks?.[0]?.label, "Trio");
+    assert.equal(restoredMeta?.jumpLinks?.[0]?.label, "D.S.");
+
+    const restoredAnn = await getPageAnnotations(s1Reuploaded.id, 1);
+    assert.equal(restoredAnn.length, 1);
+    assert.equal(restoredAnn[0]?.id, "t1");
+
+    const restoredSl = await getSetlist(sl.id);
+    assert.deepEqual(restoredSl?.sheetIds, [s1Reuploaded.id, s2.id]);
+
+    await deleteSetlist(sl.id);
+    assert.equal(await getSetlist(sl.id), null);
+  });
+});
+

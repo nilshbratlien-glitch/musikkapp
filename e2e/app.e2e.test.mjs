@@ -1284,5 +1284,137 @@ describe("Noter annotation & stage mode", () => {
   });
 });
 
+describe("Noter setlists, navigation & backup", () => {
+  it("manages setlists, seamless concert transitions, nav drawer bookmarks, jump links, tuner, and JSON backup", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockPdfJsLib(page);
+    await page.goto(`${baseUrl}/noter`);
+
+    // 1. Upload two PDFs
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles([
+      {
+        name: "stykke-en.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("%PDF-1.4\n%fake-1"),
+      },
+      {
+        name: "stykke-to.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("%PDF-1.4\n%fake-2"),
+      },
+    ]);
+
+    await page.getByRole("button", { name: /^stykke en/i }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: /^stykke to/i }).waitFor({ state: "visible" });
+
+    // 2. Switch to Settlister tab, create setlist, add both pieces, and start concert mode
+    await page.getByRole("tab", { name: /Settlister/i }).click();
+    await page.getByLabel("Navn på ny settliste", { exact: true }).fill("Konsert 17. mai");
+    await page.getByRole("button", { name: "Opprett", exact: true }).click();
+    await page.getByRole("heading", { name: "Konsert 17. mai" }).waitFor({ state: "visible" });
+
+    const select = page.getByLabel("Velg stykke til Konsert 17. mai", { exact: true });
+    const options = await select.locator("option").all();
+    const firstVal = await options[0].getAttribute("value");
+    const secondVal = await options[1].getAttribute("value");
+    await select.selectOption(firstVal);
+    await page.getByRole("button", { name: "Legg til", exact: true }).click();
+    await select.selectOption(secondVal);
+    await page.getByRole("button", { name: "Legg til", exact: true }).click();
+
+    await page.getByRole("button", { name: "Start konsertmodus", exact: true }).click();
+    const viewer = page.locator('[role="dialog"][aria-label^="Noteviser:"]');
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("1/2").waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // 3. Seamless concert transition across piece boundary
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("Side 2 / 3").waitFor({ state: "visible" });
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("Side 3 / 3").waitFor({ state: "visible" });
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("2/2").waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // Step backward across boundary back to piece 1 page 3
+    await viewer.getByRole("button", { name: "Forrige side", exact: true }).click();
+    await viewer.getByText("1/2").waitFor({ state: "visible" });
+    await viewer.getByText("Side 3 / 3").waitFor({ state: "visible" });
+
+    // 4. Nav drawer thumbnails & bookmark
+    await viewer.getByRole("button", { name: "Sideoversikt og bokmerker", exact: true }).click();
+    const drawer = page.getByRole("dialog", { name: "Sidenavigasjon" });
+    await drawer.waitFor({ state: "visible" });
+    await drawer.getByRole("button", { name: /Side 1/i }).click();
+    await drawer.waitFor({ state: "detached" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    await viewer.getByRole("button", { name: "Sideoversikt og bokmerker", exact: true }).click();
+    await drawer.getByRole("tab", { name: /Bokmerker/i }).click();
+    await drawer.getByLabel("Bokmerkenavn", { exact: true }).fill("Trio");
+    await drawer.getByRole("button", { name: "Legg til", exact: true }).click();
+    await drawer.getByText("Trio").waitFor({ state: "visible" });
+    await drawer.getByRole("button", { name: "Lukk navigasjon", exact: true }).click();
+
+    // 5. Jump link creation, activation, and Tilbake button
+    await viewer.getByRole("button", { name: "Lenke", exact: true }).click();
+    const layer = viewer.getByTestId("annotation-layer-page-1");
+    const box = await layer.boundingBox();
+    assert.ok(box, "annotation layer bounding box exists");
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+
+    await viewer.getByLabel("Målside", { exact: true }).fill("3");
+    await viewer.getByRole("button", { name: "Lagre lenke", exact: true }).click();
+
+    await viewer.getByRole("button", { name: "Vis", exact: true }).click();
+    await viewer.getByRole("button", { name: "Hopp til side 3: D.S.", exact: true }).click();
+    await viewer.getByText("Side 3 / 3").waitFor({ state: "visible" });
+
+    const backBtn = viewer.getByRole("button", { name: "Tilbake til side 1", exact: true });
+    await backBtn.waitFor({ state: "visible" });
+    await backBtn.click();
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // 6. Reference tone in quick-metronome bar
+    await viewer.getByRole("button", { name: "Hurtig-metronom og stemmegaffel", exact: true }).click();
+    await viewer.getByRole("button", { name: "442 Hz", exact: true }).click();
+    await viewer.getByRole("button", { name: "Referansetone A", exact: true }).click();
+    await viewer.getByRole("button", { name: "Stopp tone", exact: true }).click();
+
+    // 7. Close viewer and test JSON backup export & restore
+    await viewer.getByRole("button", { name: "Lukk noteviser", exact: true }).click();
+    await viewer.waitFor({ state: "detached" });
+
+    await page.getByRole("button", { name: "Backup", exact: true }).click();
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Eksporter backup (JSON)", exact: true }).click();
+    const download = await downloadPromise;
+    const downloadPath = await download.path();
+    assert.ok(downloadPath, "backup JSON downloaded");
+
+    const backupInput = page.locator('input[type="file"][accept*="json"]');
+    await backupInput.setInputFiles(downloadPath);
+    await page.getByRole("status").waitFor({ state: "visible" });
+
+    // 8. Zero console errors, page errors, and horizontal overflow
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    assert.equal(overflow, false, "no horizontal overflow at 390x844");
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+
+
 
 

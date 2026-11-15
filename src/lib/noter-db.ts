@@ -3,6 +3,9 @@ import {
   clampBpm,
   clampPage,
   extractTitleFromFilename,
+  type JumpLink,
+  type SetlistRecord,
+  type SheetBookmark,
   type SheetMeta,
   type SheetRecord,
 } from "./noter.ts";
@@ -12,7 +15,8 @@ export const NOTER_DB_NAME = "musikkapp-noter-v1";
 export const NOTER_STORE_NAME = "sheets";
 export const NOTER_ANNOTATIONS_STORE_NAME = "annotations";
 export const NOTER_ANNOTATIONS_SHEET_INDEX = "bySheetId";
-export const NOTER_DB_VERSION = 2;
+export const NOTER_SETLISTS_STORE_NAME = "setlists";
+export const NOTER_DB_VERSION = 3;
 
 export type PageAnnotationsRecord = {
   key: string;
@@ -34,6 +38,8 @@ export type SaveSheetInput = {
   annotationsVisible?: boolean;
   autoCrop?: boolean;
   halfPageTurn?: boolean;
+  bookmarks?: SheetBookmark[];
+  jumpLinks?: JumpLink[];
   pdfData: ArrayBuffer;
 };
 
@@ -48,6 +54,8 @@ export type UpdateSheetMetaPatch = Partial<
     | "annotationsVisible"
     | "autoCrop"
     | "halfPageTurn"
+    | "bookmarks"
+    | "jumpLinks"
     | "lastOpenedAt"
   >
 >;
@@ -70,6 +78,8 @@ function stripPdfData(record: SheetRecord): SheetMeta {
     annotationsVisible: meta.annotationsVisible ?? true,
     autoCrop: meta.autoCrop ?? false,
     halfPageTurn: meta.halfPageTurn ?? false,
+    bookmarks: meta.bookmarks ?? [],
+    jumpLinks: meta.jumpLinks ?? [],
   };
 }
 
@@ -89,6 +99,9 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(NOTER_ANNOTATIONS_STORE_NAME)) {
         const annStore = db.createObjectStore(NOTER_ANNOTATIONS_STORE_NAME, { keyPath: "key" });
         annStore.createIndex(NOTER_ANNOTATIONS_SHEET_INDEX, "sheetId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(NOTER_SETLISTS_STORE_NAME)) {
+        db.createObjectStore(NOTER_SETLISTS_STORE_NAME, { keyPath: "id" });
       }
     };
     request.onsuccess = () => {
@@ -246,6 +259,8 @@ export async function saveSheet(input: SaveSheetInput): Promise<SheetRecord> {
     annotationsVisible: input.annotationsVisible ?? true,
     autoCrop: Boolean(input.autoCrop),
     halfPageTurn: Boolean(input.halfPageTurn),
+    bookmarks: input.bookmarks ?? [],
+    jumpLinks: input.jumpLinks ?? [],
     createdAt: now,
     updatedAt: now,
     lastOpenedAt: now,
@@ -317,6 +332,8 @@ export async function updateSheetMeta(id: string, patch: UpdateSheetMetaPatch): 
               patch.halfPageTurn !== undefined
                 ? Boolean(patch.halfPageTurn)
                 : (existing.halfPageTurn ?? false),
+            bookmarks: patch.bookmarks !== undefined ? patch.bookmarks : (existing.bookmarks ?? []),
+            jumpLinks: patch.jumpLinks !== undefined ? patch.jumpLinks : (existing.jumpLinks ?? []),
             lastOpenedAt: patch.lastOpenedAt !== undefined ? patch.lastOpenedAt : existing.lastOpenedAt,
             updatedAt: Date.now(),
           };
@@ -470,9 +487,13 @@ export async function deleteSheet(id: string): Promise<boolean> {
     };
 
     try {
-      const tx = db.transaction([NOTER_STORE_NAME, NOTER_ANNOTATIONS_STORE_NAME], "readwrite");
+      const tx = db.transaction(
+        [NOTER_STORE_NAME, NOTER_ANNOTATIONS_STORE_NAME, NOTER_SETLISTS_STORE_NAME],
+        "readwrite",
+      );
       const sheetStore = tx.objectStore(NOTER_STORE_NAME);
       const annStore = tx.objectStore(NOTER_ANNOTATIONS_STORE_NAME);
+      const setlistStore = tx.objectStore(NOTER_SETLISTS_STORE_NAME);
 
       const delSheetReq = sheetStore.delete(id);
       delSheetReq.onerror = () => {
@@ -501,11 +522,193 @@ export async function deleteSheet(id: string): Promise<boolean> {
         fail(cursorReq.error ?? new Error("Kunne ikke slette noteannotasjoner fra IndexedDB."));
       };
 
+      const setlistCursorReq = setlistStore.openCursor();
+      setlistCursorReq.onsuccess = () => {
+        try {
+          const cursor = setlistCursorReq.result;
+          if (cursor) {
+            const sl = cursor.value as SetlistRecord;
+            if (Array.isArray(sl.sheetIds) && sl.sheetIds.includes(id)) {
+              cursor.update({
+                ...sl,
+                sheetIds: sl.sheetIds.filter((sid) => sid !== id),
+                updatedAt: Date.now(),
+              });
+            }
+            cursor.continue();
+          }
+        } catch (err) {
+          fail(err);
+        }
+      };
+      setlistCursorReq.onerror = () => {
+        fail(setlistCursorReq.error ?? new Error("Kunne ikke oppdatere settlister ved sletting."));
+      };
+
       tx.oncomplete = () => {
         if (settled) return;
         settled = true;
         db.close();
         resolve(true);
+      };
+      tx.onerror = () => {
+        fail(tx.error ?? new Error("IndexedDB-transaksjon feilet."));
+      };
+      tx.onabort = () => {
+        fail(tx.error ?? new Error("IndexedDB-transaksjon avbrutt."));
+      };
+    } catch (err) {
+      fail(err);
+    }
+  });
+}
+
+export async function listSetlists(): Promise<SetlistRecord[]> {
+  if (!hasIndexedDb()) return [];
+  const db = await openDb();
+  return new Promise<SetlistRecord[]>((resolve, reject) => {
+    const items: SetlistRecord[] = [];
+    let settled = false;
+
+    const fail = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      try {
+        db.close();
+      } catch {
+        /* ignore */
+      }
+      reject(err instanceof Error ? err : new Error("Kunne ikke lese settlister fra IndexedDB."));
+    };
+
+    try {
+      const tx = db.transaction(NOTER_SETLISTS_STORE_NAME, "readonly");
+      const store = tx.objectStore(NOTER_SETLISTS_STORE_NAME);
+      const req = store.openCursor();
+
+      req.onsuccess = () => {
+        try {
+          const cursor = req.result;
+          if (cursor) {
+            items.push(cursor.value as SetlistRecord);
+            cursor.continue();
+          }
+        } catch (err) {
+          fail(err);
+        }
+      };
+      req.onerror = () => {
+        fail(req.error ?? new Error("Kunne ikke lese settlister fra IndexedDB."));
+      };
+
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        db.close();
+        resolve(items.sort((a, b) => b.updatedAt - a.updatedAt));
+      };
+      tx.onerror = () => {
+        fail(tx.error ?? new Error("IndexedDB-transaksjon feilet."));
+      };
+      tx.onabort = () => {
+        fail(tx.error ?? new Error("IndexedDB-transaksjon avbrutt."));
+      };
+    } catch (err) {
+      fail(err);
+    }
+  });
+}
+
+export async function getSetlist(id: string): Promise<SetlistRecord | null> {
+  if (!hasIndexedDb() || !id) return null;
+  const record = await runTransaction<SetlistRecord | undefined>(
+    NOTER_SETLISTS_STORE_NAME,
+    "readonly",
+    (store) => store.get(id),
+  );
+  return record ?? null;
+}
+
+export type SaveSetlistInput = {
+  id?: string;
+  name: string;
+  sheetIds: string[];
+};
+
+export async function saveSetlist(input: SaveSetlistInput): Promise<SetlistRecord> {
+  if (!hasIndexedDb()) {
+    throw new Error("IndexedDB er ikke tilgjengelig i dette miljøet.");
+  }
+  const existing = input.id ? await getSetlist(input.id) : null;
+  const now = Date.now();
+  const record: SetlistRecord = {
+    id: existing?.id ?? input.id?.trim() ?? generateSheetId(),
+    name: input.name.trim() || "Uten navn",
+    sheetIds: [...input.sheetIds],
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  await runTransaction<IDBValidKey>(NOTER_SETLISTS_STORE_NAME, "readwrite", (store) =>
+    store.put(record),
+  );
+  return record;
+}
+
+export async function deleteSetlist(id: string): Promise<boolean> {
+  if (!hasIndexedDb() || !id) return false;
+  await runTransaction<undefined>(NOTER_SETLISTS_STORE_NAME, "readwrite", (store) =>
+    store.delete(id),
+  );
+  return true;
+}
+
+export async function listAllAnnotations(): Promise<PageAnnotationsRecord[]> {
+  if (!hasIndexedDb()) return [];
+  const db = await openDb();
+  return new Promise<PageAnnotationsRecord[]>((resolve, reject) => {
+    const items: PageAnnotationsRecord[] = [];
+    let settled = false;
+
+    const fail = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      try {
+        db.close();
+      } catch {
+        /* ignore */
+      }
+      reject(err instanceof Error ? err : new Error("Kunne ikke lese annotasjoner fra IndexedDB."));
+    };
+
+    try {
+      const tx = db.transaction(NOTER_ANNOTATIONS_STORE_NAME, "readonly");
+      const store = tx.objectStore(NOTER_ANNOTATIONS_STORE_NAME);
+      const req = store.openCursor();
+
+      req.onsuccess = () => {
+        try {
+          const cursor = req.result;
+          if (cursor) {
+            const rec = cursor.value as PageAnnotationsRecord;
+            items.push({
+              ...rec,
+              items: cloneAnnotationItems(rec.items ?? []),
+            });
+            cursor.continue();
+          }
+        } catch (err) {
+          fail(err);
+        }
+      };
+      req.onerror = () => {
+        fail(req.error ?? new Error("Kunne ikke lese annotasjoner fra IndexedDB."));
+      };
+
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        db.close();
+        resolve(items);
       };
       tx.onerror = () => {
         fail(tx.error ?? new Error("IndexedDB-transaksjon feilet."));

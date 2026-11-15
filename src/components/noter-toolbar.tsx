@@ -5,6 +5,7 @@ import {
   EyeOff,
   Hand,
   Highlighter,
+  Link2,
   PenTool,
   Pencil,
   Redo2,
@@ -60,6 +61,7 @@ const TOOL_OPTIONS: readonly ToolOption[] = [
   { id: "eraser", label: "Viskelær", icon: Eraser },
   { id: "stamp", label: "Stempel", icon: Stamp },
   { id: "text", label: "Tekst", icon: Type },
+  { id: "link", label: "Lenke", icon: Link2 },
 ];
 
 const STAMP_GROUPS: ReadonlyArray<{

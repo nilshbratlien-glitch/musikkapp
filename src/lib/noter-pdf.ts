@@ -73,6 +73,7 @@ export type LoadedPdfDocument = {
   ) => Promise<PageDimensions>;
   detectPageCropRect: (pageNumber: number) => Promise<NormalizedRect>;
   getPageDimensions: (pageNumber: number, scale: number) => Promise<PageDimensions>;
+  renderThumbnail: (pageNumber: number, maxWidth?: number) => Promise<string>;
   destroy: () => Promise<void>;
 };
 
@@ -251,6 +252,8 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
   const offscreenInFlight = new Map<string, Promise<OffscreenEntry | null>>();
   const cropCache = new Map<number, NormalizedRect>();
   const cropInFlight = new Map<number, Promise<NormalizedRect>>();
+  const thumbCache = new Map<number, string>();
+  const thumbInFlight = new Map<number, Promise<string>>();
 
   function cancelTask(task: PdfRenderTask | null | undefined): void {
     if (!task) return;
@@ -582,6 +585,51 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
         height: Math.max(1, Math.floor(viewport.height)),
       };
     },
+    async renderThumbnail(pageNumber: number, maxWidth = 180): Promise<string> {
+      if (destroyed) return "";
+      const cached = thumbCache.get(pageNumber);
+      if (cached) return cached;
+      const inFlight = thumbInFlight.get(pageNumber);
+      if (inFlight) return inFlight;
+
+      const promise = (async (): Promise<string> => {
+        const offscreen = document.createElement("canvas");
+        let task: PdfRenderTask | null = null;
+        try {
+          const page = await doc.getPage(pageNumber);
+          if (destroyed) return "";
+          const baseVp = page.getViewport({ scale: 1 });
+          const scale = baseVp.width > 0 ? Math.min(0.6, Math.max(0.15, maxWidth / baseVp.width)) : 0.25;
+          const viewport = page.getViewport({ scale });
+          offscreen.width = Math.max(1, Math.floor(viewport.width));
+          offscreen.height = Math.max(1, Math.floor(viewport.height));
+          const ctx = offscreen.getContext("2d");
+          if (!ctx) return "";
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+
+          task = page.render({ canvasContext: ctx, viewport });
+          activeTasks.add(task);
+          await task.promise;
+          if (destroyed) return "";
+          const dataUrl = offscreen.toDataURL("image/jpeg", 0.78);
+          thumbCache.set(pageNumber, dataUrl);
+          return dataUrl;
+        } catch (err) {
+          if (isCancelledError(err) || destroyed) return "";
+          return "";
+        } finally {
+          if (task) activeTasks.delete(task);
+          offscreen.width = 0;
+          offscreen.height = 0;
+          thumbInFlight.delete(pageNumber);
+        }
+      })();
+
+      thumbInFlight.set(pageNumber, promise);
+      return promise;
+    },
     async destroy(): Promise<void> {
       if (destroyed) return;
       destroyed = true;
@@ -593,6 +641,8 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
       clearOffscreenCache();
       cropCache.clear();
       cropInFlight.clear();
+      thumbCache.clear();
+      thumbInFlight.clear();
 
       try {
         await doc.destroy();

@@ -2,6 +2,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Crop,
+  LayoutGrid,
+  ListMusic,
   Maximize2,
   Minimize2,
   Minus,
@@ -12,6 +14,8 @@ import {
   Plus,
   RotateCcw,
   Sun,
+  Undo2,
+  Volume2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -20,8 +24,20 @@ import {
   type AnnotationTool,
   type PencilThickness,
 } from "@/components/noter-annotation-layer";
+import { NoterNavDrawer, type NavDrawerTab } from "@/components/noter-nav-drawer";
 import { NoterToolbar } from "@/components/noter-toolbar";
-import { MAX_BPM, MIN_BPM, clampBpm, clampPage, clampZoom, type SheetRecord } from "@/lib/noter";
+import {
+  MAX_BPM,
+  MIN_BPM,
+  clampBpm,
+  clampPage,
+  clampZoom,
+  type JumpLink,
+  type SetlistRecord,
+  type SheetBookmark,
+  type SheetMeta,
+  type SheetRecord,
+} from "@/lib/noter";
 import {
   ANNOTATION_COLORS,
   HIGHLIGHTER_COLORS,
@@ -56,18 +72,52 @@ import {
   type LoadedPdfDocument,
   type PageDimensions,
 } from "@/lib/noter-pdf";
+import {
+  getSetlistBoundaryStep,
+  popJumpHistory,
+  pushJumpHistory,
+} from "@/lib/noter-setlists";
+import {
+  REFERENCE_A4_OPTIONS,
+  REFERENCE_NOTES,
+  startReferenceTone,
+  stopReferenceTone,
+  type ReferenceNoteId,
+} from "@/lib/noter-tuner";
 import { getState, setBpm as setPulseBpm, start, stop, subscribe } from "@/lib/pulse";
+
+export type ViewerSetlistContext = {
+  setlist: SetlistRecord;
+  sheets: SheetMeta[];
+  activeIndex: number;
+  onSelectSheetIndex: (index: number, initialPage?: number) => void;
+};
 
 export type NoterViewerProps = {
   sheet: SheetRecord;
+  initialPage?: number;
+  setlistContext?: ViewerSetlistContext | null;
   onClose: () => void;
   onUpdateMeta: (patch: UpdateSheetMetaPatch) => Promise<void> | void;
 };
 
+function createItemId(prefix: string): string {
+  if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 const NIGHT_FILTER = "invert(0.92) hue-rotate(180deg) contrast(1.08)";
 const DEFAULT_PAGE_DIMS: PageDimensions = { width: 612, height: 792 };
 
-export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) {
+export function NoterViewer({
+  sheet,
+  initialPage,
+  setlistContext = null,
+  onClose,
+  onUpdateMeta,
+}: NoterViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -77,16 +127,17 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
   const renderSeqRef = useRef(0);
   const onUpdateMetaRef = useRef(onUpdateMeta);
   onUpdateMetaRef.current = onUpdateMeta;
+  const startPage = initialPage ?? (sheet.lastPage || 1);
   const initialSheetMetaRef = useRef({
     id: sheet.id,
     pageCount: sheet.pageCount,
-    lastPage: sheet.lastPage,
+    lastPage: startPage,
   });
   if (initialSheetMetaRef.current.id !== sheet.id) {
     initialSheetMetaRef.current = {
       id: sheet.id,
       pageCount: sheet.pageCount,
-      lastPage: sheet.lastPage,
+      lastPage: startPage,
     };
   }
 
@@ -100,7 +151,7 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
   const [position, setPosition] = useState<HalfPagePosition>(() =>
     normalizeHalfPagePosition(
       {
-        page: clampPage(sheet.lastPage || 1, Math.max(1, sheet.pageCount || 1)),
+        page: clampPage(startPage, Math.max(1, sheet.pageCount || 1)),
         halfOffset: 0,
       },
       Math.max(1, sheet.pageCount || 1),
@@ -133,6 +184,13 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
   const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
   const [fullscreenSupported, setFullscreenSupported] = useState(false);
 
+  // Fase 3 navigation drawer, jump history, and reference tone state
+  const [navDrawerOpen, setNavDrawerOpen] = useState(false);
+  const [navDrawerTab, setNavDrawerTab] = useState<NavDrawerTab>("pages");
+  const [jumpHistory, setJumpHistory] = useState<number[]>([]);
+  const [tunerNote, setTunerNote] = useState<ReferenceNoteId | null>(null);
+  const [tunerA4, setTunerA4] = useState<440 | 442>(440);
+
   // Fase 2 annotation & crop state
   const [tool, setTool] = useState<AnnotationTool>("view");
   const [pencilColor, setPencilColor] = useState<string>(ANNOTATION_COLORS[1]);
@@ -151,7 +209,7 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
 
   const loadedPagesRef = useRef<Set<number>>(new Set());
   const [lastEditedPage, setLastEditedPage] = useState<number>(() =>
-    clampPage(sheet.lastPage || 1, Math.max(1, sheet.pageCount || 1)),
+    clampPage(startPage, Math.max(1, sheet.pageCount || 1)),
   );
 
   const [cropRects, setCropRects] = useState<Record<number, NormalizedRect>>({});
@@ -186,6 +244,7 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
     unmountedRef.current = false;
     return () => {
       unmountedRef.current = true;
+      stopReferenceTone();
     };
   }, []);
 
@@ -210,16 +269,19 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
     setTool("view");
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setJumpHistory([]);
+    setNavDrawerOpen(false);
     const total = Math.max(1, s.pageCount || 1);
     setPageCount(total);
+    const targetStartPage = initialPage ?? (s.lastPage || 1);
     const initialPos = normalizeHalfPagePosition(
-      { page: clampPage(s.lastPage || 1, total), halfOffset: 0 },
+      { page: clampPage(targetStartPage, total), halfOffset: 0 },
       total,
       Boolean(s.halfPageTurn),
     );
     setPosition(initialPos);
     setLastEditedPage(initialPos.page);
-  }, [sheet.id]);
+  }, [sheet.id, initialPage]);
 
   // Clear in-progress viewport swipe/pan tracking whenever switching to an annotation tool
   useEffect(() => {
@@ -542,8 +604,19 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
       if (next.page !== prev.page) {
         void onUpdateMetaRef.current({ lastPage: next.page });
       }
+      return;
     }
-  }, [pageCount, halfPageTurn]);
+    if (setlistContext) {
+      const step = getSetlistBoundaryStep(
+        setlistContext.sheets.map((s) => s.pageCount || 1),
+        setlistContext.activeIndex,
+        "next",
+      );
+      if (step) {
+        setlistContext.onSelectSheetIndex(step.sheetIndex, step.page);
+      }
+    }
+  }, [pageCount, halfPageTurn, setlistContext]);
 
   const stepBackward = useCallback(() => {
     const prev = positionRef.current;
@@ -554,8 +627,19 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
       if (next.page !== prev.page) {
         void onUpdateMetaRef.current({ lastPage: next.page });
       }
+      return;
     }
-  }, [pageCount, halfPageTurn]);
+    if (setlistContext) {
+      const step = getSetlistBoundaryStep(
+        setlistContext.sheets.map((s) => s.pageCount || 1),
+        setlistContext.activeIndex,
+        "prev",
+      );
+      if (step) {
+        setlistContext.onSelectSheetIndex(step.sheetIndex, step.page);
+      }
+    }
+  }, [pageCount, halfPageTurn, setlistContext]);
 
   const toggleNightMode = useCallback(() => {
     setNightMode((prev) => {
@@ -738,8 +822,95 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
       void document.exitFullscreen().catch(() => {});
     }
     stop("noter");
+    stopReferenceTone();
+    setTunerNote(null);
     onClose();
   }, [onClose]);
+
+  const openNavDrawer = useCallback((tab: NavDrawerTab) => {
+    setNavDrawerTab(tab);
+    setNavDrawerOpen(true);
+  }, []);
+
+  const handleAddBookmark = useCallback((targetPage: number, label: string) => {
+    const existing = latestSheetRef.current.bookmarks ?? [];
+    const nextBookmark: SheetBookmark = {
+      id: createItemId("bm"),
+      page: clampPage(targetPage, pageCount),
+      label: label.trim() || `Side ${targetPage}`,
+      createdAt: Date.now(),
+    };
+    void onUpdateMetaRef.current({ bookmarks: [...existing, nextBookmark] });
+  }, [pageCount]);
+
+  const handleDeleteBookmark = useCallback((id: string) => {
+    const existing = latestSheetRef.current.bookmarks ?? [];
+    void onUpdateMetaRef.current({ bookmarks: existing.filter((b) => b.id !== id) });
+  }, []);
+
+  const handleAddJumpLink = useCallback(
+    (link: Omit<JumpLink, "id">) => {
+      const existing = latestSheetRef.current.jumpLinks ?? [];
+      const nextLink: JumpLink = {
+        ...link,
+        id: createItemId("jump"),
+        targetPage: clampPage(link.targetPage, pageCount),
+      };
+      void onUpdateMetaRef.current({ jumpLinks: [...existing, nextLink] });
+    },
+    [pageCount],
+  );
+
+  const handleDeleteJumpLink = useCallback((id: string) => {
+    const existing = latestSheetRef.current.jumpLinks ?? [];
+    void onUpdateMetaRef.current({ jumpLinks: existing.filter((l) => l.id !== id) });
+  }, []);
+
+  const handleActivateJumpLink = useCallback(
+    (link: JumpLink) => {
+      const fromPage = positionRef.current.page;
+      setJumpHistory((prev) => pushJumpHistory(prev, fromPage));
+      goToPage(link.targetPage);
+    },
+    [goToPage],
+  );
+
+  const handleJumpBack = useCallback(() => {
+    const res = popJumpHistory(jumpHistory);
+    setJumpHistory(res.history);
+    if (res.targetPage !== null) {
+      goToPage(res.targetPage);
+    }
+  }, [jumpHistory, goToPage]);
+
+  const toggleTunerNote = useCallback(
+    (note: ReferenceNoteId) => {
+      if (tunerNote === note) {
+        stopReferenceTone();
+        setTunerNote(null);
+        return;
+      }
+      if (startReferenceTone(note, tunerA4)) {
+        setTunerNote(note);
+      }
+    },
+    [tunerNote, tunerA4],
+  );
+
+  const changeTunerA4 = useCallback(
+    (nextA4: 440 | 442) => {
+      setTunerA4(nextA4);
+      if (tunerNote) {
+        startReferenceTone(tunerNote, nextA4);
+      }
+    },
+    [tunerNote],
+  );
+
+  const handleStopTuner = useCallback(() => {
+    stopReferenceTone();
+    setTunerNote(null);
+  }, []);
 
   // Global keyboard & Bluetooth pedal listener
   useEffect(() => {
@@ -909,6 +1080,11 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
 
   const activePencilWidth =
     pencilThickness === "thick" ? PENCIL_WIDTH_THICK : PENCIL_WIDTH_THIN;
+  const hasPrevInSetlist = Boolean(setlistContext && setlistContext.activeIndex > 0);
+  const hasNextInSetlist = Boolean(
+    setlistContext && setlistContext.activeIndex < setlistContext.sheets.length - 1,
+  );
+  const previousJumpPage = jumpHistory.length > 0 ? jumpHistory[jumpHistory.length - 1]! : null;
 
   return (
     <div
@@ -922,7 +1098,7 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
       {hudVisible ? (
         <header
           style={{ backgroundColor: "rgba(22, 26, 34, 0.95)" }}
-          className="z-20 flex shrink-0 items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-xs"
+          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-xs"
         >
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -937,9 +1113,54 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
             <h2 className="min-w-0 truncate text-sm font-semibold text-fg sm:text-base">
               {sheet.title}
             </h2>
+            {setlistContext ? (
+              <span
+                style={{ backgroundColor: "rgba(224, 177, 90, 0.14)" }}
+                className="shrink-0 rounded-full border border-accent px-2 py-0.5 text-[11px] font-bold text-accent tabular-nums"
+              >
+                {setlistContext.activeIndex + 1}/{setlistContext.sheets.length}
+              </span>
+            ) : null}
+            {previousJumpPage !== null ? (
+              <button
+                type="button"
+                onClick={handleJumpBack}
+                aria-label={`Tilbake til side ${previousJumpPage}`}
+                style={{ backgroundColor: "rgba(224, 177, 90, 0.15)" }}
+                className="metro-press flex min-h-9 shrink-0 items-center gap-1 rounded-lg border border-accent px-2 text-xs font-bold text-accent"
+              >
+                <Undo2 className="size-3.5" aria-hidden="true" />
+                <span>Tilbake (s. {previousJumpPage})</span>
+              </button>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+            <button
+              type="button"
+              onClick={() => openNavDrawer("pages")}
+              aria-label="Sideoversikt og bokmerker"
+              title="Sideoversikt og bokmerker"
+              className="metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-2 text-xs font-medium text-muted hover:text-fg sm:px-2.5"
+            >
+              <LayoutGrid className="size-4 shrink-0" aria-hidden="true" />
+              <span className="hidden md:inline">Sider</span>
+            </button>
+
+            {setlistContext ? (
+              <button
+                type="button"
+                onClick={() => openNavDrawer("setlist")}
+                aria-label="Åpne settliste"
+                title="Åpne settliste"
+                style={{ backgroundColor: "rgba(224, 177, 90, 0.12)" }}
+                className="metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent sm:px-2.5"
+              >
+                <ListMusic className="size-4 shrink-0" aria-hidden="true" />
+                <span className="hidden md:inline">Settliste</span>
+              </button>
+            ) : null}
+
             <button
               type="button"
               onClick={toggleAutoCrop}
@@ -1014,10 +1235,14 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
               type="button"
               onClick={() => setMetronomeOpen((o) => !o)}
               aria-expanded={metronomeOpen}
-              aria-label="Hurtig-metronom"
-              style={metroRunning ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+              aria-label="Hurtig-metronom og stemmegaffel"
+              style={
+                metroRunning || tunerNote !== null
+                  ? { backgroundColor: "rgba(224, 177, 90, 0.15)" }
+                  : undefined
+              }
               className={
-                metroRunning
+                metroRunning || tunerNote !== null
                   ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent sm:px-2.5"
                   : "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-2 text-xs font-semibold text-fg sm:px-2.5"
               }
@@ -1067,85 +1292,155 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
         />
       ) : null}
 
-      {/* Compact Metronome Popover Bar */}
+      {/* Compact Metronome & Reference Tone Popover Bar */}
       {hudVisible && metronomeOpen ? (
         <div
           aria-label="Hurtig-metronom kontroller"
-          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2.5"
+          className="z-20 flex shrink-0 flex-col gap-2 border-b border-line bg-surface px-3 py-2.5"
         >
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleMetronomePlayback}
-              style={metroRunning ? undefined : { backgroundColor: "rgba(224, 177, 90, 0.15)" }}
-              className={
-                metroRunning
-                  ? "metro-press flex min-h-11 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-sm font-bold text-[#1a1408]"
-                  : "metro-press flex min-h-11 items-center gap-1.5 rounded-lg border border-accent px-3.5 text-sm font-semibold text-accent"
-              }
-            >
-              {metroRunning ? (
-                <>
-                  <Pause className="size-4" aria-hidden="true" />
-                  <span>Stopp</span>
-                </>
-              ) : (
-                <>
-                  <Play className="size-4" aria-hidden="true" />
-                  <span>Start</span>
-                </>
-              )}
-            </button>
-
-            <div className="flex items-center gap-1 rounded-lg border border-line bg-header px-1 py-0.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => updateBpmValue(bpm - 1)}
-                aria-label="Reduser BPM"
-                className="metro-press flex min-h-11 min-w-11 items-center justify-center rounded-md text-fg hover:bg-surface"
+                onClick={toggleMetronomePlayback}
+                style={metroRunning ? undefined : { backgroundColor: "rgba(224, 177, 90, 0.15)" }}
+                className={
+                  metroRunning
+                    ? "metro-press flex min-h-11 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-sm font-bold text-[#1a1408]"
+                    : "metro-press flex min-h-11 items-center gap-1.5 rounded-lg border border-accent px-3.5 text-sm font-semibold text-accent"
+                }
               >
-                <Minus className="size-4" aria-hidden="true" />
+                {metroRunning ? (
+                  <>
+                    <Pause className="size-4" aria-hidden="true" />
+                    <span>Stopp</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="size-4" aria-hidden="true" />
+                    <span>Start</span>
+                  </>
+                )}
               </button>
+
+              <div className="flex items-center gap-1 rounded-lg border border-line bg-header px-1 py-0.5">
+                <button
+                  type="button"
+                  onClick={() => updateBpmValue(bpm - 1)}
+                  aria-label="Reduser BPM"
+                  className="metro-press flex min-h-11 min-w-11 items-center justify-center rounded-md text-fg hover:bg-surface"
+                >
+                  <Minus className="size-4" aria-hidden="true" />
+                </button>
+                <input
+                  type="number"
+                  min={MIN_BPM}
+                  max={MAX_BPM}
+                  value={bpm}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (!Number.isNaN(val)) updateBpmValue(val);
+                  }}
+                  aria-label="BPM-verdi"
+                  className="w-14 bg-transparent text-center text-sm font-bold text-fg tabular-nums focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => updateBpmValue(bpm + 1)}
+                  aria-label="Øk BPM"
+                  className="metro-press flex min-h-11 min-w-11 items-center justify-center rounded-md text-fg hover:bg-surface"
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-1 items-center gap-2 sm:max-w-xs">
               <input
-                type="number"
+                type="range"
                 min={MIN_BPM}
                 max={MAX_BPM}
                 value={bpm}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  if (!Number.isNaN(val)) updateBpmValue(val);
-                }}
-                aria-label="BPM-verdi"
-                className="w-14 bg-transparent text-center text-sm font-bold text-fg tabular-nums focus:outline-none"
+                onChange={(e) => updateBpmValue(Number(e.target.value))}
+                aria-label="BPM-skyveknapp"
+                className="h-2 w-full accent-[#e0b15a]"
               />
               <button
                 type="button"
-                onClick={() => updateBpmValue(bpm + 1)}
-                aria-label="Øk BPM"
-                className="metro-press flex min-h-11 min-w-11 items-center justify-center rounded-md text-fg hover:bg-surface"
+                onClick={handleTapTempo}
+                className="metro-press min-h-11 min-w-11 shrink-0 rounded-lg border border-line bg-header px-3 text-xs font-semibold text-fg hover:border-accent"
               >
-                <Plus className="size-4" aria-hidden="true" />
+                Tap
               </button>
             </div>
           </div>
 
-          <div className="flex flex-1 items-center gap-2 sm:max-w-xs">
-            <input
-              type="range"
-              min={MIN_BPM}
-              max={MAX_BPM}
-              value={bpm}
-              onChange={(e) => updateBpmValue(Number(e.target.value))}
-              aria-label="BPM-skyveknapp"
-              className="h-2 w-full accent-[#e0b15a]"
-            />
-            <button
-              type="button"
-              onClick={handleTapTempo}
-              className="metro-press min-h-11 min-w-11 shrink-0 rounded-lg border border-line bg-header px-3 text-xs font-semibold text-fg hover:border-accent"
-            >
-              Tap
-            </button>
+          {/* Referansetone (stemmegaffel) */}
+          <div
+            aria-label="Referansetone"
+            className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2"
+          >
+            <div className="flex items-center gap-1.5">
+              <Volume2 className="size-4 text-accent" aria-hidden="true" />
+              <span className="text-xs font-semibold text-muted">Referansetone</span>
+              <div className="flex items-center rounded-lg border border-line bg-header p-0.5">
+                {REFERENCE_A4_OPTIONS.map((hz) => (
+                  <button
+                    key={hz}
+                    type="button"
+                    onClick={() => changeTunerA4(hz)}
+                    aria-pressed={tunerA4 === hz}
+                    style={
+                      tunerA4 === hz
+                        ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                        : undefined
+                    }
+                    className={
+                      tunerA4 === hz
+                        ? "metro-press min-h-8 rounded-md px-2 text-xs font-bold text-accent tabular-nums"
+                        : "metro-press min-h-8 rounded-md px-2 text-xs font-medium text-muted hover:text-fg tabular-nums"
+                    }
+                  >
+                    {hz} Hz
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {REFERENCE_NOTES.map((note) => {
+                const active = tunerNote === note.id;
+                return (
+                  <button
+                    key={note.id}
+                    type="button"
+                    onClick={() => toggleTunerNote(note.id)}
+                    aria-pressed={active}
+                    aria-label={`Referansetone ${note.label}`}
+                    style={
+                      active ? { backgroundColor: "rgba(224, 177, 90, 0.2)" } : undefined
+                    }
+                    className={
+                      active
+                        ? "metro-press min-h-10 min-w-10 rounded-lg border border-accent px-3 text-sm font-bold text-accent"
+                        : "metro-press min-h-10 min-w-10 rounded-lg border border-line bg-header px-3 text-sm font-semibold text-fg hover:border-accent"
+                    }
+                  >
+                    {note.label}
+                  </button>
+                );
+              })}
+
+              {tunerNote ? (
+                <button
+                  type="button"
+                  onClick={handleStopTuner}
+                  className="metro-press min-h-10 rounded-lg border border-line bg-header px-2.5 text-xs font-semibold text-muted hover:text-fg"
+                >
+                  Stopp tone
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
@@ -1203,6 +1498,7 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
                 />
                 <NoterAnnotationLayer
                   pageNumber={page + 1}
+                  pageCount={pageCount}
                   items={annotationsByPage[page + 1] ?? []}
                   visible={annotationsVisible}
                   region={topRegion}
@@ -1215,6 +1511,10 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
                   activeStampId={activeStampId}
                   stylusOnly={stylusOnly}
                   onCommitItems={handleCommitItems}
+                  jumpLinks={sheet.jumpLinks ?? []}
+                  onAddJumpLink={handleAddJumpLink}
+                  onDeleteJumpLink={handleDeleteJumpLink}
+                  onActivateJumpLink={handleActivateJumpLink}
                 />
               </div>
 
@@ -1234,6 +1534,7 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
                 />
                 <NoterAnnotationLayer
                   pageNumber={page}
+                  pageCount={pageCount}
                   items={annotationsByPage[page] ?? []}
                   visible={annotationsVisible}
                   region={bottomRegion}
@@ -1246,6 +1547,10 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
                   activeStampId={activeStampId}
                   stylusOnly={stylusOnly}
                   onCommitItems={handleCommitItems}
+                  jumpLinks={sheet.jumpLinks ?? []}
+                  onAddJumpLink={handleAddJumpLink}
+                  onDeleteJumpLink={handleDeleteJumpLink}
+                  onActivateJumpLink={handleActivateJumpLink}
                 />
               </div>
             </div>
@@ -1258,6 +1563,7 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
               />
               <NoterAnnotationLayer
                 pageNumber={page}
+                pageCount={pageCount}
                 items={annotationsByPage[page] ?? []}
                 visible={annotationsVisible}
                 region={singleRegion}
@@ -1270,6 +1576,10 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
                 activeStampId={activeStampId}
                 stylusOnly={stylusOnly}
                 onCommitItems={handleCommitItems}
+                jumpLinks={sheet.jumpLinks ?? []}
+                onAddJumpLink={handleAddJumpLink}
+                onDeleteJumpLink={handleDeleteJumpLink}
+                onActivateJumpLink={handleActivateJumpLink}
               />
             </div>
           )}
@@ -1295,20 +1605,25 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
             <button
               type="button"
               onClick={stepBackward}
-              disabled={page <= 1 && halfOffset === 0}
+              disabled={page <= 1 && halfOffset === 0 && !hasPrevInSetlist}
               aria-label="Forrige side"
               className="metro-press flex min-h-10 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-sm font-semibold text-fg disabled:opacity-40"
             >
               <ChevronLeft className="size-4" aria-hidden="true" />
               <span className="hidden sm:inline">Forrige</span>
             </button>
-            <span className="min-w-20 text-center text-xs font-semibold text-muted tabular-nums sm:text-sm">
+            <button
+              type="button"
+              onClick={() => openNavDrawer("pages")}
+              aria-label="Åpne sideoversikt"
+              className="metro-press min-h-10 min-w-20 rounded-lg border border-line bg-surface px-2.5 text-center text-xs font-semibold text-fg hover:border-accent tabular-nums sm:text-sm"
+            >
               {isSplitView ? `Side ${page}–${page + 1} / ${pageCount}` : `Side ${page} / ${pageCount}`}
-            </span>
+            </button>
             <button
               type="button"
               onClick={stepForward}
-              disabled={page >= pageCount && halfOffset === 0}
+              disabled={page >= pageCount && halfOffset === 0 && !hasNextInSetlist}
               aria-label="Neste side"
               className="metro-press flex min-h-10 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-sm font-semibold text-fg disabled:opacity-40"
             >
@@ -1348,6 +1663,29 @@ export function NoterViewer({ sheet, onClose, onUpdateMeta }: NoterViewerProps) 
           </div>
         </footer>
       ) : null}
+
+      <NoterNavDrawer
+        open={navDrawerOpen}
+        initialTab={navDrawerTab}
+        onClose={() => setNavDrawerOpen(false)}
+        doc={docRef.current}
+        pageCount={pageCount}
+        currentPage={page}
+        onSelectPage={goToPage}
+        bookmarks={sheet.bookmarks ?? []}
+        onAddBookmark={handleAddBookmark}
+        onDeleteBookmark={handleDeleteBookmark}
+        setlistContext={
+          setlistContext
+            ? {
+                setlist: setlistContext.setlist,
+                sheets: setlistContext.sheets,
+                activeIndex: setlistContext.activeIndex,
+                onSelectSheetIndex: (idx) => setlistContext.onSelectSheetIndex(idx, 1),
+              }
+            : null
+        }
+      />
     </div>
   );
 }
