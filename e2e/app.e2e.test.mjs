@@ -1294,8 +1294,16 @@ describe("Noter setlists, navigation & backup", () => {
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await mockPdfJsLib(page);
-    await page.goto(`${baseUrl}/noter`);
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(mockPdfJsLib);
+    await open("/noter");
 
     // 1. Upload two PDFs
     const fileInput = page.locator('input[type="file"][accept*="pdf"]');

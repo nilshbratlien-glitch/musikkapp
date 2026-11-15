@@ -1034,7 +1034,7 @@ describe("noter-setlists helpers, bookmarks, and jump history", () => {
   it("removes deleted sheet IDs from setlists and preserves order of remaining items", () => {
     const original = {
       id: "sl-1",
-      title: "Konsert",
+      name: "Konsert",
       sheetIds: ["s1", "s2", "s3", "s2"],
       createdAt: 100,
       updatedAt: 100,
