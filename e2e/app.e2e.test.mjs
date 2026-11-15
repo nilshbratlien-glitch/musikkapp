@@ -1755,11 +1755,12 @@ describe("offline precache", () => {
     assert.ok(manifestRes.assets.some((a) => a.endsWith(".js")), "manifest lists JS bundles");
     assert.ok(manifestRes.assets.some((a) => a.endsWith(".css")), "manifest lists CSS bundles");
 
-    // Wait for service worker to become active and controlling
+    // Wait for service worker to become active and control this page
     await page.evaluate(async () => {
       if (!("serviceWorker" in navigator)) return;
       await navigator.serviceWorker.ready;
     });
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker?.controller));
 
     // Go offline and navigate to tabs that were NOT visited while online
     await page.context().setOffline(true);
