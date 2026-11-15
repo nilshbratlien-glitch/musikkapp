@@ -1739,6 +1739,42 @@ describe("Noter library categories and tags", () => {
   });
 });
 
+describe("offline precache", () => {
+  it("serves offline-manifest.json and navigates all routes offline after initial load", async () => {
+    const pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+
+    await open("/");
+
+    const manifestRes = await page.evaluate(async () => {
+      const res = await fetch("/offline-manifest.json");
+      if (!res.ok) return null;
+      return res.json();
+    });
+    assert.ok(manifestRes && Array.isArray(manifestRes.assets), "offline-manifest.json exists");
+    assert.ok(manifestRes.assets.some((a) => a.endsWith(".js")), "manifest lists JS bundles");
+    assert.ok(manifestRes.assets.some((a) => a.endsWith(".css")), "manifest lists CSS bundles");
+
+    // Wait for service worker to become active and controlling
+    await page.evaluate(async () => {
+      if (!("serviceWorker" in navigator)) return;
+      await navigator.serviceWorker.ready;
+    });
+
+    // Go offline and navigate to tabs that were NOT visited while online
+    await page.context().setOffline(true);
+    try {
+      for (const path of ["/noter", "/metronom", "/notekort", "/bladlesing", "/"]) {
+        await tab(path);
+      }
+      assert.deepEqual(pageErrors, [], `unexpected offline page errors: ${pageErrors.join("; ")}`);
+    } finally {
+      await page.context().setOffline(false);
+    }
+  });
+});
+
+
 
 
 
