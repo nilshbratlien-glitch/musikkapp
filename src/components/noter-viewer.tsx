@@ -25,6 +25,7 @@ import {
   type PencilThickness,
 } from "@/components/noter-annotation-layer";
 import { NoterNavDrawer, type NavDrawerTab } from "@/components/noter-nav-drawer";
+import { NoterPageTrimModal } from "@/components/noter-page-trim-modal";
 import { NoterToolbar } from "@/components/noter-toolbar";
 import {
   MAX_BPM,
@@ -55,7 +56,9 @@ import {
 import { FULL_PAGE_RECT, getHalfPageRegions, type NormalizedRect } from "@/lib/noter-crop";
 import {
   getPageAnnotations,
+  replaceSheetWithTrimmedPdf,
   savePageAnnotations,
+  saveTrimmedSheetAsCopy,
   type UpdateSheetMetaPatch,
 } from "@/lib/noter-db";
 import {
@@ -188,6 +191,7 @@ export function NoterViewer({
   // Fase 3 navigation drawer, jump history, and reference tone state
   const [navDrawerOpen, setNavDrawerOpen] = useState(false);
   const [navDrawerTab, setNavDrawerTab] = useState<NavDrawerTab>("pages");
+  const [trimModalOpen, setTrimModalOpen] = useState(false);
   const [jumpHistory, setJumpHistory] = useState<number[]>([]);
   const [tunerNote, setTunerNote] = useState<ReferenceNoteId | null>(null);
   const [tunerA4, setTunerA4] = useState<440 | 442>(440);
@@ -1674,6 +1678,7 @@ export function NoterViewer({
           pageCount={pageCount}
           currentPage={page}
           onSelectPage={goToPage}
+          onOpenTrimModal={() => setTrimModalOpen(true)}
           bookmarks={sheet.bookmarks ?? []}
           onAddBookmark={handleAddBookmark}
           onDeleteBookmark={handleDeleteBookmark}
@@ -1687,6 +1692,49 @@ export function NoterViewer({
                 }
               : null
           }
+        />
+      ) : null}
+
+      {trimModalOpen ? (
+        <NoterPageTrimModal
+          open={trimModalOpen}
+          onClose={() => setTrimModalOpen(false)}
+          sheetTitle={sheet.title}
+          pdfData={sheet.pdfData}
+          pageCount={pageCount}
+          existingDoc={loadedDoc}
+          onReplacePages={async (keptPages, trimmedPdfData) => {
+            const updated = await replaceSheetWithTrimmedPdf({
+              sheetId: sheet.id,
+              pdfData: trimmedPdfData,
+              keptPages,
+            });
+            if (!updated) return;
+            loadedPagesRef.current.clear();
+            setAnnotationsByPage({});
+            setHistoryByPage({});
+            setCropRects({});
+            setPageDims({});
+            setJumpHistory([]);
+            setPageCount(updated.pageCount);
+            const nextPos = normalizeHalfPagePosition(
+              { page: clampPage(updated.lastPage, updated.pageCount), halfOffset: 0 },
+              updated.pageCount,
+              halfPageTurn,
+            );
+            setPosition(nextPos);
+            setLastEditedPage(nextPos.page);
+            onSheetReplaced?.(updated);
+          }}
+          onSaveAsCopy={async (keptPages, trimmedPdfData, copyTitle) => {
+            const created = await saveTrimmedSheetAsCopy({
+              sourceSheetId: sheet.id,
+              title: copyTitle,
+              pdfData: trimmedPdfData,
+              keptPages,
+            });
+            onSheetCopied?.(created);
+          }}
         />
       ) : null}
     </div>

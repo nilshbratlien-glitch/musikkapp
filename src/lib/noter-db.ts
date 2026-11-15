@@ -10,6 +10,12 @@ import {
   type SheetRecord,
 } from "./noter.ts";
 import { cloneAnnotationItems, type AnnotationItem } from "./noter-annotations.ts";
+import {
+  buildPageRemapMap,
+  remapBookmarks,
+  remapJumpLinks,
+  remapSheetPageAnnotations,
+} from "./noter-trim.ts";
 
 export const NOTER_DB_NAME = "musikkapp-noter-v1";
 export const NOTER_STORE_NAME = "sheets";
@@ -721,3 +727,113 @@ export async function listAllAnnotations(): Promise<PageAnnotationsRecord[]> {
     }
   });
 }
+
+export async function listSheetAnnotations(sheetId: string): Promise<PageAnnotationsRecord[]> {
+  if (!hasIndexedDb() || !sheetId) return [];
+  const all = await listAllAnnotations();
+  return all
+    .filter((rec) => rec.sheetId === sheetId)
+    .sort((a, b) => a.page - b.page);
+}
+
+export type ReplaceSheetWithTrimmedInput = {
+  sheetId: string;
+  pdfData: ArrayBuffer;
+  keptPages: readonly number[];
+  title?: string;
+};
+
+export async function replaceSheetWithTrimmedPdf(
+  input: ReplaceSheetWithTrimmedInput,
+): Promise<SheetRecord | null> {
+  if (!hasIndexedDb() || !input.sheetId) return null;
+  const existing = await getSheet(input.sheetId);
+  if (!existing) return null;
+
+  const pageMap = buildPageRemapMap(input.keptPages);
+  if (pageMap.size === 0) {
+    throw new Error("Velg minst én side som skal beholdes.");
+  }
+
+  const existingAnnotations = await listSheetAnnotations(input.sheetId);
+  const remappedAnnotations = remapSheetPageAnnotations(
+    existingAnnotations,
+    input.sheetId,
+    pageMap,
+  );
+  const remappedBookmarks = remapBookmarks(existing.bookmarks ?? [], pageMap);
+  const remappedJumpLinks = remapJumpLinks(existing.jumpLinks ?? [], pageMap);
+  const nextPageCount = pageMap.size;
+  const remappedLastPage = pageMap.get(existing.lastPage) ?? 1;
+  const now = Date.now();
+
+  const updatedRecord: SheetRecord = {
+    ...existing,
+    title: input.title?.trim() ? input.title.trim() : existing.title,
+    pdfData: input.pdfData,
+    fileSize: input.pdfData.byteLength,
+    pageCount: nextPageCount,
+    lastPage: clampPage(remappedLastPage, nextPageCount),
+    bookmarks: remappedBookmarks,
+    jumpLinks: remappedJumpLinks,
+    updatedAt: now,
+  };
+
+  await deleteSheetAnnotations(input.sheetId);
+  await runTransaction<IDBValidKey>(NOTER_STORE_NAME, "readwrite", (store) =>
+    store.put(updatedRecord),
+  );
+  for (const rec of remappedAnnotations) {
+    await savePageAnnotations(input.sheetId, rec.page, rec.items);
+  }
+
+  return updatedRecord;
+}
+
+export type SaveTrimmedCopyInput = {
+  sourceSheetId: string;
+  title: string;
+  pdfData: ArrayBuffer;
+  keptPages: readonly number[];
+};
+
+export async function saveTrimmedSheetAsCopy(
+  input: SaveTrimmedCopyInput,
+): Promise<SheetRecord> {
+  if (!hasIndexedDb()) {
+    throw new Error("IndexedDB er ikke tilgjengelig i dette miljøet.");
+  }
+  const source = await getSheet(input.sourceSheetId);
+  const pageMap = buildPageRemapMap(input.keptPages);
+  if (pageMap.size === 0) {
+    throw new Error("Velg minst én side som skal beholdes.");
+  }
+
+  const sourceAnnotations = source ? await listSheetAnnotations(source.id) : [];
+  const remappedBookmarks = source ? remapBookmarks(source.bookmarks ?? [], pageMap) : [];
+  const remappedJumpLinks = source ? remapJumpLinks(source.jumpLinks ?? [], pageMap) : [];
+
+  const created = await saveSheet({
+    title: input.title.trim() || `${source?.title ?? "Noteark"} (utdrag)`,
+    fileName: source?.fileName ?? "utdrag.pdf",
+    fileSize: input.pdfData.byteLength,
+    pageCount: pageMap.size,
+    bpm: source?.bpm,
+    lastPage: 1,
+    nightMode: source?.nightMode,
+    annotationsVisible: source?.annotationsVisible,
+    autoCrop: source?.autoCrop,
+    halfPageTurn: source?.halfPageTurn,
+    bookmarks: remappedBookmarks,
+    jumpLinks: remappedJumpLinks,
+    pdfData: input.pdfData,
+  });
+
+  const remappedAnnotations = remapSheetPageAnnotations(sourceAnnotations, created.id, pageMap);
+  for (const rec of remappedAnnotations) {
+    await savePageAnnotations(created.id, rec.page, rec.items);
+  }
+
+  return created;
+}
+

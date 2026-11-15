@@ -1,4 +1,4 @@
-import { Bookmark, BookOpen, ListMusic, Plus, Trash2, X } from "lucide-react";
+import { Bookmark, BookOpen, ListMusic, Plus, Scissors, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { SetlistRecord, SheetBookmark, SheetMeta } from "@/lib/noter";
 import { sortBookmarks } from "@/lib/noter-setlists";
@@ -14,6 +14,7 @@ export type NoterNavDrawerProps = {
   pageCount: number;
   currentPage: number;
   onSelectPage: (page: number) => void;
+  onOpenTrimModal?: () => void;
   bookmarks: readonly SheetBookmark[];
   onAddBookmark: (page: number, label: string) => void;
   onDeleteBookmark: (id: string) => void;
@@ -33,6 +34,7 @@ export function NoterNavDrawer({
   pageCount,
   currentPage,
   onSelectPage,
+  onOpenTrimModal,
   bookmarks,
   onAddBookmark,
   onDeleteBookmark,
@@ -211,6 +213,7 @@ export function NoterNavDrawer({
                   </button>
                 );
               })}
+              </div>
             </div>
           ) : tab === "bookmarks" ? (
             <div className="space-y-4">

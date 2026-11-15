@@ -9,12 +9,14 @@ import {
   Pencil,
   Play,
   Plus,
+  Scissors,
   Search,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NoterPageTrimModal } from "@/components/noter-page-trim-modal";
 import { NoterViewer, type ViewerSetlistContext } from "@/components/noter-viewer";
 import {
   extractTitleFromFilename,
@@ -33,11 +35,14 @@ import {
   getSheet,
   listSetlists,
   listSheets,
+  replaceSheetWithTrimmedPdf,
   saveSetlist,
   saveSheet,
+  saveTrimmedSheetAsCopy,
   updateSheetMeta,
   type UpdateSheetMetaPatch,
 } from "@/lib/noter-db";
+import { loadPdfDocument } from "@/lib/noter-pdf";
 import { moveSetlistItem } from "@/lib/noter-setlists";
 
 type LibraryTab = "sheets" | "setlists";
@@ -70,6 +75,9 @@ export function Noter() {
 
   const [activeSheet, setActiveSheet] = useState<SheetRecord | null>(null);
   const [activeSetlistSession, setActiveSetlistSession] = useState<ActiveSetlistSession | null>(null);
+  const [trimTarget, setTrimTarget] = useState<{ sheet: SheetRecord; subtitle?: string } | null>(
+    null,
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -100,6 +108,7 @@ export function Noter() {
 
       const rejected: string[] = [];
       let addedCount = 0;
+      let lastSaved: SheetRecord | null = null;
 
       try {
         for (const file of files) {
@@ -108,17 +117,35 @@ export function Noter() {
             continue;
           }
           const pdfData = await file.arrayBuffer();
-          await saveSheet({
+          let probedPageCount = 0;
+          if (files.length === 1) {
+            try {
+              const doc = await loadPdfDocument(pdfData);
+              probedPageCount = doc.numPages;
+              await doc.destroy();
+            } catch {
+              /* fall back to 0 if PDF.js is unavailable */
+            }
+          }
+          const saved = await saveSheet({
             title: extractTitleFromFilename(file.name),
             fileName: file.name,
             fileSize: file.size,
+            pageCount: probedPageCount,
             pdfData,
           });
+          lastSaved = saved;
           addedCount += 1;
         }
 
         if (addedCount > 0) {
           await refreshLibrary();
+        }
+        if (files.length === 1 && lastSaved && lastSaved.pageCount > 10) {
+          setTrimTarget({
+            sheet: lastSaved,
+            subtitle: `Stor PDF (${lastSaved.pageCount} sider) – velg sidene du vil beholde, eller trykk Avbryt for å beholde alle.`,
+          });
         }
         if (rejected.length > 0) {
           setError(
@@ -136,6 +163,20 @@ export function Noter() {
     },
     [refreshLibrary],
   );
+
+  const handleOpenTrimForSheet = useCallback(async (id: string) => {
+    setError(null);
+    try {
+      const record = await getSheet(id);
+      if (!record) {
+        setError("Fant ikke PDF-filen i lokal lagring.");
+        return;
+      }
+      setTrimTarget({ sheet: record });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke åpne sidevelgeren.");
+    }
+  }, []);
 
   const handleOpenSheet = useCallback(async (id: string, setlistSession?: ActiveSetlistSession | null) => {
     setError(null);
@@ -953,6 +994,47 @@ export function Noter() {
             setActiveSetlistSession(null);
           }}
           onUpdateMeta={handleUpdateActiveMeta}
+          onSheetReplaced={(updated) => {
+            setActiveSheet(updated);
+            setSheets((prev) =>
+              prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)),
+            );
+          }}
+          onSheetCopied={(created) => {
+            setSheets((prev) => [created, ...prev]);
+          }}
+        />
+      ) : null}
+
+      {trimTarget ? (
+        <NoterPageTrimModal
+          open={true}
+          onClose={() => setTrimTarget(null)}
+          sheetTitle={trimTarget.sheet.title}
+          pdfData={trimTarget.sheet.pdfData}
+          pageCount={trimTarget.sheet.pageCount}
+          subtitle={trimTarget.subtitle}
+          onReplacePages={async (keptPages, trimmedPdfData) => {
+            const updated = await replaceSheetWithTrimmedPdf({
+              sheetId: trimTarget.sheet.id,
+              pdfData: trimmedPdfData,
+              keptPages,
+            });
+            if (updated) {
+              setSheets((prev) =>
+                prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)),
+              );
+            }
+          }}
+          onSaveAsCopy={async (keptPages, trimmedPdfData, copyTitle) => {
+            const created = await saveTrimmedSheetAsCopy({
+              sourceSheetId: trimTarget.sheet.id,
+              title: copyTitle,
+              pdfData: trimmedPdfData,
+              keptPages,
+            });
+            setSheets((prev) => [created, ...prev]);
+          }}
         />
       ) : null}
     </div>

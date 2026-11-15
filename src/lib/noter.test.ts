@@ -68,13 +68,25 @@ import {
   getSheet,
   listAllAnnotations,
   listSetlists,
+  listSheetAnnotations,
   listSheets,
   makePageAnnotationsKey,
+  replaceSheetWithTrimmedPdf,
   savePageAnnotations,
   saveSetlist,
   saveSheet,
+  saveTrimmedSheetAsCopy,
   updateSheetMeta,
 } from "./noter-db.ts";
+import {
+  buildPageRemapMap,
+  formatPageSelectionSummary,
+  parsePageRangeInput,
+  remapBookmarks,
+  remapJumpLinks,
+  remapSheetPageAnnotations,
+  trimPdfBytes,
+} from "./noter-trim.ts";
 import {
   buildNoterBackupPayload,
   parseNoterBackupJson,
@@ -1215,4 +1227,173 @@ describe("noter-db v3 setlists, bookmarks/jumpLinks, and backup restore", () => 
     assert.equal(await getSetlist(sl.id), null);
   });
 });
+
+describe("noter-trim page selection, remapping, and DB integration", () => {
+  const originalIndexedDb = globalThis.indexedDB;
+  const originalKeyRange = globalThis.IDBKeyRange;
+  const originalPdfLib = (globalThis as unknown as { PDFLib?: unknown }).PDFLib;
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, "indexedDB", {
+      value: originalIndexedDb,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "IDBKeyRange", {
+      value: originalKeyRange,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "PDFLib", {
+      value: originalPdfLib,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it("parses and formats page ranges cleanly", () => {
+    assert.deepEqual(parsePageRangeInput("14-16", 70), [14, 15, 16]);
+    assert.deepEqual(parsePageRangeInput("16–14, 3, 99, 0, 14", 70), [3, 14, 15, 16]);
+    assert.deepEqual(parsePageRangeInput("", 70), []);
+    assert.equal(formatPageSelectionSummary([3, 14, 15, 16, 42]), "3, 14-16, 42");
+    assert.equal(formatPageSelectionSummary([]), "");
+  });
+
+  it("remaps bookmarks, jump links, and page annotations when trimming pages", () => {
+    const pageMap = buildPageRemapMap([14, 15, 16]);
+    assert.equal(pageMap.get(14), 1);
+    assert.equal(pageMap.get(15), 2);
+    assert.equal(pageMap.get(16), 3);
+    assert.equal(pageMap.get(13), undefined);
+
+    const bookmarks = remapBookmarks(
+      [
+        { id: "b1", page: 2, label: "Intro", createdAt: 1 },
+        { id: "b2", page: 15, label: "Solo", createdAt: 2 },
+      ],
+      pageMap,
+    );
+    assert.deepEqual(bookmarks, [{ id: "b2", page: 2, label: "Solo", createdAt: 2 }]);
+
+    const jumpLinks = remapJumpLinks(
+      [
+        { id: "j1", sourcePage: 16, targetPage: 14, x: 500, y: 500, label: "D.S." },
+        { id: "j2", sourcePage: 16, targetPage: 5, x: 200, y: 200, label: "Coda" },
+      ],
+      pageMap,
+    );
+    assert.deepEqual(jumpLinks, [
+      { id: "j1", sourcePage: 3, targetPage: 1, x: 500, y: 500, label: "D.S." },
+    ]);
+
+    const anns = remapSheetPageAnnotations(
+      [
+        { key: "s1:3", sheetId: "s1", page: 3, items: [], updatedAt: 10 },
+        {
+          key: "s1:14",
+          sheetId: "s1",
+          page: 14,
+          items: [{ id: "t1", type: "text", x: 100, y: 100, text: "p", color: "#fff" }],
+          updatedAt: 20,
+        },
+      ],
+      "s1",
+      pageMap,
+    );
+    assert.equal(anns.length, 1);
+    assert.equal(anns[0]?.page, 1);
+    assert.equal(anns[0]?.key, "s1:1");
+  });
+
+  it("trims PDF bytes via PDFLib and updates/copies sheets in IndexedDB", async () => {
+    let copiedIndices: number[] = [];
+    Object.defineProperty(globalThis, "PDFLib", {
+      value: {
+        PDFDocument: {
+          load: async () => ({
+            getPageCount: () => 5,
+          }),
+          create: async () => {
+            const pages: unknown[] = [];
+            return {
+              copyPages: async (_src: unknown, indices: number[]) => {
+                copiedIndices = indices;
+                return indices.map((i) => ({ pageIndex: i }));
+              },
+              addPage: (p: unknown) => pages.push(p),
+              save: async () => new Uint8Array([37, 80, 68, 70, pages.length]),
+            };
+          },
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const trimmed = await trimPdfBytes(new Uint8Array([1, 2, 3]).buffer, [2, 4]);
+    assert.deepEqual(copiedIndices, [1, 3]);
+    assert.deepEqual(trimmed.keptPages, [2, 4]);
+    assert.equal(trimmed.pdfData.byteLength, 5);
+
+    const harness = createFakeIndexedDb();
+    Object.defineProperty(globalThis, "indexedDB", {
+      value: harness.fakeIndexedDb,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "IDBKeyRange", {
+      value: { only: (v: unknown) => ({ lower: v, upper: v }) },
+      configurable: true,
+      writable: true,
+    });
+
+    const original = await saveSheet({
+      id: "score-70",
+      title: "Partitur",
+      fileName: "partitur.pdf",
+      fileSize: 5000,
+      pageCount: 5,
+      lastPage: 4,
+      bookmarks: [
+        { id: "bm1", page: 1, label: "Cover", createdAt: 1 },
+        { id: "bm2", page: 4, label: "Marimba", createdAt: 2 },
+      ],
+      jumpLinks: [{ id: "jl1", sourcePage: 4, targetPage: 2, x: 300, y: 300, label: "D.S." }],
+      pdfData: new Uint8Array([1, 2, 3, 4]).buffer,
+    });
+    await savePageAnnotations(original.id, 1, [
+      { id: "a1", type: "text", x: 10, y: 10, text: "Drop", color: "#fff" },
+    ]);
+    await savePageAnnotations(original.id, 4, [
+      { id: "a4", type: "text", x: 20, y: 20, text: "Keep", color: "#fff" },
+    ]);
+
+    const copy = await saveTrimmedSheetAsCopy({
+      sourceSheetId: original.id,
+      title: "Partitur – Marimba",
+      pdfData: trimmed.pdfData,
+      keptPages: [2, 4],
+    });
+    assert.equal(copy.pageCount, 2);
+    assert.equal(copy.bookmarks?.[0]?.page, 2);
+    assert.equal((await listSheetAnnotations(copy.id))[0]?.page, 2);
+
+    const replaced = await replaceSheetWithTrimmedPdf({
+      sheetId: original.id,
+      pdfData: trimmed.pdfData,
+      keptPages: [2, 4],
+    });
+    assert.equal(replaced?.pageCount, 2);
+    assert.equal(replaced?.lastPage, 2);
+    assert.equal(replaced?.fileSize, trimmed.pdfData.byteLength);
+    assert.deepEqual(replaced?.bookmarks, [{ id: "bm2", page: 2, label: "Marimba", createdAt: 2 }]);
+    assert.deepEqual(replaced?.jumpLinks, [
+      { id: "jl1", sourcePage: 2, targetPage: 1, x: 300, y: 300, label: "D.S." },
+    ]);
+    const replacedAnns = await listSheetAnnotations(original.id);
+    assert.equal(replacedAnns.length, 1);
+    assert.equal(replacedAnns[0]?.page, 2);
+  });
+});
+
 

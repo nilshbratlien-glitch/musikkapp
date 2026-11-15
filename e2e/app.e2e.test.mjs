@@ -1423,6 +1423,145 @@ describe("Noter setlists, navigation & backup", () => {
   });
 });
 
+describe("Noter PDF page trimming", () => {
+  it("prompts on large PDF upload, saves trimmed copy, and trims in-place from nav drawer", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+
+    await page.addInitScript(() => {
+      window.pdfjsLib = {
+        GlobalWorkerOptions: { workerSrc: "" },
+        getDocument({ data }) {
+          const bytes = new Uint8Array(data);
+          const numPages = bytes.byteLength === 5 ? bytes[4] : 15;
+          return {
+            promise: Promise.resolve({
+              numPages,
+              getPage() {
+                return Promise.resolve({
+                  getViewport({ scale }) {
+                    return {
+                      width: Math.round(600 * scale),
+                      height: Math.round(800 * scale),
+                    };
+                  },
+                  render({ canvasContext, viewport }) {
+                    canvasContext.fillStyle = "#ffffff";
+                    canvasContext.fillRect(0, 0, viewport.width, viewport.height);
+                    canvasContext.fillStyle = "#111827";
+                    canvasContext.fillRect(
+                      viewport.width * 0.2,
+                      viewport.height * 0.2,
+                      viewport.width * 0.6,
+                      viewport.height * 0.6,
+                    );
+                    return { promise: Promise.resolve(), cancel() {} };
+                  },
+                });
+              },
+              destroy() {
+                return Promise.resolve();
+              },
+            }),
+          };
+        },
+      };
+
+      window.PDFLib = {
+        PDFDocument: {
+          async load(data) {
+            const bytes = new Uint8Array(data);
+            const total = bytes.byteLength === 5 ? bytes[4] : 15;
+            return { getPageCount: () => total };
+          },
+          async create() {
+            const pages = [];
+            return {
+              async copyPages(_src, indices) {
+                return indices.map((i) => ({ pageIndex: i }));
+              },
+              addPage(p) {
+                pages.push(p);
+              },
+              async save() {
+                return new Uint8Array([37, 80, 68, 70, pages.length]);
+              },
+            };
+          },
+        },
+      };
+    });
+
+    await open("/noter");
+
+    // 1. Upload a 15-page PDF -> trim modal opens automatically
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles({
+      name: "stort-partitur.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%fake-big-score"),
+    });
+
+    const trimDialog = page.getByRole("dialog", { name: "Velg sider å beholde" });
+    await trimDialog.waitFor({ state: "visible" });
+
+    // 2. Select pages 14-15 via range input and save as copy
+    await trimDialog.getByLabel("Sideområde", { exact: true }).fill("14-15");
+    await trimDialog.getByRole("button", { name: "Bruk", exact: true }).click();
+    await trimDialog.getByText("2 / 15 valgt").waitFor({ state: "visible" });
+
+    await trimDialog.getByRole("button", { name: "Lagre som nytt stykke", exact: true }).click();
+    await trimDialog.getByRole("button", { name: "Opprett utdrag", exact: true }).click();
+    await trimDialog.waitFor({ state: "detached" });
+
+    await page.getByRole("button", { name: /stort partitur \(utdrag\).*2 sider/i }).waitFor({
+      state: "visible",
+    });
+
+    // 3. Open the original 15-page sheet and trim it in-place from NavDrawer
+    await page.getByRole("button", { name: /stort partitur\s+100 BPM\s+15 sider/i }).click();
+    const viewer = page.getByRole("dialog", { name: /^Noteviser:/ });
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 15").waitFor({ state: "visible" });
+
+    await viewer.getByRole("button", { name: "Sider, bokmerker og settliste", exact: true }).click();
+    const navDrawer = page.getByRole("dialog", { name: "Sider og bokmerker" });
+    await navDrawer.waitFor({ state: "visible" });
+    await navDrawer.getByRole("button", { name: "Velg sider å beholde (Trim PDF)", exact: true }).click();
+
+    await trimDialog.waitFor({ state: "visible" });
+    await trimDialog.getByLabel("Sideområde", { exact: true }).fill("2-4");
+    await trimDialog.getByRole("button", { name: "Bruk", exact: true }).click();
+    await trimDialog.getByRole("button", { name: "Behold 3 sider", exact: true }).click();
+    await trimDialog.waitFor({ state: "detached" });
+
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // 4. Zero console errors, page errors, and horizontal overflow
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    assert.equal(overflow, false, "no horizontal overflow at 390x844");
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+
+
 
 
 
