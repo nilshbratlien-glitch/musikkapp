@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BladlesingRouteImport } from './routes/bladlesing'
 import { Route as MetronomRouteImport } from './routes/metronom'
 import { Route as NotekortRouteImport } from './routes/notekort'
 import { Route as NoterRouteImport } from './routes/noter'
@@ -18,6 +19,11 @@ import { Route as OveplanRouteImport } from './routes/oveplan'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BladlesingRoute = BladlesingRouteImport.update({
+  id: '/bladlesing',
+  path: '/bladlesing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MetronomRoute = MetronomRouteImport.update({
@@ -43,6 +49,7 @@ const OveplanRoute = OveplanRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bladlesing': typeof BladlesingRoute
   '/metronom': typeof MetronomRoute
   '/notekort': typeof NotekortRoute
   '/noter': typeof NoterRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bladlesing': typeof BladlesingRoute
   '/metronom': typeof MetronomRoute
   '/notekort': typeof NotekortRoute
   '/noter': typeof NoterRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/bladlesing': typeof BladlesingRoute
   '/metronom': typeof MetronomRoute
   '/notekort': typeof NotekortRoute
   '/noter': typeof NoterRoute
@@ -65,14 +74,15 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
+  fullPaths: '/' | '/bladlesing' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
-  id: '__root__' | '/' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
+  to: '/' | '/bladlesing' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
+  id: '__root__' | '/' | '/bladlesing' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BladlesingRoute: typeof BladlesingRoute
   MetronomRoute: typeof MetronomRoute
   NotekortRoute: typeof NotekortRoute
   NoterRoute: typeof NoterRoute
@@ -86,6 +96,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bladlesing': {
+      id: '/bladlesing'
+      path: '/bladlesing'
+      fullPath: '/bladlesing'
+      preLoaderRoute: typeof BladlesingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/metronom': {
@@ -121,6 +138,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BladlesingRoute: BladlesingRoute,
   MetronomRoute: MetronomRoute,
   NotekortRoute: NotekortRoute,
   NoterRoute: NoterRoute,

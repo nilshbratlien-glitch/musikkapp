@@ -174,9 +174,22 @@ beforeEach(async () => {
   page = await context.newPage();
 });
 
+describe("default route", () => {
+  it("opens Øveplan by default at / and redirects /oveplan to /", async () => {
+    await open("/");
+    assert.equal(new URL(page.url()).pathname, "/");
+    assert.equal(await page.locator('nav a[href="/"]').getAttribute("aria-current"), "page");
+    await page.getByRole("button", { name: "Start", exact: true }).waitFor();
+
+    await page.goto(BASE + "/oveplan");
+    await page.waitForFunction(() => location.pathname === "/");
+    assert.equal(await page.locator('nav a[href="/"]').getAttribute("aria-current"), "page");
+  });
+});
+
 describe("block navigation", () => {
   it("2-mallet and 4-mallet open Metronom with the plan timer in the header", async () => {
-    await open("/oveplan", plan(["twomallet", "fourmallet"]));
+    await open("/", plan(["twomallet", "fourmallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     assert.match(await header().innerText(), /2-mallet/);
@@ -185,7 +198,7 @@ describe("block navigation", () => {
     assert.ok(clicks.length >= 2, "the block metronome plays");
     assert.ok(Math.abs(minGap(clicks) - 0.6) < 0.02, `one 100 BPM stream, got gap ${minGap(clicks)}`);
 
-    await tab("/oveplan");
+    await tab("/");
     await page.getByRole("button", { name: "Ferdig", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     assert.match(await header().innerText(), /4-mallet/);
@@ -196,31 +209,31 @@ describe("block navigation", () => {
   });
 
   it("SRF opens Bladlesing with the plan timer in the header", async () => {
-    await open("/oveplan", plan(["srf"]));
+    await open("/", plan(["srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     assert.match(await header().innerText(), /Bladlesing/);
     assert.equal((await recentClicks(800)).length, 0, "SRF does not start a metronome");
     await noReload();
   });
 
   it("Repertoar keeps today's behaviour: no navigation, no metronome", async () => {
-    await open("/oveplan", plan(["rep"]));
+    await open("/", plan(["rep"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForTimeout(500);
-    assert.equal(new URL(page.url()).pathname, "/oveplan");
+    assert.equal(new URL(page.url()).pathname, "/");
     assert.match(await header().innerText(), /Repertoar/);
     assert.equal((await recentClicks(800)).length, 0);
   });
 
   it("switching block while the timer runs stops the old sound and keeps one countdown", async () => {
-    await open("/oveplan", plan(["twomallet", "srf"]));
+    await open("/", plan(["twomallet", "srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     assert.ok((await recentClicks(1000)).length >= 1);
-    await tab("/oveplan");
+    await tab("/");
     await page.locator(".plan-hero").getByRole("button", { name: /Bladlesing/ }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     await page.waitForTimeout(300);
     assert.equal((await recentClicks(1200)).length, 0, "2-mallet metronome stopped");
     assert.ok((await liveContexts()) <= 1, "one audio context");
@@ -235,12 +248,12 @@ describe("block navigation", () => {
 
 describe("plan clock sync", () => {
   it("start, pause and stop show in the header and the other tabs, without drift", async () => {
-    await open("/oveplan", plan(["rep"]));
+    await open("/", plan(["rep"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await header().waitFor();
     const first = await headerSeconds();
     const began = Date.now();
-    for (const path of ["/metronom", "/", "/notekort", "/oveplan", "/metronom"]) await tab(path);
+    for (const path of ["/metronom", "/bladlesing", "/notekort", "/", "/metronom"]) await tab(path);
     await page.waitForTimeout(Math.max(0, 4000 - (Date.now() - began)));
     const drop = first - (await headerSeconds());
     const elapsed = Math.round((Date.now() - began) / 1000);
@@ -251,17 +264,17 @@ describe("plan clock sync", () => {
     const paused = await headerSeconds();
     await page.waitForTimeout(1500);
     assert.equal(await headerSeconds(), paused, "paused in the header");
-    await tab("/oveplan");
+    await tab("/");
     await page.getByRole("button", { name: "Fortsett", exact: true }).waitFor();
     await page.getByRole("button", { name: "Fortsett", exact: true }).click();
     await tab("/notekort");
     await page.waitForTimeout(1500);
     assert.ok((await headerSeconds()) < paused, "resumed from Øveplan, running in Notekort header");
 
-    await tab("/oveplan");
+    await tab("/");
     await page.getByRole("button", { name: "Liste", exact: true }).click();
     await page.getByRole("button", { name: "Nullstill", exact: true }).click();
-    for (const path of ["/metronom", "/"]) {
+    for (const path of ["/metronom", "/bladlesing"]) {
       await tab(path);
       assert.equal(await header().count(), 0, `stopped in ${path}`);
     }
@@ -278,7 +291,7 @@ describe("one sound source", () => {
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForTimeout(200);
     assert.equal(await liveContexts(), 1, "Metronom and snare share one AudioContext");
-    await tab("/");
+    await tab("/bladlesing");
     await page.waitForSelector("#score svg");
     await page.locator("#btnMetro").click();
     const clicks = await recentClicks(2500);
@@ -303,32 +316,32 @@ describe("Bladlesing buttons follow the shared pulse", () => {
   const metroOn = () => page.locator("#btnMetro").evaluate((el) => el.classList.contains("on"));
 
   it("Metronom tab and back: the metronome button is off", async () => {
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
     await page.locator("#btnMetro").click();
     assert.equal(await metroOn(), true);
     await tab("/metronom");
     await page.getByRole("button", { name: "Start", exact: true }).click();
     assert.equal(await owner(), "metronom");
-    await tab("/");
+    await tab("/bladlesing");
     await page.waitForSelector("#score svg");
     assert.equal(await metroOn(), false, "#btnMetro is not active after returning");
     assert.equal(await owner(), null);
   });
 
   it("a plan block taking the pulse turns metronome and play-along off", async () => {
-    await open("/oveplan", plan(["twomallet"]));
+    await open("/", plan(["twomallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     await header().click();
-    await tab("/");
+    await tab("/bladlesing");
     await page.waitForSelector("#score svg");
 
     await page.locator("#btnMetro").click();
     assert.equal(await owner(), "bladlesing");
     await header().click();
     await page.waitForFunction(() => window.MusikkPulse?.getState().owner === "oveplan");
-    assert.equal(new URL(page.url()).pathname, "/");
+    assert.equal(new URL(page.url()).pathname, "/bladlesing");
     assert.equal(await metroOn(), false, "#btnMetro is off once the plan owns the pulse");
     assert.equal(await page.locator("#btnMetro.yielded").count(), 1, "#btnMetro shows it gave way");
     assert.equal(await page.locator("#btnPlay.yielded").count(), 1, "Play shows it gave way");
@@ -356,9 +369,9 @@ describe("Bladlesing buttons follow the shared pulse", () => {
 
 describe("Bladlesing during a SRF block", () => {
   it("Play resumes the paused block; Stopp and leaving the tab never pause it", async () => {
-    await open("/oveplan", plan(["srf"]));
+    await open("/", plan(["srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     await page.waitForSelector("#score svg");
     await header().click();
     const paused = await headerSeconds();
@@ -375,7 +388,7 @@ describe("Bladlesing during a SRF block", () => {
     await page.waitForTimeout(1200);
     assert.ok((await headerSeconds()) < resumed, "Stopp in Bladlesing keeps the plan running");
     await tab("/metronom");
-    await tab("/");
+    await tab("/bladlesing");
     await page.waitForTimeout(1200);
     assert.equal(await header().getAttribute("aria-pressed"), "false", "leaving the tab keeps it running");
     await noReload();
@@ -384,7 +397,7 @@ describe("Bladlesing during a SRF block", () => {
 
 describe("Metronom during a 2-mallet block", () => {
   it("Stopp pauses the block, Start resumes it at the block's tempo, and the chips show the block's meter", async () => {
-    await open("/oveplan", plan(["twomallet"]));
+    await open("/", plan(["twomallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     await page.locator(".plan-chip").waitFor();
@@ -441,17 +454,17 @@ describe("layout", () => {
   ]) {
     it(`no horizontal overflow at ${width}x${height}`, async () => {
       await page.setViewportSize({ width, height });
-      await open("/");
-      for (const path of ["/", "/metronom", "/oveplan", "/notekort", "/noter"]) {
+      await open("/bladlesing");
+      for (const path of ["/bladlesing", "/metronom", "/", "/notekort", "/noter"]) {
         await tab(path);
-        await page.waitForTimeout(path === "/" ? 800 : 200);
+        await page.waitForTimeout(path === "/bladlesing" ? 800 : 200);
         const overflow = await page.evaluate(() =>
           [document.documentElement, document.querySelector("main")].map((el) => el.scrollWidth - el.clientWidth),
         );
         assert.deepEqual(overflow, [0, 0], `${path} overflows`);
       }
 
-      await tab("/");
+      await tab("/bladlesing");
       await page.waitForSelector("#score svg");
       const lines = await page.locator("#btnGenerate").evaluate((el) => {
         const range = document.createRange();
@@ -477,14 +490,14 @@ describe("layout", () => {
       }
       await page.locator("#btnCloseSettings").click();
 
-      await open("/oveplan", plan(["twomallet"]));
+      await open("/", plan(["twomallet"]));
       await page.getByRole("button", { name: "Start", exact: true }).click();
       await page.waitForFunction(() => location.pathname === "/metronom");
       await page.locator(".plan-chip").waitFor();
       assert.deepEqual(await overflowOf(), [0, 0], "/metronom with the plan chip overflows");
       await shot(`metronom-chip-${width}x${height}`);
       await header().click();
-      await tab("/");
+      await tab("/bladlesing");
       await page.waitForSelector("#score svg");
       const scoreTop = () => page.locator("#score").evaluate((el) => el.getBoundingClientRect().top);
       const before = await scoreTop();
@@ -532,7 +545,7 @@ async function bladlesingTexts() {
 
 describe("Bladlesing in Norwegian", () => {
   it("the drawer, the meta line and the sheet title have no English labels left, with 2, 3 and 4 mallets", async () => {
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
     for (const mallets of ["2", "3", "4"]) {
       await page.locator("#btnSettings").click();
@@ -554,7 +567,7 @@ describe("Bladlesing in Norwegian", () => {
   });
 
   it("settings saved by the old English version still load, with the same ids and values", async () => {
-    await open("/");
+    await open("/bladlesing");
     const old = {
       instrumentId: "xylo",
       mallets: 2,
@@ -610,7 +623,7 @@ describe("Safari 15.6 readability", () => {
     for (const block of ["twomallet", "fourmallet"]) {
       it(`the header pill and the Metronom chip are readable in a ${block} block${simulated ? " without color-mix() and @property" : ""}`, async () => {
         if (simulated) await simulateSafari15();
-        await open("/oveplan", plan([block]));
+        await open("/", plan([block]));
         await page.getByRole("button", { name: "Start", exact: true }).click();
         await page.waitForFunction(() => location.pathname === "/metronom");
         const chip = page.locator(".plan-chip");
@@ -692,7 +705,7 @@ describe("Bladlesing settings wording", () => {
   }
 
   it("the new labels show, the old words are gone, and ids and values are unchanged", async () => {
-    await open("/");
+    await open("/bladlesing");
     await openDrawer();
     const text = {};
     for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) text[panel] = await panelText(panel);
@@ -737,7 +750,7 @@ describe("Bladlesing settings wording", () => {
   });
 
   it("a setting saved with the old values still loads and shows the new wording", async () => {
-    await open("/");
+    await open("/bladlesing");
     const old = { instrumentId: "mar50", mallets: 3, texture: "block", clef: "bass", keyId: "C", keyIds: ["C"], timeId: "4/4", ties: true, accidentals: true };
     await page.evaluate((value) => {
       localStorage.removeItem("musikkapp.bladlesing");
@@ -764,7 +777,7 @@ describe("Bladlesing settings wording", () => {
   ]) {
     it(`nothing overflows or is cut off in the settings, status and meta line on ${name}`, async () => {
       await setup();
-      await open("/");
+      await open("/bladlesing");
       for (const mallets of ["2", "3", "4"]) {
         await openDrawer();
         await page.locator('[data-settings="instrument"]').click();
@@ -826,7 +839,7 @@ describe("audio after the screen was locked", () => {
   });
 
   it("Øveplan, clock freezes in a 2-mallet block: the plan pauses with its time kept, and the next Start carries on", async () => {
-    await open("/oveplan", plan(["twomallet"]));
+    await open("/", plan(["twomallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     await pastFirstBeat();
@@ -845,9 +858,9 @@ describe("audio after the screen was locked", () => {
   });
 
   it("Øveplan, clock freezes during play-along in a SRF block: the plan pauses with its time kept, and the next Play carries on", async () => {
-    await open("/oveplan", plan(["srf"]));
+    await open("/", plan(["srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     await page.waitForSelector("#score svg");
     await lockContext("frozen");
     await page.locator("#btnPlay").click();
@@ -865,7 +878,7 @@ describe("audio after the screen was locked", () => {
   });
 
   it("Bladlesing, clock frozen but state running: Play stops with the button reset, the next Play plays on a new context", async () => {
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
     await lockContext("frozen");
     await page.locator("#btnPlay").click();
@@ -879,7 +892,7 @@ describe("audio after the screen was locked", () => {
   });
 
   it("Bladlesing, interrupted with a resume() that hangs: Play starts at once", async () => {
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
     await lockContext("interrupted");
     await page.locator("#btnPlay").click();
@@ -902,7 +915,7 @@ describe("duet mode", () => {
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
 
     await page.locator("#btnDuetToggle").click();
@@ -967,9 +980,9 @@ describe("duet mode", () => {
 
 describe("Bladlesing Metronom 1-bar count-in and auto-stop", () => {
   it("plays 1-bar count-in then Stopp, auto-stops at etude end, and keeps the Øveplan timer running", async () => {
-    await open("/oveplan", plan(["srf"]));
+    await open("/", plan(["srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     await page.waitForSelector("#score svg");
 
     // Use a 4-bar etude at max clamped tempo (160 BPM) so 1-bar count-in + 4 bars finishes in ~7.5s.
