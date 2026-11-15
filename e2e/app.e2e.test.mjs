@@ -1119,7 +1119,7 @@ describe("Noter annotation & stage mode", () => {
       buffer: Buffer.from("%PDF-1.4\n%mock\n"),
     });
 
-    const sheetButton = page.getByRole("button", { name: /^test-stykke/i });
+    const sheetButton = page.getByRole("button", { name: /^test stykke/i });
     await sheetButton.waitFor({ state: "visible" });
     await sheetButton.click();
 
@@ -1224,7 +1224,7 @@ describe("Noter annotation & stage mode", () => {
     await viewer.waitFor({ state: "detached" });
     await page.reload();
 
-    const reopenedButton = page.getByRole("button", { name: /^test-stykke/i });
+    const reopenedButton = page.getByRole("button", { name: /^test stykke/i });
     await reopenedButton.waitFor({ state: "visible" });
     await reopenedButton.click();
     await viewer.waitFor({ state: "visible" });
