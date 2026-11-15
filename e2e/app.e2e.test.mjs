@@ -1533,12 +1533,15 @@ describe("Noter PDF page trimming", () => {
     });
 
     // 3. Open the original 15-page sheet and trim it in-place from NavDrawer
-    await page.getByRole("button", { name: /stort partitur\s+100 BPM\s+15 sider/i }).click();
-    const viewer = page.getByRole("dialog", { name: /^Noteviser:/ });
+    await page
+      .getByRole("button", { name: /^stort partitur/i })
+      .filter({ hasText: "15 sider" })
+      .click();
+    const viewer = page.locator('[role="dialog"][aria-label^="Noteviser:"]');
     await viewer.waitFor({ state: "visible" });
     await viewer.getByText("Side 1 / 15").waitFor({ state: "visible" });
 
-    await viewer.getByRole("button", { name: "Sider, bokmerker og settliste", exact: true }).click();
+    await viewer.getByRole("button", { name: "Sideoversikt og bokmerker", exact: true }).click();
     const navDrawer = page.getByRole("dialog", { name: "Sider og bokmerker" });
     await navDrawer.waitFor({ state: "visible" });
     await navDrawer.getByRole("button", { name: "Velg sider å beholde (Trim PDF)", exact: true }).click();
