@@ -15,7 +15,6 @@ import {
   isValidPdfFile,
   sortSheets,
   type SheetMeta,
-  type SheetRecord,
 } from "./noter.ts";
 import {
   ANNOTATION_COLORS,
@@ -68,7 +67,6 @@ import {
   savePageAnnotations,
   saveSheet,
   updateSheetMeta,
-  type PageAnnotationsRecord,
 } from "./noter-db.ts";
 import { buildRenderKey, computeSliceMetrics } from "./noter-pdf.ts";
 

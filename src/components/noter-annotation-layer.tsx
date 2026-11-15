@@ -153,61 +153,65 @@ export function StampSvgContent({ stampId, color }: { stampId: StampId; color: s
 }
 
 function renderAnnotationItem(item: AnnotationItem) {
-  if (item.kind === "pencil" || item.kind === "highlighter") {
-    if (item.points.length === 0) return null;
-    if (item.points.length === 1) {
-      const p0 = item.points[0]!;
+  switch (item.kind) {
+    case "pencil":
+    case "highlighter": {
+      if (item.points.length === 0) return null;
+      if (item.points.length === 1) {
+        const p0 = item.points[0]!;
+        return (
+          <circle
+            key={item.id}
+            cx={p0.x * ANNOTATION_VIEWBOX_SIZE}
+            cy={p0.y * ANNOTATION_VIEWBOX_SIZE}
+            r={item.width / 2}
+            fill={item.color}
+            fillOpacity={item.opacity}
+          />
+        );
+      }
       return (
-        <circle
+        <path
           key={item.id}
-          cx={p0.x * ANNOTATION_VIEWBOX_SIZE}
-          cy={p0.y * ANNOTATION_VIEWBOX_SIZE}
-          r={item.width / 2}
-          fill={item.color}
-          fillOpacity={item.opacity}
+          d={pointsToSvgPath(item.points)}
+          fill="none"
+          stroke={item.color}
+          strokeWidth={item.width}
+          strokeOpacity={item.opacity}
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       );
     }
-    return (
-      <path
-        key={item.id}
-        d={pointsToSvgPath(item.points)}
-        fill="none"
-        stroke={item.color}
-        strokeWidth={item.width}
-        strokeOpacity={item.opacity}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    );
-  }
 
-  if (item.kind === "stamp") {
-    const scale = item.scale ?? 1;
-    return (
-      <g
-        key={item.id}
-        transform={`translate(${item.x * ANNOTATION_VIEWBOX_SIZE} ${item.y * ANNOTATION_VIEWBOX_SIZE}) scale(${scale})`}
-      >
-        <StampSvgContent stampId={item.stampId} color={item.color} />
-      </g>
-    );
-  }
+    case "stamp": {
+      const scale = item.scale ?? 1;
+      return (
+        <g
+          key={item.id}
+          transform={`translate(${item.x * ANNOTATION_VIEWBOX_SIZE} ${item.y * ANNOTATION_VIEWBOX_SIZE}) scale(${scale})`}
+        >
+          <StampSvgContent stampId={item.stampId} color={item.color} />
+        </g>
+      );
+    }
 
-  return (
-    <text
-      key={item.id}
-      x={item.x * ANNOTATION_VIEWBOX_SIZE}
-      y={item.y * ANNOTATION_VIEWBOX_SIZE}
-      fill={item.color}
-      fontSize={item.fontSize ?? 18}
-      fontWeight="600"
-      fontFamily="ui-sans-serif, system-ui, sans-serif"
-      dominantBaseline="central"
-    >
-      {item.text}
-    </text>
-  );
+    case "text":
+      return (
+        <text
+          key={item.id}
+          x={item.x * ANNOTATION_VIEWBOX_SIZE}
+          y={item.y * ANNOTATION_VIEWBOX_SIZE}
+          fill={item.color}
+          fontSize={item.fontSize ?? 18}
+          fontWeight="600"
+          fontFamily="ui-sans-serif, system-ui, sans-serif"
+          dominantBaseline="central"
+        >
+          {item.text}
+        </text>
+      );
+  }
 }
 
 export function NoterAnnotationLayer({
@@ -296,7 +300,6 @@ export function NoterAnnotationLayer({
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (tool === "view") return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
 
     if (e.pointerType === "pen") {

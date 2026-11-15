@@ -183,42 +183,48 @@ export function hitTestAnnotation(
   }
   const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : 0.025;
 
-  if (item.kind === "pencil" || item.kind === "highlighter") {
-    const pts = item.points;
-    if (pts.length === 0) return false;
-    const strokeHalfWidth = (Math.max(1, item.width) / ANNOTATION_VIEWBOX_SIZE) * 0.5;
-    const threshold = safeRadius + strokeHalfWidth;
+  switch (item.kind) {
+    case "pencil":
+    case "highlighter": {
+      const pts = item.points;
+      if (pts.length === 0) return false;
+      const strokeHalfWidth = (Math.max(1, item.width) / ANNOTATION_VIEWBOX_SIZE) * 0.5;
+      const threshold = safeRadius + strokeHalfWidth;
 
-    if (pts.length === 1) {
-      const p0 = pts[0]!;
-      return Math.hypot(point.x - p0.x, point.y - p0.y) <= threshold;
-    }
-
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i]!;
-      const b = pts[i + 1]!;
-      if (distanceToSegment(point.x, point.y, a.x, a.y, b.x, b.y) <= threshold) {
-        return true;
+      if (pts.length === 1) {
+        const p0 = pts[0]!;
+        return Math.hypot(point.x - p0.x, point.y - p0.y) <= threshold;
       }
+
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i]!;
+        const b = pts[i + 1]!;
+        if (distanceToSegment(point.x, point.y, a.x, a.y, b.x, b.y) <= threshold) {
+          return true;
+        }
+      }
+      return false;
     }
-    return false;
-  }
 
-  if (item.kind === "stamp") {
-    const scale = Number.isFinite(item.scale) && (item.scale ?? 1) > 0 ? (item.scale ?? 1) : 1;
-    const halfSize = 0.022 * scale + safeRadius;
-    return Math.abs(point.x - item.x) <= halfSize && Math.abs(point.y - item.y) <= halfSize;
-  }
+    case "stamp": {
+      const scale = Number.isFinite(item.scale) && (item.scale ?? 1) > 0 ? (item.scale ?? 1) : 1;
+      const halfSize = 0.022 * scale + safeRadius;
+      return Math.abs(point.x - item.x) <= halfSize && Math.abs(point.y - item.y) <= halfSize;
+    }
 
-  const fontSize = Number.isFinite(item.fontSize) && (item.fontSize ?? 18) > 0 ? (item.fontSize ?? 18) : 18;
-  const fontNorm = fontSize / ANNOTATION_VIEWBOX_SIZE;
-  const textWidth = Math.max(0.04, item.text.length * fontNorm * 0.6);
-  const halfH = Math.max(0.018, fontNorm * 0.75);
-  return (
-    point.x >= item.x - safeRadius &&
-    point.x <= item.x + textWidth + safeRadius &&
-    Math.abs(point.y - item.y) <= halfH + safeRadius
-  );
+    case "text": {
+      const fontSize =
+        Number.isFinite(item.fontSize) && (item.fontSize ?? 18) > 0 ? (item.fontSize ?? 18) : 18;
+      const fontNorm = fontSize / ANNOTATION_VIEWBOX_SIZE;
+      const textWidth = Math.max(0.04, item.text.length * fontNorm * 0.6);
+      const halfH = Math.max(0.018, fontNorm * 0.75);
+      return (
+        point.x >= item.x - safeRadius &&
+        point.x <= item.x + textWidth + safeRadius &&
+        Math.abs(point.y - item.y) <= halfH + safeRadius
+      );
+    }
+  }
 }
 
 export function eraseAnnotationsAtPoint(

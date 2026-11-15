@@ -1103,7 +1103,12 @@ describe("Noter annotation & stage mode", () => {
     });
 
     await page.route("https://cdn.jsdelivr.net/**", (route) =>
-      route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
     );
     await page.addInitScript(mockPdfJsLib);
     await open("/noter");
