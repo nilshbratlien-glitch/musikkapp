@@ -1029,4 +1029,255 @@ describe("Noter library", () => {
   });
 });
 
+function mockPdfJsLib() {
+  window.pdfjsLib = {
+    GlobalWorkerOptions: { workerSrc: "" },
+    getDocument() {
+      return {
+        promise: Promise.resolve({
+          numPages: 3,
+          getPage() {
+            return Promise.resolve({
+              getViewport({ scale }) {
+                return {
+                  width: Math.round(600 * scale),
+                  height: Math.round(800 * scale),
+                };
+              },
+              render({ canvasContext, viewport }) {
+                canvasContext.fillStyle = "#ffffff";
+                canvasContext.fillRect(0, 0, viewport.width, viewport.height);
+                canvasContext.fillStyle = "#111827";
+                canvasContext.fillRect(
+                  viewport.width * 0.2,
+                  viewport.height * 0.2,
+                  viewport.width * 0.6,
+                  viewport.height * 0.6,
+                );
+                return { promise: Promise.resolve(), cancel() {} };
+              },
+            });
+          },
+          destroy() {
+            return Promise.resolve();
+          },
+        }),
+      };
+    },
+  };
+}
+
+async function getSettledLayerBox(page, layer, timeoutMs = 5000) {
+  await layer.waitFor({ state: "visible" });
+  const deadline = Date.now() + timeoutMs;
+  let prev = null;
+  while (Date.now() < deadline) {
+    const hasStyleWidth = await layer.evaluate((el) => el.style.width !== "");
+    const box = await layer.boundingBox();
+    if (hasStyleWidth && box && box.width > 180 && box.height > 200) {
+      if (
+        prev &&
+        Math.abs(prev.x - box.x) < 1 &&
+        Math.abs(prev.y - box.y) < 1 &&
+        Math.abs(prev.width - box.width) < 1 &&
+        Math.abs(prev.height - box.height) < 1
+      ) {
+        return box;
+      }
+      prev = box;
+    } else {
+      prev = null;
+    }
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  }
+  throw new Error("Timed out waiting for annotation layer bounding box to settle");
+}
+
+describe("Noter annotation & stage mode", () => {
+  it("supports pencil, highlighter, undo/redo, stamps, text, eraser, visibility, IndexedDB persistence, auto-crop, and half-page turn", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({ status: 200, contentType: "application/javascript", body: "" }),
+    );
+    await page.addInitScript(mockPdfJsLib);
+    await open("/noter");
+
+    await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+      name: "test-stykke.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%mock\n"),
+    });
+
+    const sheetButton = page.getByRole("button", { name: /test-stykke/i });
+    await sheetButton.waitFor({ state: "visible" });
+    await sheetButton.click();
+
+    const viewer = page.getByRole("dialog", { name: /Noteviser:/ });
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // 1. Pencil (Blyant, Tykk, Rød)
+    await viewer.getByRole("button", { name: "Blyant", exact: true }).click();
+    await viewer.getByRole("button", { name: "Tykk", exact: true }).click();
+    await viewer.getByRole("button", { name: "Farge Rød", exact: true }).click();
+
+    const layer = viewer.locator('[data-testid="annotation-layer-page-1"]');
+    let box = await getSettledLayerBox(page, layer);
+    assert.ok(box && box.width > 180 && box.height > 200, "annotation layer has a valid settled bounding box");
+
+    await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.3);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.45, box.y + box.height * 0.32, { steps: 5 });
+    await page.mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.35, { steps: 5 });
+    await page.mouse.up();
+
+    assert.equal(await layer.locator("svg path").count(), 1, "pencil stroke renders an SVG path");
+    assert.equal(await layer.locator("svg path").first().getAttribute("stroke"), "#dc2626");
+
+    // 2. Highlighter (Tusj)
+    await viewer.getByRole("button", { name: "Tusj", exact: true }).click();
+    box = await getSettledLayerBox(page, layer);
+    await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.48);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.5, { steps: 6 });
+    await page.mouse.up();
+
+    assert.equal(
+      await layer.locator('svg path[stroke-opacity="0.35"]').count(),
+      1,
+      "highlighter renders a semi-transparent path",
+    );
+    assert.equal(await layer.locator("svg path").count(), 2);
+
+    // 3. Undo & Redo
+    await viewer.getByRole("button", { name: "Angre", exact: true }).click();
+    assert.equal(await layer.locator("svg path").count(), 1, "undo removes the last stroke");
+    await viewer.getByRole("button", { name: "Gjør om", exact: true }).click();
+    assert.equal(await layer.locator("svg path").count(), 2, "redo restores the undone stroke");
+
+    // 4. Musical stamp (Stempel -> Velg stempel -> Fermate)
+    await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
+    await viewer.getByRole("button", { name: "Velg stempel" }).click();
+    const stampDialog = viewer.getByRole("dialog", { name: "Velg musikalsk stempel" });
+    await stampDialog.waitFor({ state: "visible" });
+    await stampDialog.getByRole("button", { name: "Fermate", exact: true }).click();
+
+    box = await getSettledLayerBox(page, layer);
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.65);
+    assert.equal(await layer.locator("svg g").count(), 1, "stamp renders an SVG <g> element");
+
+    // 5. Short text note (Tekst -> Tekstnotat -> Bekreft)
+    await viewer.getByRole("button", { name: "Tekst", exact: true }).click();
+    box = await getSettledLayerBox(page, layer);
+    await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.78);
+    const textInput = viewer.getByRole("textbox", { name: "Tekstnotat" });
+    await textInput.waitFor({ state: "visible" });
+    await textInput.fill("Molto espressivo");
+    await viewer.getByRole("button", { name: "Bekreft", exact: true }).click();
+
+    assert.equal(await layer.locator("svg text").count(), 1, "text note renders an SVG <text> element");
+    assert.equal(await layer.locator("svg text").first().textContent(), "Molto espressivo");
+
+    // 6. Eraser (Viskelær)
+    await viewer.getByRole("button", { name: "Viskelær", exact: true }).click();
+    box = await getSettledLayerBox(page, layer);
+    await page.mouse.move(box.x + box.width * 0.48, box.y + box.height * 0.65);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.52, box.y + box.height * 0.65, { steps: 4 });
+    await page.mouse.up();
+
+    assert.equal(await layer.locator("svg g").count(), 0, "eraser removes the targeted stamp");
+    assert.equal(await layer.locator("svg path").count(), 2, "remaining strokes stay intact");
+    assert.equal(await layer.locator("svg text").count(), 1, "remaining text stays intact");
+
+    // 7. Visibility toggle (Skjul annoteringer / Vis annoteringer)
+    const hideBtn = viewer.getByRole("button", { name: "Skjul annoteringer", exact: true });
+    assert.equal(await hideBtn.getAttribute("aria-pressed"), "true");
+    await hideBtn.click();
+
+    const showBtn = viewer.getByRole("button", { name: "Vis annoteringer", exact: true });
+    assert.equal(await showBtn.getAttribute("aria-pressed"), "false");
+    assert.equal(await layer.locator("svg path").count(), 0, "paths hidden when visibility is off");
+    assert.equal(await layer.locator("svg text").count(), 0, "text hidden when visibility is off");
+
+    await showBtn.click();
+    assert.equal(
+      await viewer.getByRole("button", { name: "Skjul annoteringer", exact: true }).getAttribute("aria-pressed"),
+      "true",
+    );
+    assert.equal(await layer.locator("svg path").count(), 2, "paths restored when visibility is on");
+    assert.equal(await layer.locator("svg text").count(), 1, "text restored when visibility is on");
+
+    // 8. IndexedDB v2 persistence across reload
+    await viewer.getByRole("button", { name: "Lukk noteviser", exact: true }).click();
+    await viewer.waitFor({ state: "detached" });
+    await page.reload();
+
+    const reopenedButton = page.getByRole("button", { name: /test-stykke/i });
+    await reopenedButton.waitFor({ state: "visible" });
+    await reopenedButton.click();
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    const annotationSvg = viewer.locator('svg[preserveAspectRatio="none"]').first();
+    await annotationSvg.locator("path").first().waitFor({ state: "visible" });
+    await annotationSvg.locator("text").first().waitFor({ state: "visible" });
+    assert.equal(await annotationSvg.locator("path").count(), 2, "persisted paths reload from IndexedDB");
+    assert.equal(
+      await annotationSvg.locator("text").first().textContent(),
+      "Molto espressivo",
+      "persisted text reloads from IndexedDB",
+    );
+
+    // 9. Auto-crop
+    assert.equal(await annotationSvg.getAttribute("viewBox"), "0 0 1000 1000");
+    await viewer.getByRole("button", { name: "Slå på auto-beskjæring", exact: true }).click();
+    assert.equal(
+      await viewer.getByRole("button", { name: "Slå av auto-beskjæring", exact: true }).getAttribute("aria-pressed"),
+      "true",
+    );
+    await page.waitForFunction(() => {
+      const svg = document.querySelector('[role="dialog"][aria-label^="Noteviser:"] svg[preserveAspectRatio="none"]');
+      const vb = svg?.getAttribute("viewBox");
+      return Boolean(vb && vb !== "0 0 1000 1000");
+    });
+    assert.notEqual(
+      await annotationSvg.getAttribute("viewBox"),
+      "0 0 1000 1000",
+      "auto-crop updates annotation SVG viewBox",
+    );
+
+    // 10. Half-page turn
+    await viewer.getByRole("button", { name: "Slå på halvside-vending", exact: true }).click();
+    assert.equal(
+      await viewer.getByRole("button", { name: "Slå av halvside-vending", exact: true }).getAttribute("aria-pressed"),
+      "true",
+    );
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("Side 1–2 / 3").waitFor({ state: "visible" });
+    await viewer.getByText("Side 2 (øverst)").waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 (nederst)").waitFor({ state: "visible" });
+    assert.equal(await viewer.locator("canvas").count(), 2, "split view renders two canvases");
+
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("Side 2 / 3").waitFor({ state: "visible" });
+    assert.equal(await viewer.locator("canvas").count(), 1, "advancing from split view shows page 2");
+
+    // 11. Zero console errors, page errors, and horizontal overflow
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    assert.equal(overflow, false, "no horizontal overflow at 390x844");
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+
+
 

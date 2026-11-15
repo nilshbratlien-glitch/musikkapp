@@ -6,10 +6,21 @@ import {
   type SheetMeta,
   type SheetRecord,
 } from "./noter.ts";
+import { cloneAnnotationItems, type AnnotationItem } from "./noter-annotations.ts";
 
 export const NOTER_DB_NAME = "musikkapp-noter-v1";
 export const NOTER_STORE_NAME = "sheets";
-const NOTER_DB_VERSION = 1;
+export const NOTER_ANNOTATIONS_STORE_NAME = "annotations";
+export const NOTER_ANNOTATIONS_SHEET_INDEX = "bySheetId";
+export const NOTER_DB_VERSION = 2;
+
+export type PageAnnotationsRecord = {
+  key: string;
+  sheetId: string;
+  page: number;
+  items: AnnotationItem[];
+  updatedAt: number;
+};
 
 export type SaveSheetInput = {
   id?: string;
@@ -20,11 +31,25 @@ export type SaveSheetInput = {
   bpm?: number;
   lastPage?: number;
   nightMode?: boolean;
+  annotationsVisible?: boolean;
+  autoCrop?: boolean;
+  halfPageTurn?: boolean;
   pdfData: ArrayBuffer;
 };
 
 export type UpdateSheetMetaPatch = Partial<
-  Pick<SheetMeta, "title" | "pageCount" | "bpm" | "lastPage" | "nightMode" | "lastOpenedAt">
+  Pick<
+    SheetMeta,
+    | "title"
+    | "pageCount"
+    | "bpm"
+    | "lastPage"
+    | "nightMode"
+    | "annotationsVisible"
+    | "autoCrop"
+    | "halfPageTurn"
+    | "lastOpenedAt"
+  >
 >;
 
 function hasIndexedDb(): boolean {
@@ -40,7 +65,17 @@ function generateSheetId(): string {
 
 function stripPdfData(record: SheetRecord): SheetMeta {
   const { pdfData: _pdfData, ...meta } = record;
-  return meta;
+  return {
+    ...meta,
+    annotationsVisible: meta.annotationsVisible ?? true,
+    autoCrop: meta.autoCrop ?? false,
+    halfPageTurn: meta.halfPageTurn ?? false,
+  };
+}
+
+export function makePageAnnotationsKey(sheetId: string, page: number): string {
+  const safePage = Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1;
+  return `${sheetId}:${safePage}`;
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -50,6 +85,10 @@ function openDb(): Promise<IDBDatabase> {
       const db = request.result;
       if (!db.objectStoreNames.contains(NOTER_STORE_NAME)) {
         db.createObjectStore(NOTER_STORE_NAME, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(NOTER_ANNOTATIONS_STORE_NAME)) {
+        const annStore = db.createObjectStore(NOTER_ANNOTATIONS_STORE_NAME, { keyPath: "key" });
+        annStore.createIndex(NOTER_ANNOTATIONS_SHEET_INDEX, "sheetId", { unique: false });
       }
     };
     request.onsuccess = () => {
@@ -66,6 +105,7 @@ function openDb(): Promise<IDBDatabase> {
 }
 
 function runTransaction<T>(
+  storeName: string,
   mode: IDBTransactionMode,
   executor: (store: IDBObjectStore) => IDBRequest<T>,
 ): Promise<T> {
@@ -85,8 +125,8 @@ function runTransaction<T>(
         };
 
         try {
-          const tx = db.transaction(NOTER_STORE_NAME, mode);
-          const store = tx.objectStore(NOTER_STORE_NAME);
+          const tx = db.transaction(storeName, mode);
+          const store = tx.objectStore(storeName);
           let resultValue: T | undefined;
           let hasResult = false;
 
@@ -180,7 +220,9 @@ export async function listSheets(): Promise<SheetMeta[]> {
 
 export async function getSheet(id: string): Promise<SheetRecord | null> {
   if (!hasIndexedDb() || !id) return null;
-  const record = await runTransaction<SheetRecord | undefined>("readonly", (store) => store.get(id));
+  const record = await runTransaction<SheetRecord | undefined>(NOTER_STORE_NAME, "readonly", (store) =>
+    store.get(id),
+  );
   return record ?? null;
 }
 
@@ -201,13 +243,16 @@ export async function saveSheet(input: SaveSheetInput): Promise<SheetRecord> {
     bpm: clampBpm(input.bpm ?? DEFAULT_BPM),
     lastPage: clampPage(input.lastPage ?? 1, Math.max(1, pageCount)),
     nightMode: Boolean(input.nightMode),
+    annotationsVisible: input.annotationsVisible ?? true,
+    autoCrop: Boolean(input.autoCrop),
+    halfPageTurn: Boolean(input.halfPageTurn),
     createdAt: now,
     updatedAt: now,
     lastOpenedAt: now,
     pdfData: input.pdfData,
   };
 
-  await runTransaction<IDBValidKey>("readwrite", (store) => store.put(record));
+  await runTransaction<IDBValidKey>(NOTER_STORE_NAME, "readwrite", (store) => store.put(record));
   return record;
 }
 
@@ -262,6 +307,16 @@ export async function updateSheetMeta(id: string, patch: UpdateSheetMetaPatch): 
             bpm: nextBpm,
             lastPage: nextLastPage,
             nightMode: patch.nightMode !== undefined ? Boolean(patch.nightMode) : existing.nightMode,
+            annotationsVisible:
+              patch.annotationsVisible !== undefined
+                ? Boolean(patch.annotationsVisible)
+                : (existing.annotationsVisible ?? true),
+            autoCrop:
+              patch.autoCrop !== undefined ? Boolean(patch.autoCrop) : (existing.autoCrop ?? false),
+            halfPageTurn:
+              patch.halfPageTurn !== undefined
+                ? Boolean(patch.halfPageTurn)
+                : (existing.halfPageTurn ?? false),
             lastOpenedAt: patch.lastOpenedAt !== undefined ? patch.lastOpenedAt : existing.lastOpenedAt,
             updatedAt: Date.now(),
           };
@@ -298,8 +353,168 @@ export async function updateSheetMeta(id: string, patch: UpdateSheetMetaPatch): 
   });
 }
 
+export async function getPageAnnotations(sheetId: string, page: number): Promise<AnnotationItem[]> {
+  if (!hasIndexedDb() || !sheetId) return [];
+  const key = makePageAnnotationsKey(sheetId, page);
+  const record = await runTransaction<PageAnnotationsRecord | undefined>(
+    NOTER_ANNOTATIONS_STORE_NAME,
+    "readonly",
+    (store) => store.get(key),
+  );
+  return record?.items ? cloneAnnotationItems(record.items) : [];
+}
+
+export async function savePageAnnotations(
+  sheetId: string,
+  page: number,
+  items: AnnotationItem[],
+): Promise<PageAnnotationsRecord> {
+  if (!hasIndexedDb()) {
+    throw new Error("IndexedDB er ikke tilgjengelig i dette miljøet.");
+  }
+  if (!sheetId) {
+    throw new Error("Mangler note-ID for å lagre annotasjoner.");
+  }
+  const safePage = Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1;
+  const record: PageAnnotationsRecord = {
+    key: makePageAnnotationsKey(sheetId, safePage),
+    sheetId,
+    page: safePage,
+    items: cloneAnnotationItems(items),
+    updatedAt: Date.now(),
+  };
+
+  await runTransaction<IDBValidKey>(NOTER_ANNOTATIONS_STORE_NAME, "readwrite", (store) =>
+    store.put(record),
+  );
+  return record;
+}
+
+export async function deleteSheetAnnotations(sheetId: string): Promise<number> {
+  if (!hasIndexedDb() || !sheetId) return 0;
+  const db = await openDb();
+  return new Promise<number>((resolve, reject) => {
+    let settled = false;
+    let deletedCount = 0;
+
+    const fail = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      try {
+        db.close();
+      } catch {
+        /* ignore */
+      }
+      reject(err instanceof Error ? err : new Error("Kunne ikke slette annotasjoner fra IndexedDB."));
+    };
+
+    try {
+      const tx = db.transaction(NOTER_ANNOTATIONS_STORE_NAME, "readwrite");
+      const store = tx.objectStore(NOTER_ANNOTATIONS_STORE_NAME);
+      const index = store.index(NOTER_ANNOTATIONS_SHEET_INDEX);
+      const query = typeof IDBKeyRange !== "undefined" ? IDBKeyRange.only(sheetId) : undefined;
+      const req = index.openCursor(query);
+
+      req.onsuccess = () => {
+        try {
+          const cursor = req.result;
+          if (cursor) {
+            const value = cursor.value as PageAnnotationsRecord;
+            if (value.sheetId === sheetId) {
+              deletedCount += 1;
+              cursor.delete();
+            }
+            cursor.continue();
+          }
+        } catch (err) {
+          fail(err);
+        }
+      };
+      req.onerror = () => {
+        fail(req.error ?? new Error("Kunne ikke slette annotasjoner fra IndexedDB."));
+      };
+
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        db.close();
+        resolve(deletedCount);
+      };
+      tx.onerror = () => {
+        fail(tx.error ?? new Error("IndexedDB-transaksjon feilet."));
+      };
+      tx.onabort = () => {
+        fail(tx.error ?? new Error("IndexedDB-transaksjon avbrutt."));
+      };
+    } catch (err) {
+      fail(err);
+    }
+  });
+}
+
 export async function deleteSheet(id: string): Promise<boolean> {
   if (!hasIndexedDb() || !id) return false;
-  await runTransaction<undefined>("readwrite", (store) => store.delete(id));
-  return true;
+  const db = await openDb();
+  return new Promise<boolean>((resolve, reject) => {
+    let settled = false;
+
+    const fail = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      try {
+        db.close();
+      } catch {
+        /* ignore */
+      }
+      reject(err instanceof Error ? err : new Error("Kunne ikke slette note fra IndexedDB."));
+    };
+
+    try {
+      const tx = db.transaction([NOTER_STORE_NAME, NOTER_ANNOTATIONS_STORE_NAME], "readwrite");
+      const sheetStore = tx.objectStore(NOTER_STORE_NAME);
+      const annStore = tx.objectStore(NOTER_ANNOTATIONS_STORE_NAME);
+
+      const delSheetReq = sheetStore.delete(id);
+      delSheetReq.onerror = () => {
+        fail(delSheetReq.error ?? new Error("Kunne ikke slette note fra IndexedDB."));
+      };
+
+      const index = annStore.index(NOTER_ANNOTATIONS_SHEET_INDEX);
+      const query = typeof IDBKeyRange !== "undefined" ? IDBKeyRange.only(id) : undefined;
+      const cursorReq = index.openCursor(query);
+
+      cursorReq.onsuccess = () => {
+        try {
+          const cursor = cursorReq.result;
+          if (cursor) {
+            const value = cursor.value as PageAnnotationsRecord;
+            if (value.sheetId === id) {
+              cursor.delete();
+            }
+            cursor.continue();
+          }
+        } catch (err) {
+          fail(err);
+        }
+      };
+      cursorReq.onerror = () => {
+        fail(cursorReq.error ?? new Error("Kunne ikke slette noteannotasjoner fra IndexedDB."));
+      };
+
+      tx.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        db.close();
+        resolve(true);
+      };
+      tx.onerror = () => {
+        fail(tx.error ?? new Error("IndexedDB-transaksjon feilet."));
+      };
+      tx.onabort = () => {
+        fail(tx.error ?? new Error("IndexedDB-transaksjon avbrutt."));
+      };
+    } catch (err) {
+      fail(err);
+    }
+  });
 }

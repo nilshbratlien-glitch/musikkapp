@@ -7,6 +7,9 @@ export type SheetMeta = {
   bpm: number;
   lastPage: number;
   nightMode: boolean;
+  annotationsVisible?: boolean;
+  autoCrop?: boolean;
+  halfPageTurn?: boolean;
   createdAt: number;
   updatedAt: number;
   lastOpenedAt: number;
