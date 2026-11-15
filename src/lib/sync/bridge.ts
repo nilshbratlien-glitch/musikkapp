@@ -437,7 +437,7 @@ export function initSyncBridge() {
           payload.endsAt,
           payload.remainMs,
         );
-        const to = blockTool(payload.blockId as BlockId) ?? "/oveplan";
+        const to = blockTool(payload.blockId as BlockId) ?? "/";
         if (routerNavigate) {
           routerNavigate(to);
         }
@@ -460,7 +460,7 @@ export function initSyncBridge() {
           payload.remainMs,
           payload.chime,
         );
-        const to = blockTool(payload.blockId as BlockId) ?? "/oveplan";
+        const to = blockTool(payload.blockId as BlockId) ?? "/";
         if (routerNavigate) {
           routerNavigate(to);
         }
@@ -485,7 +485,7 @@ export function initSyncBridge() {
         stopRemoteSightPlayback();
         stopPlanRemote(payload.chime);
         if (routerNavigate) {
-          routerNavigate("/oveplan");
+          routerNavigate("/");
         }
         break;
       }

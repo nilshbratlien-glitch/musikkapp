@@ -17,6 +17,18 @@ import {
   type SheetMeta,
 } from "./noter.ts";
 import {
+  ALL_CATEGORIES_FILTER,
+  UNCATEGORIZED_FILTER,
+  collectAllCategories,
+  countSheetsPerCategory,
+  filterSheetsByCategory,
+  normalizeCategoriesList,
+  normalizeCategoryName,
+  removeCategoryFromSheets,
+  renameCategoryOnSheets,
+  toggleSheetCategory,
+} from "./noter-categories.ts";
+import {
   ANNOTATION_COLORS,
   ANNOTATION_VIEWBOX_SIZE,
   HIGHLIGHTER_COLORS,
@@ -44,6 +56,9 @@ import {
   getHalfPageRegions,
   isFullPageRect,
   normalizeCropRect,
+  normalizeManualCropsMap,
+  resizeCropRect,
+  resolveEffectiveCropRect,
 } from "./noter-crop.ts";
 import {
   detectSwipeDirection,
@@ -68,13 +83,26 @@ import {
   getSheet,
   listAllAnnotations,
   listSetlists,
+  listSheetAnnotations,
   listSheets,
   makePageAnnotationsKey,
+  replaceSheetWithTrimmedPdf,
   savePageAnnotations,
   saveSetlist,
   saveSheet,
+  saveTrimmedSheetAsCopy,
   updateSheetMeta,
 } from "./noter-db.ts";
+import {
+  buildPageRemapMap,
+  formatPageSelectionSummary,
+  parsePageRangeInput,
+  remapBookmarks,
+  remapJumpLinks,
+  remapManualCrops,
+  remapSheetPageAnnotations,
+  trimPdfBytes,
+} from "./noter-trim.ts";
 import {
   buildNoterBackupPayload,
   parseNoterBackupJson,
@@ -1215,4 +1243,298 @@ describe("noter-db v3 setlists, bookmarks/jumpLinks, and backup restore", () => 
     assert.equal(await getSetlist(sl.id), null);
   });
 });
+
+describe("noter-trim page selection, remapping, and DB integration", () => {
+  const originalIndexedDb = globalThis.indexedDB;
+  const originalKeyRange = globalThis.IDBKeyRange;
+  const originalPdfLib = (globalThis as unknown as { PDFLib?: unknown }).PDFLib;
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, "indexedDB", {
+      value: originalIndexedDb,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "IDBKeyRange", {
+      value: originalKeyRange,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "PDFLib", {
+      value: originalPdfLib,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it("parses and formats page ranges cleanly", () => {
+    assert.deepEqual(parsePageRangeInput("14-16", 70), [14, 15, 16]);
+    assert.deepEqual(parsePageRangeInput("16–14, 3, 99, 0, 14", 70), [3, 14, 15, 16]);
+    assert.deepEqual(parsePageRangeInput("", 70), []);
+    assert.equal(formatPageSelectionSummary([3, 14, 15, 16, 42]), "3, 14-16, 42");
+    assert.equal(formatPageSelectionSummary([]), "");
+  });
+
+  it("remaps bookmarks, jump links, and page annotations when trimming pages", () => {
+    const pageMap = buildPageRemapMap([14, 15, 16]);
+    assert.equal(pageMap.get(14), 1);
+    assert.equal(pageMap.get(15), 2);
+    assert.equal(pageMap.get(16), 3);
+    assert.equal(pageMap.get(13), undefined);
+
+    const bookmarks = remapBookmarks(
+      [
+        { id: "b1", page: 2, label: "Intro", createdAt: 1 },
+        { id: "b2", page: 15, label: "Solo", createdAt: 2 },
+      ],
+      pageMap,
+    );
+    assert.deepEqual(bookmarks, [{ id: "b2", page: 2, label: "Solo", createdAt: 2 }]);
+
+    const jumpLinks = remapJumpLinks(
+      [
+        { id: "j1", sourcePage: 16, targetPage: 14, x: 500, y: 500, label: "D.S." },
+        { id: "j2", sourcePage: 16, targetPage: 5, x: 200, y: 200, label: "Coda" },
+      ],
+      pageMap,
+    );
+    assert.deepEqual(jumpLinks, [
+      { id: "j1", sourcePage: 3, targetPage: 1, x: 500, y: 500, label: "D.S." },
+    ]);
+
+    const anns = remapSheetPageAnnotations(
+      [
+        { key: "s1:3", sheetId: "s1", page: 3, items: [], updatedAt: 10 },
+        {
+          key: "s1:14",
+          sheetId: "s1",
+          page: 14,
+          items: [{ id: "t1", kind: "text", x: 100, y: 100, text: "p", color: "#fff" }],
+          updatedAt: 20,
+        },
+      ],
+      "s1",
+      pageMap,
+    );
+    assert.equal(anns.length, 1);
+    assert.equal(anns[0]?.page, 1);
+    assert.equal(anns[0]?.key, "s1:1");
+  });
+
+  it("trims PDF bytes via PDFLib and updates/copies sheets in IndexedDB", async () => {
+    let copiedIndices: number[] = [];
+    Object.defineProperty(globalThis, "PDFLib", {
+      value: {
+        PDFDocument: {
+          load: async () => ({
+            getPageCount: () => 5,
+          }),
+          create: async () => {
+            const pages: unknown[] = [];
+            return {
+              copyPages: async (_src: unknown, indices: number[]) => {
+                copiedIndices = indices;
+                return indices.map((i) => ({ pageIndex: i }));
+              },
+              addPage: (p: unknown) => pages.push(p),
+              save: async () => new Uint8Array([37, 80, 68, 70, pages.length]),
+            };
+          },
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const trimmed = await trimPdfBytes(new Uint8Array([1, 2, 3]).buffer, [2, 4]);
+    assert.deepEqual(copiedIndices, [1, 3]);
+    assert.deepEqual(trimmed.keptPages, [2, 4]);
+    assert.equal(trimmed.pdfData.byteLength, 5);
+
+    const harness = createFakeIndexedDb();
+    Object.defineProperty(globalThis, "indexedDB", {
+      value: harness.fakeIndexedDb,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "IDBKeyRange", {
+      value: { only: (v: unknown) => ({ lower: v, upper: v }) },
+      configurable: true,
+      writable: true,
+    });
+
+    const original = await saveSheet({
+      id: "score-70",
+      title: "Partitur",
+      fileName: "partitur.pdf",
+      fileSize: 5000,
+      pageCount: 5,
+      lastPage: 4,
+      bookmarks: [
+        { id: "bm1", page: 1, label: "Cover", createdAt: 1 },
+        { id: "bm2", page: 4, label: "Marimba", createdAt: 2 },
+      ],
+      jumpLinks: [{ id: "jl1", sourcePage: 4, targetPage: 2, x: 300, y: 300, label: "D.S." }],
+      pdfData: new Uint8Array([1, 2, 3, 4]).buffer,
+    });
+    await savePageAnnotations(original.id, 1, [
+      { id: "a1", kind: "text", x: 10, y: 10, text: "Drop", color: "#fff" },
+    ]);
+    await savePageAnnotations(original.id, 4, [
+      { id: "a4", kind: "text", x: 20, y: 20, text: "Keep", color: "#fff" },
+    ]);
+
+    const copy = await saveTrimmedSheetAsCopy({
+      sourceSheetId: original.id,
+      title: "Partitur – Marimba",
+      pdfData: trimmed.pdfData,
+      keptPages: [2, 4],
+    });
+    assert.equal(copy.pageCount, 2);
+    assert.equal(copy.bookmarks?.[0]?.page, 2);
+    assert.equal((await listSheetAnnotations(copy.id))[0]?.page, 2);
+
+    const replaced = await replaceSheetWithTrimmedPdf({
+      sheetId: original.id,
+      pdfData: trimmed.pdfData,
+      keptPages: [2, 4],
+    });
+    assert.equal(replaced?.pageCount, 2);
+    assert.equal(replaced?.lastPage, 2);
+    assert.equal(replaced?.fileSize, trimmed.pdfData.byteLength);
+    assert.deepEqual(replaced?.bookmarks, [{ id: "bm2", page: 2, label: "Marimba", createdAt: 2 }]);
+    assert.deepEqual(replaced?.jumpLinks, [
+      { id: "jl1", sourcePage: 2, targetPage: 1, x: 300, y: 300, label: "D.S." },
+    ]);
+    const replacedAnns = await listSheetAnnotations(original.id);
+    assert.equal(replacedAnns.length, 1);
+    assert.equal(replacedAnns[0]?.page, 2);
+  });
+});
+
+describe("noter-crop manual crop resizing, resolution, and remapping", () => {
+  it("resizes corners, edges, and moves crop box within [0, 1] and minFraction", () => {
+    const start = { x: 0.2, y: 0.2, width: 0.6, height: 0.6 };
+
+    const nw = resizeCropRect(start, "nw", 0.1, 0.05);
+    assert.ok(Math.abs(nw.x - 0.3) < 1e-6);
+    assert.ok(Math.abs(nw.y - 0.25) < 1e-6);
+    assert.ok(Math.abs(nw.width - 0.5) < 1e-6);
+    assert.ok(Math.abs(nw.height - 0.55) < 1e-6);
+
+    // Prevent collapsing below minFraction
+    const clampedMin = resizeCropRect(start, "se", -0.9, -0.9, 0.15);
+    assert.ok(clampedMin.width >= 0.15 - 1e-6);
+    assert.ok(clampedMin.height >= 0.15 - 1e-6);
+
+    // Move clamped to [0, 1]
+    const moved = resizeCropRect(start, "move", 0.5, -0.5);
+    assert.ok(Math.abs(moved.x - 0.4) < 1e-6);
+    assert.ok(Math.abs(moved.y - 0) < 1e-6);
+    assert.ok(Math.abs(moved.width - 0.6) < 1e-6);
+    assert.ok(Math.abs(moved.height - 0.6) < 1e-6);
+  });
+
+  it("prioritizes manual crop over autoCrop and remaps on page trim", () => {
+    const manual = { 1: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 } };
+    const auto = {
+      1: { x: 0.05, y: 0.05, width: 0.9, height: 0.9 },
+      2: { x: 0.08, y: 0.08, width: 0.84, height: 0.84 },
+    };
+
+    // Manual overrides autoCrop even when autoCrop is false
+    assert.deepEqual(resolveEffectiveCropRect(1, false, manual, auto), manual[1]);
+    assert.deepEqual(resolveEffectiveCropRect(1, true, manual, auto), manual[1]);
+    assert.deepEqual(resolveEffectiveCropRect(2, true, manual, auto), auto[2]);
+    assert.deepEqual(resolveEffectiveCropRect(2, false, manual, auto), FULL_PAGE_RECT);
+
+    // normalizeManualCropsMap strips full-page entries
+    const cleaned = normalizeManualCropsMap({
+      1: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
+      2: FULL_PAGE_RECT,
+    });
+    assert.deepEqual(Object.keys(cleaned), ["1"]);
+
+    // Remapping on PDF trim
+    const pageMap = buildPageRemapMap([2, 4]);
+    const remapped = remapManualCrops(
+      {
+        1: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
+        4: { x: 0.15, y: 0.15, width: 0.7, height: 0.7 },
+      },
+      pageMap,
+    );
+    assert.deepEqual(remapped, { 2: { x: 0.15, y: 0.15, width: 0.7, height: 0.7 } });
+  });
+});
+
+describe("noter-categories tags, filtering, counts, and bulk rename/remove", () => {
+  it("normalizes, toggles, collects, filters, counts, renames, and removes categories", () => {
+    assert.equal(normalizeCategoryName("  Korps   17. mai  "), "Korps 17. mai");
+    assert.deepEqual(normalizeCategoriesList(["Korps", "korps", "  Jul  ", ""]), ["Korps", "Jul"]);
+
+    assert.deepEqual(toggleSheetCategory(["Korps"], "Jul"), ["Korps", "Jul"]);
+    assert.deepEqual(toggleSheetCategory(["Korps", "Jul"], "korps"), ["Jul"]);
+
+    const sheets: Array<Pick<SheetMeta, "id" | "categories">> = [
+      { id: "s1", categories: ["Korps", "Jul"] },
+      { id: "s2", categories: ["Marimba"] },
+      { id: "s3", categories: [] },
+    ];
+
+    const all = collectAllCategories(sheets, ["Oppvarming", "korps"]);
+    assert.deepEqual(all, ["Jul", "Korps", "Marimba", "Oppvarming"]);
+
+    assert.equal(filterSheetsByCategory(sheets, ALL_CATEGORIES_FILTER).length, 3);
+    assert.deepEqual(
+      filterSheetsByCategory(sheets, UNCATEGORIZED_FILTER).map((s) => s.id),
+      ["s3"],
+    );
+    assert.deepEqual(
+      filterSheetsByCategory(sheets, "korps").map((s) => s.id),
+      ["s1"],
+    );
+
+    const counts = countSheetsPerCategory(sheets, all);
+    assert.equal(counts.all, 3);
+    assert.equal(counts.uncategorized, 1);
+    assert.equal(counts.byCategory["Korps"], 1);
+    assert.equal(counts.byCategory["Jul"], 1);
+    assert.equal(counts.byCategory["Oppvarming"], 0);
+
+    const renamed = renameCategoryOnSheets(sheets, "korps", "Skolekorps");
+    assert.deepEqual(renamed, [{ id: "s1", categories: ["Skolekorps", "Jul"] }]);
+
+    const removed = removeCategoryFromSheets(sheets, "Jul");
+    assert.deepEqual(removed, [{ id: "s1", categories: ["Korps"] }]);
+  });
+
+  it("includes categories in backup payload", () => {
+    const payload = buildNoterBackupPayload(
+      [
+        {
+          id: "s1",
+          title: "Marsj",
+          fileName: "marsj.pdf",
+          fileSize: 1200,
+          pageCount: 2,
+          bpm: 120,
+          lastPage: 1,
+          nightMode: false,
+          categories: ["Korps", "17. mai"],
+          createdAt: 1,
+          updatedAt: 1,
+          lastOpenedAt: 1,
+        },
+      ],
+      [],
+      [],
+      1000,
+    );
+    assert.deepEqual(payload.sheets[0]?.categories, ["Korps", "17. mai"]);
+  });
+});
+
+
+
 

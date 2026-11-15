@@ -222,7 +222,7 @@ describe("plan clock on the pulse core", () => {
     planClock.beginBlock(item("srf"), true);
     planClock.beginBlock(item("rep"), true);
     planClock.bindPlanNavigate(() => {});
-    assert.deepEqual(went, ["/metronom", "/"]);
+    assert.deepEqual(went, ["/metronom", "/bladlesing"]);
     assert.equal(blockTool("fourmallet"), "/metronom");
     assert.equal(playsMetronome("rep"), false);
   });

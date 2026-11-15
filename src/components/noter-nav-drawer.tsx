@@ -1,4 +1,4 @@
-import { Bookmark, BookOpen, ListMusic, Plus, Trash2, X } from "lucide-react";
+import { Bookmark, BookOpen, ListMusic, Plus, Scissors, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { SetlistRecord, SheetBookmark, SheetMeta } from "@/lib/noter";
 import { sortBookmarks } from "@/lib/noter-setlists";
@@ -14,6 +14,7 @@ export type NoterNavDrawerProps = {
   pageCount: number;
   currentPage: number;
   onSelectPage: (page: number) => void;
+  onOpenTrimModal?: () => void;
   bookmarks: readonly SheetBookmark[];
   onAddBookmark: (page: number, label: string) => void;
   onDeleteBookmark: (id: string) => void;
@@ -33,6 +34,7 @@ export function NoterNavDrawer({
   pageCount,
   currentPage,
   onSelectPage,
+  onOpenTrimModal,
   bookmarks,
   onAddBookmark,
   onDeleteBookmark,
@@ -166,7 +168,21 @@ export function NoterNavDrawer({
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {tab === "pages" ? (
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+            <div className="space-y-3">
+              {pageCount > 1 && onOpenTrimModal ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenTrimModal();
+                  }}
+                  className="metro-press flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-fg hover:border-accent hover:text-accent"
+                >
+                  <Scissors className="size-4 text-accent" aria-hidden="true" />
+                  <span>Velg sider å beholde (Trim PDF)</span>
+                </button>
+              ) : null}
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
               {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => {
                 const isCurrent = p === currentPage;
                 const hasBookmark = bookmarkedPages.has(p);
@@ -211,6 +227,7 @@ export function NoterNavDrawer({
                   </button>
                 );
               })}
+              </div>
             </div>
           ) : tab === "bookmarks" ? (
             <div className="space-y-4">

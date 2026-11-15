@@ -51,12 +51,13 @@ describe("tool namespaces and routes", () => {
   });
 
   it("maps each route to the right tool", () => {
-    assert.equal(toolForPath("/").id, "bladlesing");
+    assert.equal(toolForPath("/").id, "oveplan");
+    assert.equal(toolForPath("/bladlesing").id, "bladlesing");
     assert.equal(toolForPath("/metronom").id, "metronom");
     assert.equal(toolForPath("/oveplan").id, "oveplan");
     assert.equal(toolForPath("/notekort").id, "notekort");
     assert.equal(toolForPath("/noter").id, "noter");
-    assert.equal(toolForPath("/ukjent").id, "bladlesing");
+    assert.equal(toolForPath("/ukjent").id, "oveplan");
   });
 
   it("writes inside the namespace and survives a storage failure", () => {

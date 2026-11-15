@@ -4,7 +4,7 @@ export const TOOLS = [
   {
     id: "bladlesing",
     label: "Bladlesing",
-    to: "/",
+    to: "/bladlesing",
     body: "Bladlesing for køller og trompet. Noter, nivåer og avspilling kommer her.",
   },
   {
@@ -16,7 +16,7 @@ export const TOOLS = [
   {
     id: "oveplan",
     label: "Øveplan",
-    to: "/oveplan",
+    to: "/",
     body: "Øveplan for køller og trompet. Økter, tidtaking og lagrede planer kommer her.",
   },
   {
@@ -40,7 +40,8 @@ export function toolNamespace(id: ToolId, profile: InstrumentProfile = getProfil
 }
 
 export function toolForPath(pathname: string) {
-  return TOOLS.find((tool) => tool.to === pathname) ?? TOOLS[0];
+  if (pathname === "/oveplan") return TOOLS[2];
+  return TOOLS.find((tool) => tool.to === pathname) ?? TOOLS[2];
 }
 
 function browserStorage(): Storage | null {

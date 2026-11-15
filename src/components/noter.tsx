@@ -9,12 +9,16 @@ import {
   Pencil,
   Play,
   Plus,
+  Scissors,
   Search,
+  Settings2,
+  Tag,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NoterPageTrimModal } from "@/components/noter-page-trim-modal";
 import { NoterViewer, type ViewerSetlistContext } from "@/components/noter-viewer";
 import {
   extractTitleFromFilename,
@@ -28,16 +32,35 @@ import {
 } from "@/lib/noter";
 import { exportNoterBackup, parseNoterBackupJson, restoreNoterBackup } from "@/lib/noter-backup";
 import {
+  ALL_CATEGORIES_FILTER,
+  UNCATEGORIZED_FILTER,
+  collectAllCategories,
+  countSheetsPerCategory,
+  filterSheetsByCategory,
+  normalizeCategoriesList,
+  normalizeCategoryName,
+  readActiveCategoryFilter,
+  readSavedCategories,
+  removeCategoryFromSheets,
+  renameCategoryOnSheets,
+  toggleSheetCategory,
+  writeActiveCategoryFilter,
+  writeSavedCategories,
+} from "@/lib/noter-categories";
+import {
   deleteSetlist,
   deleteSheet,
   getSheet,
   listSetlists,
   listSheets,
+  replaceSheetWithTrimmedPdf,
   saveSetlist,
   saveSheet,
+  saveTrimmedSheetAsCopy,
   updateSheetMeta,
   type UpdateSheetMetaPatch,
 } from "@/lib/noter-db";
+import { loadPdfDocument } from "@/lib/noter-pdf";
 import { moveSetlistItem } from "@/lib/noter-setlists";
 
 type LibraryTab = "sheets" | "setlists";
@@ -70,9 +93,26 @@ export function Noter() {
 
   const [activeSheet, setActiveSheet] = useState<SheetRecord | null>(null);
   const [activeSetlistSession, setActiveSetlistSession] = useState<ActiveSetlistSession | null>(null);
+  const [trimTarget, setTrimTarget] = useState<{ sheet: SheetRecord; subtitle?: string } | null>(
+    null,
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const [savedCategories, setSavedCategories] = useState<string[]>(() => readSavedCategories());
+  const [activeCategory, setActiveCategoryState] = useState<string>(() => readActiveCategoryFilter());
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
+  const [renamingCategoryValue, setRenamingCategoryValue] = useState("");
+  const [categoryPickerSheetId, setCategoryPickerSheetId] = useState<string | null>(null);
+  const [pickerNewCategoryName, setPickerNewCategoryName] = useState("");
+
+  const setActiveCategory = useCallback((next: string) => {
+    setActiveCategoryState(next);
+    writeActiveCategoryFilter(next);
+  }, []);
 
   const refreshLibrary = useCallback(async () => {
     try {
@@ -100,6 +140,11 @@ export function Noter() {
 
       const rejected: string[] = [];
       let addedCount = 0;
+      let lastSaved: SheetRecord | null = null;
+      const autoCategories =
+        activeCategory !== ALL_CATEGORIES_FILTER && activeCategory !== UNCATEGORIZED_FILTER
+          ? [activeCategory]
+          : [];
 
       try {
         for (const file of files) {
@@ -108,17 +153,36 @@ export function Noter() {
             continue;
           }
           const pdfData = await file.arrayBuffer();
-          await saveSheet({
+          let probedPageCount = 0;
+          if (files.length === 1) {
+            try {
+              const doc = await loadPdfDocument(pdfData);
+              probedPageCount = doc.numPages;
+              await doc.destroy();
+            } catch {
+              /* fall back to 0 if PDF.js is unavailable */
+            }
+          }
+          const saved = await saveSheet({
             title: extractTitleFromFilename(file.name),
             fileName: file.name,
             fileSize: file.size,
+            pageCount: probedPageCount,
+            categories: autoCategories,
             pdfData,
           });
+          lastSaved = saved;
           addedCount += 1;
         }
 
         if (addedCount > 0) {
           await refreshLibrary();
+        }
+        if (files.length === 1 && lastSaved && lastSaved.pageCount > 10) {
+          setTrimTarget({
+            sheet: lastSaved,
+            subtitle: `Stor PDF (${lastSaved.pageCount} sider) – velg sidene du vil beholde, eller trykk Avbryt for å beholde alle.`,
+          });
         }
         if (rejected.length > 0) {
           setError(
@@ -134,8 +198,22 @@ export function Noter() {
         }
       }
     },
-    [refreshLibrary],
+    [refreshLibrary, activeCategory],
   );
+
+  const handleOpenTrimForSheet = useCallback(async (id: string) => {
+    setError(null);
+    try {
+      const record = await getSheet(id);
+      if (!record) {
+        setError("Fant ikke PDF-filen i lokal lagring.");
+        return;
+      }
+      setTrimTarget({ sheet: record });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke åpne sidevelgeren.");
+    }
+  }, []);
 
   const handleOpenSheet = useCallback(async (id: string, setlistSession?: ActiveSetlistSession | null) => {
     setError(null);
@@ -357,17 +435,135 @@ export function Noter() {
     };
   }, [activeSetlistSession, setlists, sheets, handleOpenSheet]);
 
+  const allCategories = useMemo(
+    () => collectAllCategories(sheets, savedCategories),
+    [sheets, savedCategories],
+  );
+
+  const categoryCounts = useMemo(
+    () => countSheetsPerCategory(sheets, allCategories),
+    [sheets, allCategories],
+  );
+
+  useEffect(() => {
+    if (
+      activeCategory !== ALL_CATEGORIES_FILTER &&
+      activeCategory !== UNCATEGORIZED_FILTER &&
+      !allCategories.some((c) => c.toLocaleLowerCase("nb") === activeCategory.toLocaleLowerCase("nb"))
+    ) {
+      setActiveCategory(ALL_CATEGORIES_FILTER);
+    }
+  }, [activeCategory, allCategories, setActiveCategory]);
+
+  const registerCategoryName = useCallback((rawName: string): string | null => {
+    const clean = normalizeCategoryName(rawName);
+    if (!clean) return null;
+    setSavedCategories((prev) => {
+      const next = normalizeCategoriesList([...prev, clean]);
+      writeSavedCategories(next);
+      return next;
+    });
+    return clean;
+  }, []);
+
+  const handleCreateCategory = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const clean = registerCategoryName(newCategoryName);
+    if (!clean) return;
+    setNewCategoryName("");
+  };
+
+  const handleToggleSheetCategory = async (sheet: SheetMeta, categoryName: string) => {
+    const clean = registerCategoryName(categoryName);
+    if (!clean) return;
+    const nextCategories = toggleSheetCategory(sheet.categories, clean);
+    try {
+      const updated = await updateSheetMeta(sheet.id, { categories: nextCategories });
+      if (updated) {
+        setSheets((prev) => prev.map((s) => (s.id === sheet.id ? updated : s)));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke oppdatere kategorier.");
+    }
+  };
+
+  const handleRenameCategory = async (oldName: string, nextRawName: string) => {
+    const cleanNew = normalizeCategoryName(nextRawName);
+    setRenamingCategory(null);
+    if (!cleanNew || cleanNew.toLocaleLowerCase("nb") === oldName.toLocaleLowerCase("nb")) {
+      return;
+    }
+    const updates = renameCategoryOnSheets(sheets, oldName, cleanNew);
+    try {
+      await Promise.all(
+        updates.map((u) => updateSheetMeta(u.id, { categories: u.categories })),
+      );
+      setSheets((prev) =>
+        prev.map((s) => {
+          const hit = updates.find((u) => u.id === s.id);
+          return hit ? { ...s, categories: hit.categories } : s;
+        }),
+      );
+      setSavedCategories((prev) => {
+        const next = normalizeCategoriesList(
+          prev.map((c) => (c.toLocaleLowerCase("nb") === oldName.toLocaleLowerCase("nb") ? cleanNew : c)),
+        );
+        writeSavedCategories(next);
+        return next;
+      });
+      if (activeCategory.toLocaleLowerCase("nb") === oldName.toLocaleLowerCase("nb")) {
+        setActiveCategory(cleanNew);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke gi nytt navn til kategori.");
+    }
+  };
+
+  const handleDeleteCategory = async (categoryName: string) => {
+    const updates = removeCategoryFromSheets(sheets, categoryName);
+    try {
+      await Promise.all(
+        updates.map((u) => updateSheetMeta(u.id, { categories: u.categories })),
+      );
+      setSheets((prev) =>
+        prev.map((s) => {
+          const hit = updates.find((u) => u.id === s.id);
+          return hit ? { ...s, categories: hit.categories } : s;
+        }),
+      );
+      setSavedCategories((prev) => {
+        const next = prev.filter(
+          (c) => c.toLocaleLowerCase("nb") !== categoryName.toLocaleLowerCase("nb"),
+        );
+        writeSavedCategories(next);
+        return next;
+      });
+      if (activeCategory.toLocaleLowerCase("nb") === categoryName.toLocaleLowerCase("nb")) {
+        setActiveCategory(ALL_CATEGORIES_FILTER);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke slette kategori.");
+    }
+  };
+
   const filteredSheets = useMemo(() => {
+    const byCategory = filterSheetsByCategory(sheets, activeCategory);
     const query = search.trim().toLocaleLowerCase("nb");
     const matching = query
-      ? sheets.filter(
+      ? byCategory.filter(
           (s) =>
             s.title.toLocaleLowerCase("nb").includes(query) ||
-            s.fileName.toLocaleLowerCase("nb").includes(query),
+            s.fileName.toLocaleLowerCase("nb").includes(query) ||
+            (s.categories ?? []).some((c) => c.toLocaleLowerCase("nb").includes(query)),
         )
-      : sheets;
+      : byCategory;
     return sortSheets(matching, sortBy);
-  }, [sheets, search, sortBy]);
+  }, [sheets, activeCategory, search, sortBy]);
+
+  const categoryPickerSheet = useMemo(
+    () => (categoryPickerSheetId ? sheets.find((s) => s.id === categoryPickerSheetId) ?? null : null),
+    [sheets, categoryPickerSheetId],
+  );
 
   const sheetTitleMap = useMemo(() => new Map(sheets.map((s) => [s.id, s.title])), [sheets]);
 
@@ -619,6 +815,220 @@ export function Noter() {
               </div>
             ) : null}
 
+            {/* Category filter chips */}
+            {sheets.length > 0 || allCategories.length > 0 ? (
+              <div className="space-y-2">
+                <div
+                  role="region"
+                  aria-label="Filtrer etter kategori"
+                  className="flex items-center gap-1.5 overflow-x-auto pb-1"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={activeCategory === ALL_CATEGORIES_FILTER}
+                    onClick={() => setActiveCategory(ALL_CATEGORIES_FILTER)}
+                    style={
+                      activeCategory === ALL_CATEGORIES_FILTER
+                        ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                        : undefined
+                    }
+                    className={
+                      activeCategory === ALL_CATEGORIES_FILTER
+                        ? "metro-press min-h-10 shrink-0 rounded-full border border-accent px-3 text-xs font-bold text-accent"
+                        : "metro-press min-h-10 shrink-0 rounded-full border border-line bg-surface px-3 text-xs font-medium text-muted hover:text-fg"
+                    }
+                  >
+                    Alle ({categoryCounts.all})
+                  </button>
+
+                  {categoryCounts.uncategorized > 0 || activeCategory === UNCATEGORIZED_FILTER ? (
+                    <button
+                      type="button"
+                      aria-pressed={activeCategory === UNCATEGORIZED_FILTER}
+                      onClick={() => setActiveCategory(UNCATEGORIZED_FILTER)}
+                      style={
+                        activeCategory === UNCATEGORIZED_FILTER
+                          ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                          : undefined
+                      }
+                      className={
+                        activeCategory === UNCATEGORIZED_FILTER
+                          ? "metro-press min-h-10 shrink-0 rounded-full border border-accent px-3 text-xs font-bold text-accent"
+                          : "metro-press min-h-10 shrink-0 rounded-full border border-line bg-surface px-3 text-xs font-medium text-muted hover:text-fg"
+                      }
+                    >
+                      Uten kategori ({categoryCounts.uncategorized})
+                    </button>
+                  ) : null}
+
+                  {allCategories.map((cat) => {
+                    const selected =
+                      activeCategory.toLocaleLowerCase("nb") === cat.toLocaleLowerCase("nb");
+                    const count = categoryCounts.byCategory[cat] ?? 0;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setActiveCategory(cat)}
+                        style={
+                          selected
+                            ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                            : undefined
+                        }
+                        className={
+                          selected
+                            ? "metro-press min-h-10 shrink-0 rounded-full border border-accent px-3 text-xs font-bold text-accent"
+                            : "metro-press min-h-10 shrink-0 rounded-full border border-line bg-surface px-3 text-xs font-medium text-muted hover:text-fg"
+                        }
+                      >
+                        {cat} ({count})
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    aria-expanded={manageCategoriesOpen}
+                    onClick={() => setManageCategoriesOpen((v) => !v)}
+                    className="metro-press flex min-h-10 shrink-0 items-center gap-1 rounded-full border border-dashed border-line bg-surface px-3 text-xs font-semibold text-muted hover:border-accent hover:text-accent"
+                  >
+                    {allCategories.length > 0 ? (
+                      <>
+                        <Settings2 className="size-3.5" aria-hidden="true" />
+                        <span>Kategorier</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="size-3.5" aria-hidden="true" />
+                        <span>Ny kategori</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {manageCategoriesOpen ? (
+                  <section
+                    aria-label="Administrer kategorier"
+                    className="space-y-3 rounded-2xl border border-line bg-surface p-3.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="text-sm font-semibold text-fg">Administrer kategorier</h2>
+                      <button
+                        type="button"
+                        onClick={() => setManageCategoriesOpen(false)}
+                        aria-label="Lukk kategoribehandling"
+                        className="metro-press flex size-9 items-center justify-center rounded-lg border border-line bg-header text-muted hover:text-fg"
+                      >
+                        <X className="size-4" aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleCreateCategory} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="Ny kategori (f.eks. Korps, Marimba, Jul) …"
+                        aria-label="Navn på ny kategori"
+                        className="metro-field min-h-10 min-w-0 flex-1 rounded-xl border border-line bg-header px-3 text-sm text-fg placeholder:text-muted"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!newCategoryName.trim()}
+                        className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-sm font-semibold text-[#1a1408] disabled:opacity-40"
+                      >
+                        <Plus className="size-4" aria-hidden="true" />
+                        <span>Legg til</span>
+                      </button>
+                    </form>
+
+                    {allCategories.length > 0 ? (
+                      <ul className="space-y-1.5">
+                        {allCategories.map((cat) => {
+                          const isRenaming = renamingCategory === cat;
+                          return (
+                            <li
+                              key={cat}
+                              className="flex items-center justify-between gap-2 rounded-xl border border-line bg-header px-3 py-1.5"
+                            >
+                              {isRenaming ? (
+                                <form
+                                  onSubmit={(e) => {
+                                    e.preventDefault();
+                                    void handleRenameCategory(cat, renamingCategoryValue);
+                                  }}
+                                  className="flex min-w-0 flex-1 items-center gap-1.5"
+                                >
+                                  <input
+                                    type="text"
+                                    value={renamingCategoryValue}
+                                    onChange={(e) => setRenamingCategoryValue(e.target.value)}
+                                    autoFocus
+                                    aria-label={`Nytt navn for ${cat}`}
+                                    className="metro-field min-h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 text-sm text-fg"
+                                  />
+                                  <button
+                                    type="submit"
+                                    aria-label="Lagre kategorinavn"
+                                    className="metro-press flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-[#1a1408]"
+                                  >
+                                    <Check className="size-4" aria-hidden="true" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setRenamingCategory(null)}
+                                    aria-label="Avbryt"
+                                    className="metro-press flex size-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-muted hover:text-fg"
+                                  >
+                                    <X className="size-4" aria-hidden="true" />
+                                  </button>
+                                </form>
+                              ) : (
+                                <>
+                                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
+                                    {cat}{" "}
+                                    <span className="text-xs text-muted">
+                                      ({categoryCounts.byCategory[cat] ?? 0})
+                                    </span>
+                                  </span>
+                                  <div className="flex shrink-0 items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRenamingCategory(cat);
+                                        setRenamingCategoryValue(cat);
+                                      }}
+                                      aria-label={`Gi nytt navn til kategori ${cat}`}
+                                      className="metro-press flex size-9 items-center justify-center rounded-lg border border-line bg-surface text-muted hover:text-fg"
+                                    >
+                                      <Pencil className="size-3.5" aria-hidden="true" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleDeleteCategory(cat)}
+                                      aria-label={`Slett kategori ${cat}`}
+                                      className="metro-press flex size-9 items-center justify-center rounded-lg border border-line bg-surface text-muted hover:text-no"
+                                    >
+                                      <Trash2 className="size-3.5" aria-hidden="true" />
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted">
+                        Ingen kategorier ennå. Opprett en kategori over og fest den på notearkene.
+                      </p>
+                    )}
+                  </section>
+                ) : null}
+              </div>
+            ) : null}
+
             {/* Library list */}
             {loading ? (
               <div className="rounded-2xl border border-line bg-surface p-6 text-center text-sm text-muted">
@@ -635,13 +1045,16 @@ export function Noter() {
               </div>
             ) : filteredSheets.length === 0 ? (
               <div className="rounded-2xl border border-line bg-surface p-6 text-center text-sm text-muted">
-                Ingen noter matcher «{search}».
+                {search.trim()
+                  ? `Ingen noter matcher «${search}».`
+                  : "Ingen noter i denne kategorien ennå."}
               </div>
             ) : (
               <ul className="space-y-2.5">
                 {filteredSheets.map((sheet) => {
                   const isEditing = editingId === sheet.id;
                   const isConfirmingDelete = confirmDeleteId === sheet.id;
+                  const sheetCategories = normalizeCategoriesList(sheet.categories);
 
                   return (
                     <li
@@ -682,29 +1095,47 @@ export function Noter() {
                         </form>
                       ) : (
                         <div className="flex items-start justify-between gap-3">
-                          <button
-                            type="button"
-                            onClick={() => void handleOpenSheet(sheet.id)}
-                            className="min-w-0 flex-1 text-left"
-                          >
-                            <p className="truncate text-base font-semibold text-fg">{sheet.title}</p>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted">
-                              <span className="rounded-md bg-header px-2 py-0.5 font-semibold text-accent tabular-nums">
-                                {sheet.bpm} BPM
-                              </span>
-                              <span>
-                                {sheet.pageCount > 0 ? `${sheet.pageCount} sider` : "Ukjent sidetall"}
-                              </span>
-                              <span aria-hidden="true">·</span>
-                              <span>{formatFileSize(sheet.fileSize)}</span>
-                              {sheet.lastPage > 1 ? (
-                                <>
-                                  <span aria-hidden="true">·</span>
-                                  <span>Side {sheet.lastPage}</span>
-                                </>
-                              ) : null}
-                            </div>
-                          </button>
+                          <div className="min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={() => void handleOpenSheet(sheet.id)}
+                              className="w-full text-left"
+                            >
+                              <p className="truncate text-base font-semibold text-fg">{sheet.title}</p>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted">
+                                <span className="rounded-md bg-header px-2 py-0.5 font-semibold text-accent tabular-nums">
+                                  {sheet.bpm} BPM
+                                </span>
+                                <span>
+                                  {sheet.pageCount > 0 ? `${sheet.pageCount} sider` : "Ukjent sidetall"}
+                                </span>
+                                <span aria-hidden="true">·</span>
+                                <span>{formatFileSize(sheet.fileSize)}</span>
+                                {sheet.lastPage > 1 ? (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span>Side {sheet.lastPage}</span>
+                                  </>
+                                ) : null}
+                              </div>
+                            </button>
+
+                            {sheetCategories.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                {sheetCategories.map((cat) => (
+                                  <button
+                                    key={cat}
+                                    type="button"
+                                    onClick={() => setActiveCategory(cat)}
+                                    style={{ backgroundColor: "rgba(224, 177, 90, 0.12)" }}
+                                    className="metro-press rounded-full border border-line px-2 py-0.5 text-[11px] font-medium text-accent hover:border-accent"
+                                  >
+                                    {cat}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
 
                           <div className="flex shrink-0 items-center gap-1">
                             {isConfirmingDelete ? (
@@ -726,6 +1157,33 @@ export function Noter() {
                               </div>
                             ) : (
                               <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPickerNewCategoryName("");
+                                    setCategoryPickerSheetId(sheet.id);
+                                  }}
+                                  aria-label={`Kategorier for ${sheet.title}`}
+                                  title="Velg kategorier"
+                                  className={
+                                    sheetCategories.length > 0
+                                      ? "metro-press flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-line bg-header text-accent"
+                                      : "metro-press flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-line bg-header text-muted hover:text-accent"
+                                  }
+                                >
+                                  <Tag className="size-4" aria-hidden="true" />
+                                </button>
+                                {sheet.pageCount !== 1 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleOpenTrimForSheet(sheet.id)}
+                                    aria-label={`Velg sider for ${sheet.title}`}
+                                    title="Velg sider å beholde"
+                                    className="metro-press flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-line bg-header text-muted hover:text-accent"
+                                  >
+                                    <Scissors className="size-4" aria-hidden="true" />
+                                  </button>
+                                ) : null}
                                 <button
                                   type="button"
                                   onClick={() => startRename(sheet)}
@@ -953,7 +1411,154 @@ export function Noter() {
             setActiveSetlistSession(null);
           }}
           onUpdateMeta={handleUpdateActiveMeta}
+          onSheetReplaced={(updated) => {
+            setActiveSheet(updated);
+            setSheets((prev) =>
+              prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)),
+            );
+          }}
+          onSheetCopied={(created) => {
+            setSheets((prev) => [created, ...prev]);
+          }}
         />
+      ) : null}
+
+      {trimTarget ? (
+        <NoterPageTrimModal
+          open={true}
+          onClose={() => setTrimTarget(null)}
+          sheetTitle={trimTarget.sheet.title}
+          pdfData={trimTarget.sheet.pdfData}
+          pageCount={trimTarget.sheet.pageCount}
+          subtitle={trimTarget.subtitle}
+          onReplacePages={async (keptPages, trimmedPdfData) => {
+            const updated = await replaceSheetWithTrimmedPdf({
+              sheetId: trimTarget.sheet.id,
+              pdfData: trimmedPdfData,
+              keptPages,
+            });
+            if (updated) {
+              setSheets((prev) =>
+                prev.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)),
+              );
+            }
+          }}
+          onSaveAsCopy={async (keptPages, trimmedPdfData, copyTitle) => {
+            const created = await saveTrimmedSheetAsCopy({
+              sourceSheetId: trimTarget.sheet.id,
+              title: copyTitle,
+              pdfData: trimmedPdfData,
+              keptPages,
+            });
+            setSheets((prev) => [created, ...prev]);
+          }}
+        />
+      ) : null}
+
+      {categoryPickerSheet ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="category-picker-title"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.72)" }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setCategoryPickerSheetId(null)}
+        >
+          <div
+            className="w-full max-w-md space-y-4 rounded-2xl border border-line bg-surface p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold tracking-wider text-accent uppercase">
+                  Kategorier
+                </p>
+                <h2 id="category-picker-title" className="truncate text-base font-bold text-fg">
+                  {categoryPickerSheet.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCategoryPickerSheetId(null)}
+                aria-label="Lukk kategorivelger"
+                className="metro-press flex size-9 shrink-0 items-center justify-center rounded-lg border border-line bg-header text-muted hover:text-fg"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            {allCategories.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {allCategories.map((cat) => {
+                  const active = normalizeCategoriesList(categoryPickerSheet.categories).some(
+                    (c) => c.toLocaleLowerCase("nb") === cat.toLocaleLowerCase("nb"),
+                  );
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => void handleToggleSheetCategory(categoryPickerSheet, cat)}
+                      style={
+                        active ? { backgroundColor: "rgba(224, 177, 90, 0.18)" } : undefined
+                      }
+                      className={
+                        active
+                          ? "metro-press flex min-h-10 items-center gap-1.5 rounded-full border border-accent px-3 text-sm font-semibold text-accent"
+                          : "metro-press flex min-h-10 items-center gap-1.5 rounded-full border border-line bg-header px-3 text-sm font-medium text-muted hover:text-fg"
+                      }
+                    >
+                      {active ? <Check className="size-3.5" aria-hidden="true" /> : null}
+                      <span>{cat}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-muted">
+                Ingen kategorier opprettet ennå. Skriv inn en kategori under for å legge til.
+              </p>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const raw = pickerNewCategoryName;
+                if (!normalizeCategoryName(raw)) return;
+                setPickerNewCategoryName("");
+                void handleToggleSheetCategory(categoryPickerSheet, raw);
+              }}
+              className="flex gap-2"
+            >
+              <input
+                type="text"
+                value={pickerNewCategoryName}
+                onChange={(e) => setPickerNewCategoryName(e.target.value)}
+                placeholder="Ny kategori …"
+                aria-label="Ny kategori for dette stykket"
+                className="metro-field min-h-10 min-w-0 flex-1 rounded-xl border border-line bg-header px-3 text-sm text-fg placeholder:text-muted"
+              />
+              <button
+                type="submit"
+                disabled={!pickerNewCategoryName.trim()}
+                className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-sm font-semibold text-[#1a1408] disabled:opacity-40"
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                <span>Legg til</span>
+              </button>
+            </form>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCategoryPickerSheetId(null)}
+                className="metro-press min-h-10 rounded-xl border border-line bg-header px-4 text-sm font-semibold text-fg hover:border-accent"
+              >
+                Ferdig
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

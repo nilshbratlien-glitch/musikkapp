@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Malletsight } from "@/components/malletsight";
+import { Oveplan } from "@/components/oveplan";
 
 export const Route = createFileRoute("/")({
-  component: Malletsight,
+  component: Oveplan,
 });

@@ -174,9 +174,22 @@ beforeEach(async () => {
   page = await context.newPage();
 });
 
+describe("default route", () => {
+  it("opens Øveplan by default at / and redirects /oveplan to /", async () => {
+    await open("/");
+    assert.equal(new URL(page.url()).pathname, "/");
+    assert.equal(await page.locator('nav a[href="/"]').getAttribute("aria-current"), "page");
+    await page.getByRole("button", { name: "Start", exact: true }).waitFor();
+
+    await page.goto(BASE + "/oveplan");
+    await page.waitForFunction(() => location.pathname === "/");
+    assert.equal(await page.locator('nav a[href="/"]').getAttribute("aria-current"), "page");
+  });
+});
+
 describe("block navigation", () => {
   it("2-mallet and 4-mallet open Metronom with the plan timer in the header", async () => {
-    await open("/oveplan", plan(["twomallet", "fourmallet"]));
+    await open("/", plan(["twomallet", "fourmallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     assert.match(await header().innerText(), /2-mallet/);
@@ -185,7 +198,7 @@ describe("block navigation", () => {
     assert.ok(clicks.length >= 2, "the block metronome plays");
     assert.ok(Math.abs(minGap(clicks) - 0.6) < 0.02, `one 100 BPM stream, got gap ${minGap(clicks)}`);
 
-    await tab("/oveplan");
+    await tab("/");
     await page.getByRole("button", { name: "Ferdig", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     assert.match(await header().innerText(), /4-mallet/);
@@ -196,31 +209,31 @@ describe("block navigation", () => {
   });
 
   it("SRF opens Bladlesing with the plan timer in the header", async () => {
-    await open("/oveplan", plan(["srf"]));
+    await open("/", plan(["srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     assert.match(await header().innerText(), /Bladlesing/);
     assert.equal((await recentClicks(800)).length, 0, "SRF does not start a metronome");
     await noReload();
   });
 
   it("Repertoar keeps today's behaviour: no navigation, no metronome", async () => {
-    await open("/oveplan", plan(["rep"]));
+    await open("/", plan(["rep"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForTimeout(500);
-    assert.equal(new URL(page.url()).pathname, "/oveplan");
+    assert.equal(new URL(page.url()).pathname, "/");
     assert.match(await header().innerText(), /Repertoar/);
     assert.equal((await recentClicks(800)).length, 0);
   });
 
   it("switching block while the timer runs stops the old sound and keeps one countdown", async () => {
-    await open("/oveplan", plan(["twomallet", "srf"]));
+    await open("/", plan(["twomallet", "srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     assert.ok((await recentClicks(1000)).length >= 1);
-    await tab("/oveplan");
+    await tab("/");
     await page.locator(".plan-hero").getByRole("button", { name: /Bladlesing/ }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     await page.waitForTimeout(300);
     assert.equal((await recentClicks(1200)).length, 0, "2-mallet metronome stopped");
     assert.ok((await liveContexts()) <= 1, "one audio context");
@@ -235,12 +248,12 @@ describe("block navigation", () => {
 
 describe("plan clock sync", () => {
   it("start, pause and stop show in the header and the other tabs, without drift", async () => {
-    await open("/oveplan", plan(["rep"]));
+    await open("/", plan(["rep"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await header().waitFor();
     const first = await headerSeconds();
     const began = Date.now();
-    for (const path of ["/metronom", "/", "/notekort", "/oveplan", "/metronom"]) await tab(path);
+    for (const path of ["/metronom", "/bladlesing", "/notekort", "/", "/metronom"]) await tab(path);
     await page.waitForTimeout(Math.max(0, 4000 - (Date.now() - began)));
     const drop = first - (await headerSeconds());
     const elapsed = Math.round((Date.now() - began) / 1000);
@@ -251,17 +264,17 @@ describe("plan clock sync", () => {
     const paused = await headerSeconds();
     await page.waitForTimeout(1500);
     assert.equal(await headerSeconds(), paused, "paused in the header");
-    await tab("/oveplan");
+    await tab("/");
     await page.getByRole("button", { name: "Fortsett", exact: true }).waitFor();
     await page.getByRole("button", { name: "Fortsett", exact: true }).click();
     await tab("/notekort");
     await page.waitForTimeout(1500);
     assert.ok((await headerSeconds()) < paused, "resumed from Øveplan, running in Notekort header");
 
-    await tab("/oveplan");
+    await tab("/");
     await page.getByRole("button", { name: "Liste", exact: true }).click();
     await page.getByRole("button", { name: "Nullstill", exact: true }).click();
-    for (const path of ["/metronom", "/"]) {
+    for (const path of ["/metronom", "/bladlesing"]) {
       await tab(path);
       assert.equal(await header().count(), 0, `stopped in ${path}`);
     }
@@ -278,7 +291,7 @@ describe("one sound source", () => {
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForTimeout(200);
     assert.equal(await liveContexts(), 1, "Metronom and snare share one AudioContext");
-    await tab("/");
+    await tab("/bladlesing");
     await page.waitForSelector("#score svg");
     await page.locator("#btnMetro").click();
     const clicks = await recentClicks(2500);
@@ -303,32 +316,32 @@ describe("Bladlesing buttons follow the shared pulse", () => {
   const metroOn = () => page.locator("#btnMetro").evaluate((el) => el.classList.contains("on"));
 
   it("Metronom tab and back: the metronome button is off", async () => {
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
     await page.locator("#btnMetro").click();
     assert.equal(await metroOn(), true);
     await tab("/metronom");
     await page.getByRole("button", { name: "Start", exact: true }).click();
     assert.equal(await owner(), "metronom");
-    await tab("/");
+    await tab("/bladlesing");
     await page.waitForSelector("#score svg");
     assert.equal(await metroOn(), false, "#btnMetro is not active after returning");
     assert.equal(await owner(), null);
   });
 
   it("a plan block taking the pulse turns metronome and play-along off", async () => {
-    await open("/oveplan", plan(["twomallet"]));
+    await open("/", plan(["twomallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     await header().click();
-    await tab("/");
+    await tab("/bladlesing");
     await page.waitForSelector("#score svg");
 
     await page.locator("#btnMetro").click();
     assert.equal(await owner(), "bladlesing");
     await header().click();
     await page.waitForFunction(() => window.MusikkPulse?.getState().owner === "oveplan");
-    assert.equal(new URL(page.url()).pathname, "/");
+    assert.equal(new URL(page.url()).pathname, "/bladlesing");
     assert.equal(await metroOn(), false, "#btnMetro is off once the plan owns the pulse");
     assert.equal(await page.locator("#btnMetro.yielded").count(), 1, "#btnMetro shows it gave way");
     assert.equal(await page.locator("#btnPlay.yielded").count(), 1, "Play shows it gave way");
@@ -356,9 +369,9 @@ describe("Bladlesing buttons follow the shared pulse", () => {
 
 describe("Bladlesing during a SRF block", () => {
   it("Play resumes the paused block; Stopp and leaving the tab never pause it", async () => {
-    await open("/oveplan", plan(["srf"]));
+    await open("/", plan(["srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     await page.waitForSelector("#score svg");
     await header().click();
     const paused = await headerSeconds();
@@ -375,7 +388,7 @@ describe("Bladlesing during a SRF block", () => {
     await page.waitForTimeout(1200);
     assert.ok((await headerSeconds()) < resumed, "Stopp in Bladlesing keeps the plan running");
     await tab("/metronom");
-    await tab("/");
+    await tab("/bladlesing");
     await page.waitForTimeout(1200);
     assert.equal(await header().getAttribute("aria-pressed"), "false", "leaving the tab keeps it running");
     await noReload();
@@ -384,7 +397,7 @@ describe("Bladlesing during a SRF block", () => {
 
 describe("Metronom during a 2-mallet block", () => {
   it("Stopp pauses the block, Start resumes it at the block's tempo, and the chips show the block's meter", async () => {
-    await open("/oveplan", plan(["twomallet"]));
+    await open("/", plan(["twomallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     await page.locator(".plan-chip").waitFor();
@@ -441,17 +454,17 @@ describe("layout", () => {
   ]) {
     it(`no horizontal overflow at ${width}x${height}`, async () => {
       await page.setViewportSize({ width, height });
-      await open("/");
-      for (const path of ["/", "/metronom", "/oveplan", "/notekort", "/noter"]) {
+      await open("/bladlesing");
+      for (const path of ["/bladlesing", "/metronom", "/", "/notekort", "/noter"]) {
         await tab(path);
-        await page.waitForTimeout(path === "/" ? 800 : 200);
+        await page.waitForTimeout(path === "/bladlesing" ? 800 : 200);
         const overflow = await page.evaluate(() =>
           [document.documentElement, document.querySelector("main")].map((el) => el.scrollWidth - el.clientWidth),
         );
         assert.deepEqual(overflow, [0, 0], `${path} overflows`);
       }
 
-      await tab("/");
+      await tab("/bladlesing");
       await page.waitForSelector("#score svg");
       const lines = await page.locator("#btnGenerate").evaluate((el) => {
         const range = document.createRange();
@@ -477,14 +490,14 @@ describe("layout", () => {
       }
       await page.locator("#btnCloseSettings").click();
 
-      await open("/oveplan", plan(["twomallet"]));
+      await open("/", plan(["twomallet"]));
       await page.getByRole("button", { name: "Start", exact: true }).click();
       await page.waitForFunction(() => location.pathname === "/metronom");
       await page.locator(".plan-chip").waitFor();
       assert.deepEqual(await overflowOf(), [0, 0], "/metronom with the plan chip overflows");
       await shot(`metronom-chip-${width}x${height}`);
       await header().click();
-      await tab("/");
+      await tab("/bladlesing");
       await page.waitForSelector("#score svg");
       const scoreTop = () => page.locator("#score").evaluate((el) => el.getBoundingClientRect().top);
       const before = await scoreTop();
@@ -532,7 +545,7 @@ async function bladlesingTexts() {
 
 describe("Bladlesing in Norwegian", () => {
   it("the drawer, the meta line and the sheet title have no English labels left, with 2, 3 and 4 mallets", async () => {
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
     for (const mallets of ["2", "3", "4"]) {
       await page.locator("#btnSettings").click();
@@ -554,7 +567,7 @@ describe("Bladlesing in Norwegian", () => {
   });
 
   it("settings saved by the old English version still load, with the same ids and values", async () => {
-    await open("/");
+    await open("/bladlesing");
     const old = {
       instrumentId: "xylo",
       mallets: 2,
@@ -610,7 +623,7 @@ describe("Safari 15.6 readability", () => {
     for (const block of ["twomallet", "fourmallet"]) {
       it(`the header pill and the Metronom chip are readable in a ${block} block${simulated ? " without color-mix() and @property" : ""}`, async () => {
         if (simulated) await simulateSafari15();
-        await open("/oveplan", plan([block]));
+        await open("/", plan([block]));
         await page.getByRole("button", { name: "Start", exact: true }).click();
         await page.waitForFunction(() => location.pathname === "/metronom");
         const chip = page.locator(".plan-chip");
@@ -692,7 +705,7 @@ describe("Bladlesing settings wording", () => {
   }
 
   it("the new labels show, the old words are gone, and ids and values are unchanged", async () => {
-    await open("/");
+    await open("/bladlesing");
     await openDrawer();
     const text = {};
     for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) text[panel] = await panelText(panel);
@@ -737,7 +750,7 @@ describe("Bladlesing settings wording", () => {
   });
 
   it("a setting saved with the old values still loads and shows the new wording", async () => {
-    await open("/");
+    await open("/bladlesing");
     const old = { instrumentId: "mar50", mallets: 3, texture: "block", clef: "bass", keyId: "C", keyIds: ["C"], timeId: "4/4", ties: true, accidentals: true };
     await page.evaluate((value) => {
       localStorage.removeItem("musikkapp.bladlesing");
@@ -764,7 +777,7 @@ describe("Bladlesing settings wording", () => {
   ]) {
     it(`nothing overflows or is cut off in the settings, status and meta line on ${name}`, async () => {
       await setup();
-      await open("/");
+      await open("/bladlesing");
       for (const mallets of ["2", "3", "4"]) {
         await openDrawer();
         await page.locator('[data-settings="instrument"]').click();
@@ -826,7 +839,7 @@ describe("audio after the screen was locked", () => {
   });
 
   it("Øveplan, clock freezes in a 2-mallet block: the plan pauses with its time kept, and the next Start carries on", async () => {
-    await open("/oveplan", plan(["twomallet"]));
+    await open("/", plan(["twomallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await page.waitForFunction(() => location.pathname === "/metronom");
     await pastFirstBeat();
@@ -845,9 +858,9 @@ describe("audio after the screen was locked", () => {
   });
 
   it("Øveplan, clock freezes during play-along in a SRF block: the plan pauses with its time kept, and the next Play carries on", async () => {
-    await open("/oveplan", plan(["srf"]));
+    await open("/", plan(["srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     await page.waitForSelector("#score svg");
     await lockContext("frozen");
     await page.locator("#btnPlay").click();
@@ -865,7 +878,7 @@ describe("audio after the screen was locked", () => {
   });
 
   it("Bladlesing, clock frozen but state running: Play stops with the button reset, the next Play plays on a new context", async () => {
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
     await lockContext("frozen");
     await page.locator("#btnPlay").click();
@@ -879,7 +892,7 @@ describe("audio after the screen was locked", () => {
   });
 
   it("Bladlesing, interrupted with a resume() that hangs: Play starts at once", async () => {
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
     await lockContext("interrupted");
     await page.locator("#btnPlay").click();
@@ -902,7 +915,7 @@ describe("duet mode", () => {
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await open("/");
+    await open("/bladlesing");
     await page.waitForSelector("#score svg");
 
     await page.locator("#btnDuetToggle").click();
@@ -967,9 +980,9 @@ describe("duet mode", () => {
 
 describe("Bladlesing Metronom 1-bar count-in and auto-stop", () => {
   it("plays 1-bar count-in then Stopp, auto-stops at etude end, and keeps the Øveplan timer running", async () => {
-    await open("/oveplan", plan(["srf"]));
+    await open("/", plan(["srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/");
+    await page.waitForFunction(() => location.pathname === "/bladlesing");
     await page.waitForSelector("#score svg");
 
     // Use a 4-bar etude at max clamped tempo (160 BPM) so 1-bar count-in + 4 bars finishes in ~7.5s.
@@ -1422,6 +1435,312 @@ describe("Noter setlists, navigation & backup", () => {
     assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
   });
 });
+
+describe("Noter PDF page trimming", () => {
+  it("prompts on large PDF upload, saves trimmed copy, and trims in-place from nav drawer", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+
+    await page.addInitScript(() => {
+      window.pdfjsLib = {
+        GlobalWorkerOptions: { workerSrc: "" },
+        getDocument({ data }) {
+          const bytes = new Uint8Array(data);
+          const numPages = bytes.byteLength === 5 ? bytes[4] : 15;
+          return {
+            promise: Promise.resolve({
+              numPages,
+              getPage() {
+                return Promise.resolve({
+                  getViewport({ scale }) {
+                    return {
+                      width: Math.round(600 * scale),
+                      height: Math.round(800 * scale),
+                    };
+                  },
+                  render({ canvasContext, viewport }) {
+                    canvasContext.fillStyle = "#ffffff";
+                    canvasContext.fillRect(0, 0, viewport.width, viewport.height);
+                    canvasContext.fillStyle = "#111827";
+                    canvasContext.fillRect(
+                      viewport.width * 0.2,
+                      viewport.height * 0.2,
+                      viewport.width * 0.6,
+                      viewport.height * 0.6,
+                    );
+                    return { promise: Promise.resolve(), cancel() {} };
+                  },
+                });
+              },
+              destroy() {
+                return Promise.resolve();
+              },
+            }),
+          };
+        },
+      };
+
+      window.PDFLib = {
+        PDFDocument: {
+          async load(data) {
+            const bytes = new Uint8Array(data);
+            const total = bytes.byteLength === 5 ? bytes[4] : 15;
+            return { getPageCount: () => total };
+          },
+          async create() {
+            const pages = [];
+            return {
+              async copyPages(_src, indices) {
+                return indices.map((i) => ({ pageIndex: i }));
+              },
+              addPage(p) {
+                pages.push(p);
+              },
+              async save() {
+                return new Uint8Array([37, 80, 68, 70, pages.length]);
+              },
+            };
+          },
+        },
+      };
+    });
+
+    await open("/noter");
+
+    // 1. Upload a 15-page PDF -> trim modal opens automatically
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles({
+      name: "stort-partitur.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%fake-big-score"),
+    });
+
+    const trimDialog = page.getByRole("dialog", { name: "Velg sider å beholde" });
+    await trimDialog.waitFor({ state: "visible" });
+
+    // 2. Select pages 14-15 via range input and save as copy
+    await trimDialog.getByLabel("Sideområde", { exact: true }).fill("14-15");
+    await trimDialog.getByRole("button", { name: "Bruk", exact: true }).click();
+    await trimDialog.getByText("2 / 15 valgt").waitFor({ state: "visible" });
+
+    await trimDialog.getByRole("button", { name: "Lagre som nytt stykke", exact: true }).click();
+    await trimDialog.getByRole("button", { name: "Opprett utdrag", exact: true }).click();
+    await trimDialog.waitFor({ state: "detached" });
+
+    await page.getByRole("button", { name: /stort partitur \(utdrag\).*2 sider/i }).waitFor({
+      state: "visible",
+    });
+
+    // 3. Open the original 15-page sheet and trim it in-place from NavDrawer
+    await page
+      .getByRole("button", { name: /^stort partitur/i })
+      .filter({ hasText: "15 sider" })
+      .click();
+    const viewer = page.locator('[role="dialog"][aria-label^="Noteviser:"]');
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 15").waitFor({ state: "visible" });
+
+    await viewer.getByRole("button", { name: "Sideoversikt og bokmerker", exact: true }).click();
+    const navDrawer = page.getByRole("dialog", { name: "Sider og bokmerker" });
+    await navDrawer.waitFor({ state: "visible" });
+    await navDrawer.getByRole("button", { name: "Velg sider å beholde (Trim PDF)", exact: true }).click();
+
+    await trimDialog.waitFor({ state: "visible" });
+    await trimDialog.getByLabel("Sideområde", { exact: true }).fill("2-4");
+    await trimDialog.getByRole("button", { name: "Bruk", exact: true }).click();
+    await trimDialog.getByRole("button", { name: "Behold 3 sider", exact: true }).click();
+    await trimDialog.waitFor({ state: "detached" });
+
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // 4. Zero console errors, page errors, and horizontal overflow
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    assert.equal(overflow, false, "no horizontal overflow at 390x844");
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+
+describe("Noter manual PDF cropping", () => {
+  it("opens manual crop modal, drags corner handle, applies crop, and persists across reload", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(mockPdfJsLib);
+    await open("/noter");
+
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles({
+      name: "skann-med-stoy.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%noisy-scan"),
+    });
+
+    await page.getByRole("button", { name: /^skann med stoy/i }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: /^skann med stoy/i }).click();
+
+    const viewer = page.locator('[role="dialog"][aria-label^="Noteviser:"]');
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    const annotationSvg = viewer.locator('svg[preserveAspectRatio="none"]').first();
+    assert.equal(await annotationSvg.getAttribute("viewBox"), "0 0 1000 1000");
+
+    // Open manual crop modal
+    await viewer.getByRole("button", { name: "Manuell beskjæring", exact: true }).click();
+    const cropDialog = page.getByRole("dialog", { name: "Manuell beskjæring av side 1" });
+    await cropDialog.waitFor({ state: "visible" });
+
+    // Drag top-left corner handle inward
+    const nwHandle = cropDialog.getByRole("button", { name: "Juster øvre venstre hjørne", exact: true });
+    const handleBox = await nwHandle.boundingBox();
+    assert.ok(handleBox, "nw corner handle bounding box exists");
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      handleBox.x + handleBox.width / 2 + 45,
+      handleBox.y + handleBox.height / 2 + 60,
+      { steps: 5 },
+    );
+    await page.mouse.up();
+
+    // Apply to all pages and save
+    await cropDialog.getByRole("checkbox", { name: /Bruk på alle 3 sider/i }).check();
+    await cropDialog.getByRole("button", { name: "Lagre beskjæring", exact: true }).click();
+    await cropDialog.waitFor({ state: "detached" });
+
+    // Annotation SVG viewBox reflects the manual crop
+    await page.waitForFunction(() => {
+      const svg = document.querySelector('[role="dialog"][aria-label^="Noteviser:"] svg[preserveAspectRatio="none"]');
+      const vb = svg?.getAttribute("viewBox");
+      return Boolean(vb && vb !== "0 0 1000 1000");
+    });
+    const croppedViewBox = await annotationSvg.getAttribute("viewBox");
+    assert.notEqual(croppedViewBox, "0 0 1000 1000");
+
+    // Reload and verify manual crop persists on page 2 as well
+    await page.reload();
+    await page.getByRole("button", { name: /^skann med stoy/i }).click();
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("Side 2 / 3").waitFor({ state: "visible" });
+    await page.waitForFunction(() => {
+      const svg = document.querySelector('[role="dialog"][aria-label^="Noteviser:"] svg[preserveAspectRatio="none"]');
+      const vb = svg?.getAttribute("viewBox");
+      return Boolean(vb && vb !== "0 0 1000 1000");
+    });
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    assert.equal(overflow, false, "no horizontal overflow at 390x844");
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+
+describe("Noter library categories and tags", () => {
+  it("creates categories, assigns multiple tags per sheet, filters with chips, renames, and deletes", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await open("/noter");
+
+    const pdfBytes = Buffer.from("%PDF-1.4\n%fake-pdf");
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles([
+      { name: "Korpsmarsj.pdf", mimeType: "application/pdf", buffer: pdfBytes },
+      { name: "Marimba Etude.pdf", mimeType: "application/pdf", buffer: pdfBytes },
+    ]);
+
+    await page.getByRole("button", { name: /^Korpsmarsj/i }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: /^Marimba Etude/i }).waitFor({ state: "visible" });
+
+    // Assign tags to Korpsmarsj via the Tag picker modal
+    await page.getByRole("button", { name: "Kategorier for Korpsmarsj", exact: true }).click();
+    const picker = page.getByRole("dialog", { name: "Korpsmarsj" });
+    await picker.waitFor({ state: "visible" });
+    await picker.getByRole("textbox", { name: "Ny kategori for dette stykket" }).fill("Korps");
+    await picker.getByRole("button", { name: "Legg til", exact: true }).click();
+    await picker.getByRole("button", { name: "Korps", exact: true }).waitFor({ state: "visible" });
+    await picker.getByRole("textbox", { name: "Ny kategori for dette stykket" }).fill("17. mai");
+    await picker.getByRole("button", { name: "Legg til", exact: true }).click();
+    await picker.getByRole("button", { name: "17. mai", exact: true }).waitFor({ state: "visible" });
+    await picker.getByRole("button", { name: "Ferdig", exact: true }).click();
+    await picker.waitFor({ state: "detached" });
+
+    // Filter by Korps chip
+    const filterRegion = page.getByRole("region", { name: "Filtrer etter kategori" });
+    await filterRegion.getByRole("button", { name: "Korps (1)", exact: true }).click();
+    await page.getByRole("button", { name: /^Korpsmarsj/i }).waitFor({ state: "visible" });
+    assert.equal(await page.getByRole("button", { name: /^Marimba Etude/i }).count(), 0);
+
+    // Filter by Uten kategori chip
+    await filterRegion.getByRole("button", { name: "Uten kategori (1)", exact: true }).click();
+    await page.getByRole("button", { name: /^Marimba Etude/i }).waitFor({ state: "visible" });
+    assert.equal(await page.getByRole("button", { name: /^Korpsmarsj/i }).count(), 0);
+
+    // Rename category via inline manager
+    await filterRegion.getByRole("button", { name: "Kategorier", exact: true }).click();
+    const manager = page.getByRole("region", { name: "Administrer kategorier" });
+    await manager.waitFor({ state: "visible" });
+    await manager.getByRole("button", { name: "Gi nytt navn til kategori Korps", exact: true }).click();
+    const renameInput = manager.getByRole("textbox", { name: "Nytt navn for Korps" });
+    await renameInput.fill("Skolekorps");
+    await manager.getByRole("button", { name: "Lagre kategorinavn", exact: true }).click();
+    await filterRegion.getByRole("button", { name: "Skolekorps (1)", exact: true }).waitFor({ state: "visible" });
+
+    // Delete category and verify sheets remain intact
+    await manager.getByRole("button", { name: "Slett kategori Skolekorps", exact: true }).click();
+    await filterRegion.getByRole("button", { name: "Alle (2)", exact: true }).click();
+    await page.getByRole("button", { name: /^Korpsmarsj/i }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: /^Marimba Etude/i }).waitFor({ state: "visible" });
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    assert.equal(overflow, false, "no horizontal overflow at 390x844");
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+
+
+
 
 
 

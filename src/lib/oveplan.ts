@@ -141,7 +141,7 @@ export const TRUMPET_EXERCISES: Record<BlockId, ExerciseCard> = {
 /** The tool a block opens when it starts: 2- and 4-mallet practise with the metronome, SRF is sight-reading, and trumpet Korpslekse opens metronome with exercise instructions. */
 export function blockTool(id: BlockId, profile: InstrumentProfile = getProfile()) {
   if (id === "twomallet" || id === "fourmallet") return "/metronom";
-  if (id === "srf") return "/";
+  if (id === "srf") return "/bladlesing";
   if (id === "rep" && profile === "trumpet") return "/metronom";
   return null;
 }
