@@ -41,6 +41,14 @@ export type LoadedPdfDocument = {
 let pdfjsPromise: Promise<PdfJsLib> | null = null;
 let workerBlobUrl: string | null = null;
 let workerSrcPromise: Promise<string> | null = null;
+let activeDocCount = 0;
+
+function revokeWorkerBlobUrlIfIdle(): void {
+  if (activeDocCount === 0 && workerBlobUrl) {
+    URL.revokeObjectURL(workerBlobUrl);
+    workerBlobUrl = null;
+  }
+}
 
 function getPdfJsGlobal(): PdfJsLib | undefined {
   return (globalThis as unknown as { pdfjsLib?: PdfJsLib }).pdfjsLib;
@@ -130,9 +138,17 @@ function loadPdfJs(): Promise<PdfJsLib> {
 }
 
 export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocument> {
-  const pdfjs = await loadPdfJs();
-  // Pass a copy so PDF.js worker transfer does not detach the caller's ArrayBuffer.
-  const doc = await pdfjs.getDocument({ data: data.slice(0) }).promise;
+  activeDocCount += 1;
+  let doc: PdfDocumentProxy;
+  try {
+    const pdfjs = await loadPdfJs();
+    // Pass a copy so PDF.js worker transfer does not detach the caller's ArrayBuffer.
+    doc = await pdfjs.getDocument({ data: data.slice(0) }).promise;
+  } catch (err) {
+    activeDocCount = Math.max(0, activeDocCount - 1);
+    revokeWorkerBlobUrlIfIdle();
+    throw err;
+  }
   let activeRender: PdfRenderTask | null = null;
   let renderEpoch = 0;
   let destroyed = false;
@@ -187,6 +203,7 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
       }
     },
     async destroy(): Promise<void> {
+      if (destroyed) return;
       destroyed = true;
       renderEpoch += 1;
       if (activeRender?.cancel) {
@@ -197,7 +214,12 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
         }
         activeRender = null;
       }
-      await doc.destroy();
+      try {
+        await doc.destroy();
+      } finally {
+        activeDocCount = Math.max(0, activeDocCount - 1);
+        revokeWorkerBlobUrlIfIdle();
+      }
     },
   };
 }

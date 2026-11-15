@@ -146,10 +146,14 @@ export async function listSheets(): Promise<SheetMeta[]> {
       const req = store.openCursor();
 
       req.onsuccess = () => {
-        const cursor = req.result;
-        if (cursor) {
-          items.push(stripPdfData(cursor.value as SheetRecord));
-          cursor.continue();
+        try {
+          const cursor = req.result;
+          if (cursor) {
+            items.push(stripPdfData(cursor.value as SheetRecord));
+            cursor.continue();
+          }
+        } catch (err) {
+          fail(err);
         }
       };
       req.onerror = () => {
