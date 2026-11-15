@@ -39,6 +39,7 @@ export type SheetMeta = {
   bookmarks?: SheetBookmark[];
   jumpLinks?: JumpLink[];
   manualCrops?: Record<number, NormalizedRect>;
+  categories?: string[];
   createdAt: number;
   updatedAt: number;
   lastOpenedAt: number;

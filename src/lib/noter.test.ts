@@ -17,6 +17,18 @@ import {
   type SheetMeta,
 } from "./noter.ts";
 import {
+  ALL_CATEGORIES_FILTER,
+  UNCATEGORIZED_FILTER,
+  collectAllCategories,
+  countSheetsPerCategory,
+  filterSheetsByCategory,
+  normalizeCategoriesList,
+  normalizeCategoryName,
+  removeCategoryFromSheets,
+  renameCategoryOnSheets,
+  toggleSheetCategory,
+} from "./noter-categories.ts";
+import {
   ANNOTATION_COLORS,
   ANNOTATION_VIEWBOX_SIZE,
   HIGHLIGHTER_COLORS,
@@ -1455,6 +1467,74 @@ describe("noter-crop manual crop resizing, resolution, and remapping", () => {
     assert.deepEqual(remapped, { 2: { x: 0.15, y: 0.15, width: 0.7, height: 0.7 } });
   });
 });
+
+describe("noter-categories tags, filtering, counts, and bulk rename/remove", () => {
+  it("normalizes, toggles, collects, filters, counts, renames, and removes categories", () => {
+    assert.equal(normalizeCategoryName("  Korps   17. mai  "), "Korps 17. mai");
+    assert.deepEqual(normalizeCategoriesList(["Korps", "korps", "  Jul  ", ""]), ["Korps", "Jul"]);
+
+    assert.deepEqual(toggleSheetCategory(["Korps"], "Jul"), ["Korps", "Jul"]);
+    assert.deepEqual(toggleSheetCategory(["Korps", "Jul"], "korps"), ["Jul"]);
+
+    const sheets: Array<Pick<SheetMeta, "id" | "categories">> = [
+      { id: "s1", categories: ["Korps", "Jul"] },
+      { id: "s2", categories: ["Marimba"] },
+      { id: "s3", categories: [] },
+    ];
+
+    const all = collectAllCategories(sheets, ["Oppvarming", "korps"]);
+    assert.deepEqual(all, ["Jul", "Korps", "Marimba", "Oppvarming"]);
+
+    assert.equal(filterSheetsByCategory(sheets, ALL_CATEGORIES_FILTER).length, 3);
+    assert.deepEqual(
+      filterSheetsByCategory(sheets, UNCATEGORIZED_FILTER).map((s) => s.id),
+      ["s3"],
+    );
+    assert.deepEqual(
+      filterSheetsByCategory(sheets, "korps").map((s) => s.id),
+      ["s1"],
+    );
+
+    const counts = countSheetsPerCategory(sheets, all);
+    assert.equal(counts.all, 3);
+    assert.equal(counts.uncategorized, 1);
+    assert.equal(counts.byCategory["Korps"], 1);
+    assert.equal(counts.byCategory["Jul"], 1);
+    assert.equal(counts.byCategory["Oppvarming"], 0);
+
+    const renamed = renameCategoryOnSheets(sheets, "korps", "Skolekorps");
+    assert.deepEqual(renamed, [{ id: "s1", categories: ["Skolekorps", "Jul"] }]);
+
+    const removed = removeCategoryFromSheets(sheets, "Jul");
+    assert.deepEqual(removed, [{ id: "s1", categories: ["Korps"] }]);
+  });
+
+  it("includes categories in backup payload", () => {
+    const payload = buildNoterBackupPayload(
+      [
+        {
+          id: "s1",
+          title: "Marsj",
+          fileName: "marsj.pdf",
+          fileSize: 1200,
+          pageCount: 2,
+          bpm: 120,
+          lastPage: 1,
+          nightMode: false,
+          categories: ["Korps", "17. mai"],
+          createdAt: 1,
+          updatedAt: 1,
+          lastOpenedAt: 1,
+        },
+      ],
+      [],
+      [],
+      1000,
+    );
+    assert.deepEqual(payload.sheets[0]?.categories, ["Korps", "17. mai"]);
+  });
+});
+
 
 
 

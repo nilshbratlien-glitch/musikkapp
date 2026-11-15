@@ -1668,6 +1668,79 @@ describe("Noter manual PDF cropping", () => {
   });
 });
 
+describe("Noter library categories and tags", () => {
+  it("creates categories, assigns multiple tags per sheet, filters with chips, renames, and deletes", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(BASE + "/noter");
+    await page.waitForSelector("nav a");
+
+    const pdfBytes = await buildSamplePdfBytes(2);
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles([
+      { name: "Korpsmarsj.pdf", mimeType: "application/pdf", buffer: pdfBytes },
+      { name: "Marimba Etude.pdf", mimeType: "application/pdf", buffer: pdfBytes },
+    ]);
+
+    await page.getByRole("button", { name: /^Korpsmarsj/i }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: /^Marimba Etude/i }).waitFor({ state: "visible" });
+
+    // Assign tags to Korpsmarsj via the Tag picker modal
+    await page.getByRole("button", { name: "Kategorier for Korpsmarsj", exact: true }).click();
+    const picker = page.getByRole("dialog", { name: "Korpsmarsj" });
+    await picker.waitFor({ state: "visible" });
+    await picker.getByRole("textbox", { name: "Ny kategori for dette stykket" }).fill("Korps");
+    await picker.getByRole("button", { name: "Legg til", exact: true }).click();
+    await picker.getByRole("button", { name: "Korps", exact: true }).waitFor({ state: "visible" });
+    await picker.getByRole("textbox", { name: "Ny kategori for dette stykket" }).fill("17. mai");
+    await picker.getByRole("button", { name: "Legg til", exact: true }).click();
+    await picker.getByRole("button", { name: "17. mai", exact: true }).waitFor({ state: "visible" });
+    await picker.getByRole("button", { name: "Ferdig", exact: true }).click();
+    await picker.waitFor({ state: "detached" });
+
+    // Filter by Korps chip
+    const filterRegion = page.getByRole("region", { name: "Filtrer etter kategori" });
+    await filterRegion.getByRole("button", { name: "Korps (1)", exact: true }).click();
+    await page.getByRole("button", { name: /^Korpsmarsj/i }).waitFor({ state: "visible" });
+    assert.equal(await page.getByRole("button", { name: /^Marimba Etude/i }).count(), 0);
+
+    // Filter by Uten kategori chip
+    await filterRegion.getByRole("button", { name: "Uten kategori (1)", exact: true }).click();
+    await page.getByRole("button", { name: /^Marimba Etude/i }).waitFor({ state: "visible" });
+    assert.equal(await page.getByRole("button", { name: /^Korpsmarsj/i }).count(), 0);
+
+    // Rename category via inline manager
+    await filterRegion.getByRole("button", { name: "Kategorier", exact: true }).click();
+    const manager = page.getByRole("region", { name: "Administrer kategorier" });
+    await manager.waitFor({ state: "visible" });
+    await manager.getByRole("button", { name: "Gi nytt navn til kategori Korps", exact: true }).click();
+    const renameInput = manager.getByRole("textbox", { name: "Nytt navn for Korps" });
+    await renameInput.fill("Skolekorps");
+    await manager.getByRole("button", { name: "Lagre kategorinavn", exact: true }).click();
+    await filterRegion.getByRole("button", { name: "Skolekorps (1)", exact: true }).waitFor({ state: "visible" });
+
+    // Delete category and verify sheets remain intact
+    await manager.getByRole("button", { name: "Slett kategori Skolekorps", exact: true }).click();
+    await filterRegion.getByRole("button", { name: "Alle (2)", exact: true }).click();
+    await page.getByRole("button", { name: /^Korpsmarsj/i }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: /^Marimba Etude/i }).waitFor({ state: "visible" });
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    assert.equal(overflow, false, "no horizontal overflow at 390x844");
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+
+
 
 
 

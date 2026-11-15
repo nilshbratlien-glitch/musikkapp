@@ -10,6 +10,7 @@ import {
   type SheetRecord,
 } from "./noter.ts";
 import { cloneAnnotationItems, type AnnotationItem } from "./noter-annotations.ts";
+import { normalizeCategoriesList } from "./noter-categories.ts";
 import type { NormalizedRect } from "./noter-crop.ts";
 import {
   buildPageRemapMap,
@@ -49,6 +50,7 @@ export type SaveSheetInput = {
   bookmarks?: SheetBookmark[];
   jumpLinks?: JumpLink[];
   manualCrops?: Record<number, NormalizedRect>;
+  categories?: string[];
   pdfData: ArrayBuffer;
 };
 
@@ -66,6 +68,7 @@ export type UpdateSheetMetaPatch = Partial<
     | "bookmarks"
     | "jumpLinks"
     | "manualCrops"
+    | "categories"
     | "lastOpenedAt"
   >
 >;
@@ -91,6 +94,7 @@ function stripPdfData(record: SheetRecord): SheetMeta {
     bookmarks: meta.bookmarks ?? [],
     jumpLinks: meta.jumpLinks ?? [],
     manualCrops: meta.manualCrops ?? {},
+    categories: normalizeCategoriesList(meta.categories),
   };
 }
 
@@ -273,6 +277,7 @@ export async function saveSheet(input: SaveSheetInput): Promise<SheetRecord> {
     bookmarks: input.bookmarks ?? [],
     jumpLinks: input.jumpLinks ?? [],
     manualCrops: input.manualCrops ?? {},
+    categories: normalizeCategoriesList(input.categories),
     createdAt: now,
     updatedAt: now,
     lastOpenedAt: now,
@@ -348,6 +353,10 @@ export async function updateSheetMeta(id: string, patch: UpdateSheetMetaPatch): 
             jumpLinks: patch.jumpLinks !== undefined ? patch.jumpLinks : (existing.jumpLinks ?? []),
             manualCrops:
               patch.manualCrops !== undefined ? patch.manualCrops : (existing.manualCrops ?? {}),
+            categories:
+              patch.categories !== undefined
+                ? normalizeCategoriesList(patch.categories)
+                : normalizeCategoriesList(existing.categories),
             lastOpenedAt: patch.lastOpenedAt !== undefined ? patch.lastOpenedAt : existing.lastOpenedAt,
             updatedAt: Date.now(),
           };
@@ -838,6 +847,7 @@ export async function saveTrimmedSheetAsCopy(
     bookmarks: remappedBookmarks,
     jumpLinks: remappedJumpLinks,
     manualCrops: remappedManualCrops,
+    categories: source?.categories,
     pdfData: input.pdfData,
   });
 
