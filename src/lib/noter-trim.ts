@@ -1,5 +1,5 @@
 import type { JumpLink, SheetBookmark } from "./noter.ts";
-import { makePageAnnotationsKey, type PageAnnotationsRecord } from "./noter-db.ts";
+import type { PageAnnotationsRecord } from "./noter-db.ts";
 
 const PDF_LIB_VERSION = "1.17.1";
 const PDF_LIB_SCRIPT_URL = `https://cdn.jsdelivr.net/npm/pdf-lib@${PDF_LIB_VERSION}/dist/pdf-lib.min.js`;

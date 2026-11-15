@@ -767,6 +767,17 @@ export function Noter() {
                               </div>
                             ) : (
                               <>
+                                {sheet.pageCount !== 1 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleOpenTrimForSheet(sheet.id)}
+                                    aria-label={`Velg sider for ${sheet.title}`}
+                                    title="Velg sider å beholde"
+                                    className="metro-press flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-line bg-header text-muted hover:text-accent"
+                                  >
+                                    <Scissors className="size-4" aria-hidden="true" />
+                                  </button>
+                                ) : null}
                                 <button
                                   type="button"
                                   onClick={() => startRename(sheet)}

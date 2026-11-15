@@ -356,6 +356,7 @@ export function NoterViewer({
           page: clampedInitial,
           halfOffset: clampedInitial >= total ? 0 : prev.halfOffset,
         }));
+        setLoadedDoc(doc);
         setDocReady(true);
         setLoading(false);
         if (total !== initialMeta.pageCount || clampedInitial !== initialMeta.lastPage) {
@@ -372,6 +373,7 @@ export function NoterViewer({
       cancelled = true;
       const current = docRef.current;
       docRef.current = null;
+      setLoadedDoc(null);
       if (current) void current.destroy();
     };
   }, [sheet.id, sheet.pdfData]);

@@ -168,7 +168,21 @@ export function NoterNavDrawer({
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {tab === "pages" ? (
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+            <div className="space-y-3">
+              {pageCount > 1 && onOpenTrimModal ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenTrimModal();
+                  }}
+                  className="metro-press flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-fg hover:border-accent hover:text-accent"
+                >
+                  <Scissors className="size-4 text-accent" aria-hidden="true" />
+                  <span>Velg sider å beholde (Trim PDF)</span>
+                </button>
+              ) : null}
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
               {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => {
                 const isCurrent = p === currentPage;
                 const hasBookmark = bookmarkedPages.has(p);
