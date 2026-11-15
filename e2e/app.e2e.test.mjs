@@ -1678,10 +1678,9 @@ describe("Noter library categories and tags", () => {
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(BASE + "/noter");
-    await page.waitForSelector("nav a");
+    await open("/noter");
 
-    const pdfBytes = await buildSamplePdfBytes(2);
+    const pdfBytes = Buffer.from("%PDF-1.4\n%fake-pdf");
     const fileInput = page.locator('input[type="file"][accept*="pdf"]');
     await fileInput.setInputFiles([
       { name: "Korpsmarsj.pdf", mimeType: "application/pdf", buffer: pdfBytes },

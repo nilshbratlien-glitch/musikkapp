@@ -198,7 +198,7 @@ export function Noter() {
         }
       }
     },
-    [refreshLibrary],
+    [refreshLibrary, activeCategory],
   );
 
   const handleOpenTrimForSheet = useCallback(async (id: string) => {
