@@ -1471,6 +1471,151 @@ describe("Noter annotation & stage mode", () => {
     assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
     assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
   });
+
+  it("offsets touch stamp placement and Vis-mode touch drag 48px above the finger", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(mockPdfJsLib);
+    await open("/noter");
+
+    await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+      name: "touch-offset-test.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%mock\n"),
+    });
+
+    const sheetButton = page.getByRole("button", { name: /^touch offset test/i });
+    await sheetButton.waitFor({ state: "visible" });
+    await sheetButton.click();
+
+    const viewer = page.getByRole("dialog", { name: /Noteviser:/ });
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // Place a stamp with mouse at (0.3, 0.5) -> y should be ~500 in 1000-unit viewBox
+    await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
+    const layer = viewer.locator('[data-testid="annotation-layer-page-1"]');
+    let box = await getSettledLayerBox(page, layer);
+    const targetY = box.y + box.height * 0.5;
+    await page.mouse.click(box.x + box.width * 0.3, targetY);
+    const mouseTransform = await layer.locator("svg g").first().getAttribute("transform");
+    const mouseMatch = /translate\(([-\d.]+)\s+([-\d.]+)\)/.exec(mouseTransform ?? "");
+    assert.ok(mouseMatch, "mouse stamp has transform");
+    const mouseY = Number.parseFloat(mouseMatch[2]);
+
+    // Place a stamp with touch at the same Y (x = 0.6, y = 0.5) -> live reticle appears and stamp lands ~48px higher
+    const touchX = box.x + box.width * 0.6;
+    await layer.evaluate(
+      (el, { x, y }) => {
+        el.dispatchEvent(
+          new PointerEvent("pointerdown", {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 11,
+            pointerType: "touch",
+            clientX: x,
+            clientY: y,
+            isPrimary: true,
+          }),
+        );
+      },
+      { x: touchX, y: targetY },
+    );
+    await layer.locator('[data-testid="annotation-drag-reticle"]').waitFor({ state: "visible" });
+    await layer.evaluate(
+      (el, { x, y }) => {
+        el.dispatchEvent(
+          new PointerEvent("pointerup", {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 11,
+            pointerType: "touch",
+            clientX: x,
+            clientY: y,
+            isPrimary: true,
+          }),
+        );
+      },
+      { x: touchX, y: targetY },
+    );
+
+    const touchTransform = await layer.locator("svg g").nth(1).getAttribute("transform");
+    const touchMatch = /translate\(([-\d.]+)\s+([-\d.]+)\)/.exec(touchTransform ?? "");
+    assert.ok(touchMatch, "touch stamp has transform");
+    const touchY = Number.parseFloat(touchMatch[2]);
+    const expectedDeltaSvg = (48 / box.height) * 1000;
+    assert.ok(
+      Math.abs(mouseY - touchY - expectedDeltaSvg) < 8,
+      `expected touch stamp ~48px higher (mouseY=${mouseY}, touchY=${touchY}, expectedDelta=${expectedDeltaSvg})`,
+    );
+
+    // Switch to Vis mode and long-press the touch-placed stamp with touch -> lifts 48px above finger
+    await viewer.getByRole("button", { name: "Vis", exact: true }).click();
+    box = await getSettledLayerBox(page, layer);
+    const stampScreenY = box.y + (touchY / 1000) * box.height;
+    const stampScreenX = box.x + (Number.parseFloat(touchMatch[1]) / 1000) * box.width;
+
+    await layer.evaluate(
+      (el, { x, y }) => {
+        el.dispatchEvent(
+          new PointerEvent("pointerdown", {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 12,
+            pointerType: "touch",
+            clientX: x,
+            clientY: y,
+            isPrimary: true,
+          }),
+        );
+      },
+      { x: stampScreenX, y: stampScreenY },
+    );
+    await page.waitForTimeout(420);
+    await layer.locator('[data-testid="annotation-drag-reticle"]').waitFor({ state: "visible" });
+    await layer.evaluate(
+      (el, { x, y }) => {
+        window.dispatchEvent(
+          new PointerEvent("pointerup", {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 12,
+            pointerType: "touch",
+            clientX: x,
+            clientY: y,
+            isPrimary: true,
+          }),
+        );
+      },
+      { x: stampScreenX, y: stampScreenY },
+    );
+
+    const liftedTransform = await layer.locator("svg g").nth(1).getAttribute("transform");
+    const liftedMatch = /translate\(([-\d.]+)\s+([-\d.]+)\)/.exec(liftedTransform ?? "");
+    assert.ok(liftedMatch, "lifted stamp has transform");
+    const liftedY = Number.parseFloat(liftedMatch[2]);
+    const expectedLiftDeltaSvg = (48 / box.height) * 1000;
+    assert.ok(
+      Math.abs(touchY - liftedY - expectedLiftDeltaSvg) < 8,
+      `expected Vis touch long-press to lift ~48px (touchY=${touchY}, liftedY=${liftedY})`,
+    );
+
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
 });
 
 describe("Noter setlists, navigation & backup", () => {
