@@ -567,16 +567,80 @@ export function NoterAnnotationLayer({
       cleanupWindow();
       pendingLongPressRef.current = null;
       onViewDragActiveChange?.(true);
-      try {
-        layerEl.setPointerCapture(pointerId);
-      } catch {
-        /* ignore if synthetic PointerEvent does not support capture */
-      }
       onActivate(startPt);
     }, 350);
 
     pendingLongPressRef.current = { pointerId, timerId, cleanupWindow };
   };
+
+  const isViewDragActive = viewDrag !== null;
+
+  useEffect(() => {
+    if (!isViewDragActive) return;
+    const pointerId = viewDragRef.current?.pointerId;
+    if (pointerId === undefined) return;
+
+    const onWindowDragMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      const drag = viewDragRef.current;
+      const layerEl = viewLayerRef.current;
+      if (!drag || !layerEl) return;
+      const rect = layerEl.getBoundingClientRect();
+      const pt = clientPointToNormalizedPage(ev.clientX, ev.clientY, rect, normRegion);
+      const dx = pt.x - drag.startPt.x;
+      const dy = pt.y - drag.startPt.y;
+      if (drag.kind === "annotation") {
+        setViewDrag({
+          ...drag,
+          currentItem: translateAnnotationItem(drag.originalItem, dx, dy),
+        });
+      } else {
+        setViewDrag({
+          ...drag,
+          currentX: Math.min(0.94, Math.max(0.06, drag.link.x + dx)),
+          currentY: Math.min(0.94, Math.max(0.06, drag.link.y + dy)),
+        });
+      }
+    };
+
+    const finishDrag = (ev: PointerEvent, commit: boolean) => {
+      if (ev.pointerId !== pointerId) return;
+      const drag = viewDragRef.current;
+      if (!drag) return;
+      setViewDrag(null);
+      onViewDragActiveChange?.(false);
+
+      if (!commit) return;
+      if (drag.kind === "annotation") {
+        const nextItems = items.map((item) =>
+          item.id === drag.currentItem.id ? drag.currentItem : item,
+        );
+        onCommitItems(pageNumber, nextItems);
+      } else {
+        onUpdateJumpLink?.(drag.link.id, { x: drag.currentX, y: drag.currentY });
+      }
+    };
+
+    const onWindowDragUp = (ev: PointerEvent) => finishDrag(ev, true);
+    const onWindowDragCancel = (ev: PointerEvent) => finishDrag(ev, false);
+
+    window.addEventListener("pointermove", onWindowDragMove);
+    window.addEventListener("pointerup", onWindowDragUp);
+    window.addEventListener("pointercancel", onWindowDragCancel);
+    return () => {
+      window.removeEventListener("pointermove", onWindowDragMove);
+      window.removeEventListener("pointerup", onWindowDragUp);
+      window.removeEventListener("pointercancel", onWindowDragCancel);
+    };
+  }, [
+    isViewDragActive,
+    items,
+    normRegion,
+    pageNumber,
+    onCommitItems,
+    onUpdateJumpLink,
+    onViewDragActiveChange,
+  ]);
 
   if (tool === "view") {
     if (!visible && visibleJumpLinks.length === 0) return null;
@@ -605,54 +669,6 @@ export function NoterAnnotationLayer({
           currentItem: hitItem,
         });
       });
-    };
-
-    const handleViewPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-      const drag = viewDragRef.current;
-      if (!drag || drag.pointerId !== e.pointerId) return;
-      e.stopPropagation();
-      const rect = e.currentTarget.getBoundingClientRect();
-      const pt = clientPointToNormalizedPage(e.clientX, e.clientY, rect, normRegion);
-      const dx = pt.x - drag.startPt.x;
-      const dy = pt.y - drag.startPt.y;
-      if (drag.kind === "annotation") {
-        setViewDrag({
-          ...drag,
-          currentItem: translateAnnotationItem(drag.originalItem, dx, dy),
-        });
-      } else {
-        setViewDrag({
-          ...drag,
-          currentX: Math.min(0.94, Math.max(0.06, drag.link.x + dx)),
-          currentY: Math.min(0.94, Math.max(0.06, drag.link.y + dy)),
-        });
-      }
-    };
-
-    const finishViewDrag = (e: React.PointerEvent<HTMLElement>, commit: boolean) => {
-      const drag = viewDragRef.current;
-      if (!drag || drag.pointerId !== e.pointerId) return;
-      e.stopPropagation();
-      const layerEl = viewLayerRef.current;
-      try {
-        if (layerEl?.hasPointerCapture?.(e.pointerId)) {
-          layerEl.releasePointerCapture(e.pointerId);
-        }
-      } catch {
-        /* ignore */
-      }
-      setViewDrag(null);
-      onViewDragActiveChange?.(false);
-
-      if (!commit) return;
-      if (drag.kind === "annotation") {
-        const nextItems = items.map((item) =>
-          item.id === drag.currentItem.id ? drag.currentItem : item,
-        );
-        onCommitItems(pageNumber, nextItems);
-      } else {
-        onUpdateJumpLink?.(drag.link.id, { x: drag.currentX, y: drag.currentY });
-      }
     };
 
     const draggedBounds =
@@ -781,7 +797,6 @@ export function NoterAnnotationLayer({
               }}
               onPointerUp={(e) => {
                 if (viewDragRef.current?.kind === "jumpLink") {
-                  finishViewDrag(e, true);
                   return;
                 }
                 e.stopPropagation();
