@@ -6,6 +6,7 @@ import {
   Hand,
   Highlighter,
   Link2,
+  Paintbrush,
   PenTool,
   Pencil,
   Redo2,
@@ -25,6 +26,7 @@ import {
   StampSvgContent,
   type AnnotationTool,
   type PencilThickness,
+  type WhiteoutSize,
 } from "@/components/noter-annotation-layer";
 
 export type NoterToolbarProps = {
@@ -36,6 +38,9 @@ export type NoterToolbarProps = {
   onSelectPencilThickness: (thickness: PencilThickness) => void;
   highlighterColor: string;
   onSelectHighlighterColor: (color: string) => void;
+  whiteoutSize: WhiteoutSize;
+  onSelectWhiteoutSize: (size: WhiteoutSize) => void;
+  whiteoutColor: string;
   activeStampId: StampId;
   onSelectStampId: (stampId: StampId) => void;
   stylusOnly: boolean;
@@ -58,6 +63,7 @@ const TOOL_OPTIONS: readonly ToolOption[] = [
   { id: "view", label: "Vis", icon: Hand },
   { id: "pencil", label: "Blyant", icon: Pencil },
   { id: "highlighter", label: "Tusj", icon: Highlighter },
+  { id: "whiteout", label: "Korrekturlakk", icon: Paintbrush },
   { id: "eraser", label: "Viskelær", icon: Eraser },
   { id: "stamp", label: "Stempel", icon: Stamp },
   { id: "text", label: "Tekst", icon: Type },
@@ -69,6 +75,7 @@ const STAMP_GROUPS: ReadonlyArray<{
   title: string;
 }> = [
   { category: "symbol", title: "Symboler" },
+  { category: "arrow", title: "Piler" },
   { category: "dynamic", title: "Dynamikk" },
   { category: "fingering", title: "Fingersetting" },
 ];
@@ -95,6 +102,9 @@ export function NoterToolbar({
   onSelectPencilThickness,
   highlighterColor,
   onSelectHighlighterColor,
+  whiteoutSize,
+  onSelectWhiteoutSize,
+  whiteoutColor,
   activeStampId,
   onSelectStampId,
   stylusOnly,
@@ -118,7 +128,11 @@ export function NoterToolbar({
     STAMP_DEFINITIONS.find((item) => item.id === activeStampId) ?? STAMP_DEFINITIONS[0]!;
 
   const showColorSubBar =
-    tool === "pencil" || tool === "highlighter" || tool === "stamp" || tool === "text";
+    tool === "pencil" ||
+    tool === "highlighter" ||
+    tool === "whiteout" ||
+    tool === "stamp" ||
+    tool === "text";
 
   return (
     <div
@@ -264,7 +278,51 @@ export function NoterToolbar({
             </div>
           ) : null}
 
-          {tool === "highlighter" ? (
+          {tool === "whiteout" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                className="flex items-center gap-1 rounded-lg border border-line bg-header p-0.5"
+                role="group"
+                aria-label="Penselstørrelse for korrekturlakk"
+              >
+                {(
+                  [
+                    { id: "small", label: "Liten" },
+                    { id: "medium", label: "Middels" },
+                    { id: "large", label: "Stor" },
+                  ] as const
+                ).map((opt) => {
+                  const selected = whiteoutSize === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => onSelectWhiteoutSize(opt.id)}
+                      aria-pressed={selected}
+                      style={
+                        selected ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined
+                      }
+                      className={
+                        selected
+                          ? "metro-press min-h-9 rounded-md px-2.5 text-xs font-semibold text-accent"
+                          : "metro-press min-h-9 rounded-md px-2.5 text-xs font-medium text-muted hover:text-fg"
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs text-muted">
+                <span
+                  aria-hidden="true"
+                  style={{ backgroundColor: whiteoutColor }}
+                  className="size-3.5 rounded-full border border-line"
+                />
+                <span>Bakgrunnsfarge</span>
+              </span>
+            </div>
+          ) : tool === "highlighter" ? (
             <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Tusjfarge">
               {HIGHLIGHTER_COLORS.map((hex) => {
                 const selected = highlighterColor === hex;
@@ -345,7 +403,7 @@ export function NoterToolbar({
                   role="dialog"
                   aria-label="Velg musikalsk stempel"
                   style={{ backgroundColor: "rgba(22, 26, 34, 0.98)" }}
-                  className="absolute left-0 top-full z-30 mt-1.5 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-line p-3 shadow-2xl"
+                  className="absolute left-0 top-full z-30 mt-1.5 max-h-[60vh] w-72 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line p-3 shadow-2xl"
                 >
                   <div className="flex flex-col gap-3">
                     {STAMP_GROUPS.map((group) => {

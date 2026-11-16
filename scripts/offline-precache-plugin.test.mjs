@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   OFFLINE_MANIFEST_FILENAME,
   buildOfflineManifest,
+  collectMalletsightAudioAssets,
   collectPrecacheAssets,
   offlinePrecachePlugin,
 } from "./offline-precache-plugin.mjs";
@@ -23,6 +24,12 @@ describe("offline-precache-plugin", () => {
     ]);
   });
 
+  it("collects malletsight sample mp3 files", () => {
+    const mp3s = collectMalletsightAudioAssets();
+    assert.ok(mp3s.length > 0, "finds malletsight sample mp3 files");
+    assert.ok(mp3s.every((p) => p.startsWith("/malletsight/sample-") && p.endsWith(".mp3")));
+  });
+
   it("builds a deterministic manifest with version hash", () => {
     const a = buildOfflineManifest(["/assets/b.js", "/assets/a.js", "/assets/a.js"]);
     const b = buildOfflineManifest(["/assets/a.js", "/assets/b.js"]);
@@ -32,7 +39,7 @@ describe("offline-precache-plugin", () => {
   });
 
   it("emits offline-manifest.json only for the client environment", () => {
-    const plugin = offlinePrecachePlugin();
+    const plugin = offlinePrecachePlugin({ malletsightDir: "/nonexistent-dir" });
     const emitted = [];
     const clientCtx = {
       environment: { name: "client" },

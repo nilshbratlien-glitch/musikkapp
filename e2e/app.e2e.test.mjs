@@ -1295,6 +1295,80 @@ describe("Noter annotation & stage mode", () => {
     assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
     assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
   });
+
+  it("supports Korrekturlakk whiteout paint matching page background and placing a stamp on top", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(mockPdfJsLib);
+    await open("/noter");
+
+    await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+      name: "dynamikk-test.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%mock\n"),
+    });
+
+    const sheetButton = page.getByRole("button", { name: /^dynamikk test/i });
+    await sheetButton.waitFor({ state: "visible" });
+    await sheetButton.click();
+
+    const viewer = page.getByRole("dialog", { name: /Noteviser:/ });
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // Select Korrekturlakk and Stor brush size
+    await viewer.getByRole("button", { name: "Korrekturlakk", exact: true }).click();
+    await viewer.getByRole("button", { name: "Stor", exact: true }).click();
+
+    const layer = viewer.locator('[data-testid="annotation-layer-page-1"]');
+    const box = await getSettledLayerBox(page, layer);
+    await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.5);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.5, { steps: 5 });
+    await page.mouse.up();
+
+    assert.equal(await layer.locator("svg path").count(), 1, "whiteout stroke renders an SVG path");
+    assert.equal(
+      await layer.locator("svg path").first().getAttribute("stroke"),
+      "#ffffff",
+      "whiteout stroke matches sampled white canvas background",
+    );
+
+    // Place a Forte (f) stamp on top of the whiteout stroke
+    await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
+    await viewer.getByRole("button", { name: "Velg stempel", exact: true }).click();
+    const stampDialog = viewer.getByRole("dialog", { name: "Velg musikalsk stempel" });
+    await stampDialog.waitFor({ state: "visible" });
+    await stampDialog.getByRole("button", { name: "Forte", exact: true }).click();
+
+    await page.mouse.click(box.x + box.width * 0.48, box.y + box.height * 0.5);
+    assert.equal(await layer.locator("svg g").count(), 1, "stamp renders on top of whiteout");
+
+    // Verify DOM order: whiteout <path> comes before stamp <g>
+    const whiteoutBeforeStamp = await layer.evaluate((el) => {
+      const children = Array.from(el.querySelectorAll("svg > path, svg > g"));
+      const pathIdx = children.findIndex((n) => n.tagName.toLowerCase() === "path");
+      const gIdx = children.findIndex((n) => n.tagName.toLowerCase() === "g");
+      return pathIdx !== -1 && gIdx !== -1 && pathIdx < gIdx;
+    });
+    assert.equal(whiteoutBeforeStamp, true, "stamp is layered above whiteout in SVG");
+
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
 });
 
 describe("Noter setlists, navigation & backup", () => {
@@ -1754,6 +1828,10 @@ describe("offline precache", () => {
     assert.ok(manifestRes && Array.isArray(manifestRes.assets), "offline-manifest.json exists");
     assert.ok(manifestRes.assets.some((a) => a.endsWith(".js")), "manifest lists JS bundles");
     assert.ok(manifestRes.assets.some((a) => a.endsWith(".css")), "manifest lists CSS bundles");
+    assert.ok(
+      manifestRes.assets.some((a) => a.startsWith("/malletsight/sample-") && a.endsWith(".mp3")),
+      "manifest lists malletsight sample MP3s",
+    );
 
     // Wait for service worker to become active and control this page
     await page.evaluate(async () => {
@@ -1768,6 +1846,11 @@ describe("offline precache", () => {
       for (const path of ["/noter", "/metronom", "/notekort", "/bladlesing", "/"]) {
         await tab(path);
       }
+      const mp3Ok = await page.evaluate(async () => {
+        const res = await fetch("/malletsight/sample-marimba-C4.mp3");
+        return res.ok;
+      });
+      assert.equal(mp3Ok, true, "precached malletsight sample MP3 loads offline");
       assert.deepEqual(pageErrors, [], `unexpected offline page errors: ${pageErrors.join("; ")}`);
     } finally {
       await page.context().setOffline(false);
@@ -1775,10 +1858,57 @@ describe("offline precache", () => {
   });
 });
 
+describe("Øveplan Repertoar linked to Noter and expanded stamps", () => {
+  it("links a Noter sheet to Repertoar, opens it on Start, and shows arrow stamps", async () => {
+    const pageErrors = [];
 
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(mockPdfJsLib);
 
+    await open("/noter");
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles({
+      name: "Konsertmarsj.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%fake-pdf"),
+    });
+    await page.getByRole("button", { name: /^Konsertmarsj/i }).waitFor({ state: "visible" });
 
+    // Configure Øveplan with only the Repertoar block and link Konsertmarsj
+    await open("/", plan(["rep"]));
+    page.on("pageerror", (err) => pageErrors.push(err.message));
 
+    const repSelect = page.getByLabel("Koblet noteark eller settliste", { exact: true });
+    await repSelect.waitFor({ state: "visible" });
+    const optionValue = await repSelect.locator("option", { hasText: "Konsertmarsj" }).getAttribute("value");
+    assert.ok(optionValue && optionValue.startsWith("sheet:"), "Konsertmarsj option exists");
+    await repSelect.selectOption(optionValue);
 
+    // Start the Repertoar block -> navigates to /noter?sheet=... and opens Noteviser
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/noter");
+    assert.match(await header().innerText(), /Repertoar/);
 
+    const viewer = page.locator('[role="dialog"][aria-label^="Noteviser:"]');
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
 
+    // Open Stempel tool and verify Piler group + Pil høyre stamp are available
+    await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
+    await viewer.getByRole("button", { name: "Velg stempel", exact: true }).click();
+    const stampPopover = viewer.getByRole("dialog", { name: "Velg musikalsk stempel" });
+    await stampPopover.waitFor({ state: "visible" });
+    await stampPopover.getByText(/^Piler$/i).waitFor({ state: "visible" });
+    await stampPopover.getByRole("button", { name: "Pil høyre", exact: true }).click();
+    await stampPopover.waitFor({ state: "detached" });
+
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+  });
+});

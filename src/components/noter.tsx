@@ -71,7 +71,13 @@ type ActiveSetlistSession = {
   initialPage?: number;
 };
 
-export function Noter() {
+export function Noter({
+  deepLinkSheetId,
+  deepLinkSetlistId,
+}: {
+  deepLinkSheetId?: string;
+  deepLinkSetlistId?: string;
+} = {}) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -234,6 +240,40 @@ export function Noter() {
       setError(err instanceof Error ? err.message : "Kunne ikke åpne notearket.");
     }
   }, []);
+
+  const handledDeepLinkRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (loading) return;
+    const fallbackParams =
+      typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const targetSheetId = deepLinkSheetId ?? fallbackParams?.get("sheet") ?? undefined;
+    const targetSetlistId = deepLinkSetlistId ?? fallbackParams?.get("setlist") ?? undefined;
+    if (!targetSheetId && !targetSetlistId) return;
+
+    const key = targetSheetId ? `sheet:${targetSheetId}` : `setlist:${targetSetlistId}`;
+    if (handledDeepLinkRef.current === key) return;
+
+    if (targetSheetId) {
+      if (!sheets.some((s) => s.id === targetSheetId)) return;
+      handledDeepLinkRef.current = key;
+      void handleOpenSheet(targetSheetId);
+      return;
+    }
+
+    if (targetSetlistId) {
+      const setlist = setlists.find((sl) => sl.id === targetSetlistId);
+      if (!setlist) return;
+      const firstSheetId = setlist.sheetIds.find((id) => sheets.some((s) => s.id === id));
+      if (!firstSheetId) return;
+      handledDeepLinkRef.current = key;
+      void handleOpenSheet(firstSheetId, {
+        setlistId: setlist.id,
+        activeIndex: 0,
+        initialPage: 1,
+      });
+    }
+  }, [loading, deepLinkSheetId, deepLinkSetlistId, sheets, setlists, handleOpenSheet]);
 
   const handleUpdateActiveMeta = useCallback(
     async (patch: UpdateSheetMetaPatch) => {

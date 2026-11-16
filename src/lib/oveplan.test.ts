@@ -12,6 +12,7 @@ import {
   liveItems,
   loadPlanStore,
   nextUndone,
+  parsePlanStore,
   playingSum,
   rollSession,
   savePlanStore,
@@ -168,5 +169,22 @@ describe("plan clock", () => {
     assert.equal(countdownSeconds(1_000, 11_000, 0, false), 10);
     assert.equal(countdownSeconds(11_000, 11_000, 4_000, false), 0);
     assert.equal(countdownSeconds(20_000, 11_000, 4_000, true), 4);
+  });
+
+  it("links rep block to Noter sheet or setlist when repTarget is set", () => {
+    assert.equal(
+      blockTool("rep", "mallets", { kind: "sheet", id: "sheet-1", title: "Marsj" }),
+      "/noter?sheet=sheet-1",
+    );
+    assert.equal(
+      blockTool("rep", "trumpet", { kind: "setlist", id: "set-2", title: "Konsert" }),
+      "/noter?setlist=set-2",
+    );
+    const parsed = parsePlanStore({
+      repTarget: { kind: "sheet", id: "abc", title: "Etude" },
+    });
+    assert.deepEqual(parsed.repTarget, { kind: "sheet", id: "abc", title: "Etude" });
+    const invalid = parsePlanStore({ repTarget: { kind: "other", id: "x", title: "y" } });
+    assert.equal(invalid.repTarget, null);
   });
 });

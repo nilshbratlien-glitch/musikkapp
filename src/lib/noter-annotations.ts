@@ -4,12 +4,31 @@ export type StampId =
   | "fermata"
   | "breath"
   | "glasses"
+  | "caesura"
+  | "accent"
+  | "marcato"
+  | "tenuto"
+  | "staccato"
+  | "sharp"
+  | "flat"
+  | "natural"
+  | "coda"
+  | "segno"
+  | "check"
+  | "star"
+  | "arrow-up"
+  | "arrow-down"
+  | "arrow-left"
+  | "arrow-right"
+  | "arrow-repeat"
   | "pp"
   | "p"
   | "mp"
   | "mf"
   | "f"
   | "ff"
+  | "sfz"
+  | "fp"
   | "0"
   | "1"
   | "2"
@@ -27,7 +46,7 @@ export type AnnotationPoint = {
 
 export type StrokeAnnotation = {
   id: string;
-  kind: "pencil" | "highlighter";
+  kind: "pencil" | "highlighter" | "whiteout";
   color: string;
   width: number;
   opacity: number;
@@ -78,25 +97,47 @@ export const PENCIL_WIDTH_THIN = 2.5;
 export const PENCIL_WIDTH_THICK = 5.5;
 export const HIGHLIGHTER_WIDTH = 22;
 export const HIGHLIGHTER_OPACITY = 0.35;
+export const WHITEOUT_WIDTH_SMALL = 12;
+export const WHITEOUT_WIDTH_MEDIUM = 22;
+export const WHITEOUT_WIDTH_LARGE = 36;
 export const MAX_UNDO_HISTORY = 50;
 
 export type StampDefinition = {
   id: StampId;
   label: string;
   glyph: string;
-  category: "symbol" | "dynamic" | "fingering";
+  category: "symbol" | "arrow" | "dynamic" | "fingering";
 };
 
 export const STAMP_DEFINITIONS: readonly StampDefinition[] = [
   { id: "fermata", label: "Fermate", glyph: "𝄐", category: "symbol" },
   { id: "breath", label: "Pustetegn", glyph: ",", category: "symbol" },
   { id: "glasses", label: "Briller (se opp)", glyph: "👓", category: "symbol" },
+  { id: "caesura", label: "Caesura (//)", glyph: "//", category: "symbol" },
+  { id: "accent", label: "Aksent (>)", glyph: ">", category: "symbol" },
+  { id: "marcato", label: "Marcato (^)", glyph: "^", category: "symbol" },
+  { id: "tenuto", label: "Tenuto (—)", glyph: "—", category: "symbol" },
+  { id: "staccato", label: "Staccato (·)", glyph: "•", category: "symbol" },
+  { id: "sharp", label: "Kryss (♯)", glyph: "♯", category: "symbol" },
+  { id: "flat", label: "B (♭)", glyph: "♭", category: "symbol" },
+  { id: "natural", label: "Oppløsningstegn (♮)", glyph: "♮", category: "symbol" },
+  { id: "coda", label: "Coda", glyph: "⌖", category: "symbol" },
+  { id: "segno", label: "Segno", glyph: "𝄋", category: "symbol" },
+  { id: "check", label: "Sjekk / OK", glyph: "✓", category: "symbol" },
+  { id: "star", label: "Viktig", glyph: "★", category: "symbol" },
+  { id: "arrow-up", label: "Pil opp", glyph: "↑", category: "arrow" },
+  { id: "arrow-down", label: "Pil ned", glyph: "↓", category: "arrow" },
+  { id: "arrow-left", label: "Pil venstre", glyph: "←", category: "arrow" },
+  { id: "arrow-right", label: "Pil høyre", glyph: "→", category: "arrow" },
+  { id: "arrow-repeat", label: "Tilbake / Gjenta", glyph: "↩", category: "arrow" },
   { id: "pp", label: "Pianissimo", glyph: "pp", category: "dynamic" },
   { id: "p", label: "Piano", glyph: "p", category: "dynamic" },
   { id: "mp", label: "Mezzopiano", glyph: "mp", category: "dynamic" },
   { id: "mf", label: "Mezzoforte", glyph: "mf", category: "dynamic" },
   { id: "f", label: "Forte", glyph: "f", category: "dynamic" },
   { id: "ff", label: "Fortissimo", glyph: "ff", category: "dynamic" },
+  { id: "sfz", label: "Sforzando", glyph: "sfz", category: "dynamic" },
+  { id: "fp", label: "Fortepiano", glyph: "fp", category: "dynamic" },
   { id: "0", label: "Fingersetting 0", glyph: "0", category: "fingering" },
   { id: "1", label: "Fingersetting 1", glyph: "1", category: "fingering" },
   { id: "2", label: "Fingersetting 2", glyph: "2", category: "fingering" },
@@ -185,7 +226,8 @@ export function hitTestAnnotation(
 
   switch (item.kind) {
     case "pencil":
-    case "highlighter": {
+    case "highlighter":
+    case "whiteout": {
       const pts = item.points;
       if (pts.length === 0) return false;
       const strokeHalfWidth = (Math.max(1, item.width) / ANNOTATION_VIEWBOX_SIZE) * 0.5;
@@ -241,7 +283,7 @@ export type AnnotationHistoryState = {
 };
 
 function cloneItem(item: AnnotationItem): AnnotationItem {
-  if (item.kind === "pencil" || item.kind === "highlighter") {
+  if (item.kind === "pencil" || item.kind === "highlighter" || item.kind === "whiteout") {
     return {
       ...item,
       points: item.points.map((pt) => ({ ...pt })),
@@ -324,3 +366,80 @@ export function redoAnnotationHistory(
     changed: true,
   };
 }
+
+export type RgbaSample = { r: number; g: number; b: number; a: number };
+
+function toHexByte(n: number): string {
+  return Math.max(0, Math.min(255, Math.round(n)))
+    .toString(16)
+    .padStart(2, "0");
+}
+
+/**
+ * Picks the median light background color from a list of RGBA samples.
+ * Falls back to `#ffffff` when no bright opaque paper pixels are found.
+ */
+export function pickBackgroundColorFromSamples(samples: readonly RgbaSample[]): string {
+  const light = samples
+    .filter((s) => s.a >= 200)
+    .map((s) => ({
+      ...s,
+      lum: 0.299 * s.r + 0.587 * s.g + 0.114 * s.b,
+    }))
+    .filter((s) => s.lum >= 180)
+    .sort((a, b) => a.lum - b.lum);
+
+  if (light.length === 0) return "#ffffff";
+  const mid = light[Math.floor(light.length / 2)]!;
+  return `#${toHexByte(mid.r)}${toHexByte(mid.g)}${toHexByte(mid.b)}`;
+}
+
+/**
+ * Samples margin pixels from a rendered PDF canvas to match the sheet's paper color.
+ */
+export function sampleCanvasBackgroundColor(canvas: HTMLCanvasElement | null | undefined): string {
+  if (!canvas || canvas.width <= 0 || canvas.height <= 0) return "#ffffff";
+  let ctx: CanvasRenderingContext2D | null = null;
+  try {
+    ctx = canvas.getContext("2d", { willReadFrequently: true });
+  } catch {
+    ctx = canvas.getContext("2d");
+  }
+  if (!ctx) return "#ffffff";
+
+  const w = canvas.width;
+  const h = canvas.height;
+  const coords: Array<[number, number]> = [
+    [0.03, 0.03],
+    [0.5, 0.03],
+    [0.97, 0.03],
+    [0.03, 0.5],
+    [0.97, 0.5],
+    [0.03, 0.97],
+    [0.5, 0.97],
+    [0.97, 0.97],
+    [0.12, 0.08],
+    [0.88, 0.08],
+    [0.12, 0.92],
+    [0.88, 0.92],
+  ];
+
+  const samples: RgbaSample[] = [];
+  for (const [fx, fy] of coords) {
+    const x = Math.min(w - 1, Math.max(0, Math.floor(w * fx)));
+    const y = Math.min(h - 1, Math.max(0, Math.floor(h * fy)));
+    try {
+      const data = ctx.getImageData(x, y, 1, 1).data;
+      samples.push({
+        r: data[0] ?? 255,
+        g: data[1] ?? 255,
+        b: data[2] ?? 255,
+        a: data[3] ?? 255,
+      });
+    } catch {
+      return "#ffffff";
+    }
+  }
+  return pickBackgroundColorFromSamples(samples);
+}
+

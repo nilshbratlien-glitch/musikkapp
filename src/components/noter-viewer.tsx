@@ -24,6 +24,7 @@ import {
   NoterAnnotationLayer,
   type AnnotationTool,
   type PencilThickness,
+  type WhiteoutSize,
 } from "@/components/noter-annotation-layer";
 import { NoterCropModal } from "@/components/noter-crop-modal";
 import { NoterNavDrawer, type NavDrawerTab } from "@/components/noter-nav-drawer";
@@ -46,8 +47,12 @@ import {
   HIGHLIGHTER_COLORS,
   PENCIL_WIDTH_THICK,
   PENCIL_WIDTH_THIN,
+  WHITEOUT_WIDTH_LARGE,
+  WHITEOUT_WIDTH_MEDIUM,
+  WHITEOUT_WIDTH_SMALL,
   cloneAnnotationItems,
   createAnnotationHistory,
+  sampleCanvasBackgroundColor,
   pushAnnotationHistory,
   redoAnnotationHistory,
   undoAnnotationHistory,
@@ -214,6 +219,8 @@ export function NoterViewer({
   const [pencilColor, setPencilColor] = useState<string>(ANNOTATION_COLORS[1]);
   const [pencilThickness, setPencilThickness] = useState<PencilThickness>("thin");
   const [highlighterColor, setHighlighterColor] = useState<string>(HIGHLIGHTER_COLORS[0]);
+  const [whiteoutSize, setWhiteoutSize] = useState<WhiteoutSize>("medium");
+  const [pageBackgroundColor, setPageBackgroundColor] = useState<string>("#ffffff");
   const [activeStampId, setActiveStampId] = useState<StampId>("fermata");
   const [stylusOnly, setStylusOnly] = useState(false);
 
@@ -569,6 +576,7 @@ export function NoterViewer({
           if (controller.signal.aborted || renderSeqRef.current !== seq) return;
           if (topSize.width > 0 && topSize.height > 0) setTopCanvasSize(topSize);
           if (bottomSize.width > 0 && bottomSize.height > 0) setBottomCanvasSize(bottomSize);
+          setPageBackgroundColor(sampleCanvasBackgroundColor(bottomCanvas));
           setRendering(false);
         })
         .catch((err) => {
@@ -591,6 +599,7 @@ export function NoterViewer({
         .then((size) => {
           if (controller.signal.aborted || renderSeqRef.current !== seq) return;
           if (size.width > 0 && size.height > 0) setSingleCanvasSize(size);
+          setPageBackgroundColor(sampleCanvasBackgroundColor(canvas));
           setRendering(false);
         })
         .catch((err) => {
@@ -1106,6 +1115,12 @@ export function NoterViewer({
 
   const activePencilWidth =
     pencilThickness === "thick" ? PENCIL_WIDTH_THICK : PENCIL_WIDTH_THIN;
+  const activeWhiteoutWidth =
+    whiteoutSize === "small"
+      ? WHITEOUT_WIDTH_SMALL
+      : whiteoutSize === "large"
+        ? WHITEOUT_WIDTH_LARGE
+        : WHITEOUT_WIDTH_MEDIUM;
   const hasPrevInSetlist = Boolean(setlistContext && setlistContext.activeIndex > 0);
   const hasNextInSetlist = Boolean(
     setlistContext && setlistContext.activeIndex < setlistContext.sheets.length - 1,
@@ -1322,6 +1337,9 @@ export function NoterViewer({
           onSelectPencilThickness={setPencilThickness}
           highlighterColor={highlighterColor}
           onSelectHighlighterColor={setHighlighterColor}
+          whiteoutSize={whiteoutSize}
+          onSelectWhiteoutSize={setWhiteoutSize}
+          whiteoutColor={pageBackgroundColor}
           activeStampId={activeStampId}
           onSelectStampId={setActiveStampId}
           stylusOnly={stylusOnly}
@@ -1551,6 +1569,9 @@ export function NoterViewer({
                   pencilColor={pencilColor}
                   pencilWidth={activePencilWidth}
                   highlighterColor={highlighterColor}
+                  whiteoutColor={pageBackgroundColor}
+                  whiteoutWidth={activeWhiteoutWidth}
+                  nightFilter={nightMode ? NIGHT_FILTER : undefined}
                   activeStampId={activeStampId}
                   stylusOnly={stylusOnly}
                   onCommitItems={handleCommitItems}
@@ -1587,6 +1608,9 @@ export function NoterViewer({
                   pencilColor={pencilColor}
                   pencilWidth={activePencilWidth}
                   highlighterColor={highlighterColor}
+                  whiteoutColor={pageBackgroundColor}
+                  whiteoutWidth={activeWhiteoutWidth}
+                  nightFilter={nightMode ? NIGHT_FILTER : undefined}
                   activeStampId={activeStampId}
                   stylusOnly={stylusOnly}
                   onCommitItems={handleCommitItems}
@@ -1616,6 +1640,9 @@ export function NoterViewer({
                 pencilColor={pencilColor}
                 pencilWidth={activePencilWidth}
                 highlighterColor={highlighterColor}
+                whiteoutColor={pageBackgroundColor}
+                whiteoutWidth={activeWhiteoutWidth}
+                nightFilter={nightMode ? NIGHT_FILTER : undefined}
                 activeStampId={activeStampId}
                 stylusOnly={stylusOnly}
                 onCommitItems={handleCommitItems}

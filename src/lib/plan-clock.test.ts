@@ -241,6 +241,18 @@ describe("plan clock on the pulse core", () => {
     profile.setProfile("mallets");
   });
 
+  it("navigates to /noter?sheet=... when repTarget is set on the plan store", () => {
+    planClock.ensurePlanClock();
+    const clock = planClock.getPlanClock();
+    clock.store.repTarget = { kind: "sheet", id: "s-42", title: "Marsj" };
+    const went: string[] = [];
+    planClock.bindPlanNavigate((to) => went.push(to));
+    planClock.beginBlock(item("rep"));
+    planClock.bindPlanNavigate(() => {});
+    assert.deepEqual(went, ["/noter?sheet=s-42"]);
+    clock.store.repTarget = null;
+  });
+
   it("keeps the controller on Øveplan when shouldNavigateLocally returns false", () => {
     planClock.ensurePlanClock();
     const went: string[] = [];

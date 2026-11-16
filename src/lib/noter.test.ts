@@ -42,7 +42,9 @@ import {
   createAnnotationHistory,
   eraseAnnotationsAtPoint,
   getAnnotationSvgViewBox,
+  WHITEOUT_WIDTH_MEDIUM,
   hitTestAnnotation,
+  pickBackgroundColorFromSamples,
   pushAnnotationHistory,
   redoAnnotationHistory,
   undoAnnotationHistory,
@@ -517,7 +519,7 @@ describe("noter-crop white-margin detection and half-page regions", () => {
 });
 
 describe("noter-annotations math, eraser, and undo/redo", () => {
-  it("exports expected palettes, widths, and all 17 musical stamps", () => {
+  it("exports expected palettes, widths, and all 36 musical stamps", () => {
     assert.ok(ANNOTATION_COLORS.length >= 6);
     assert.ok(HIGHLIGHTER_COLORS.length >= 4);
     assert.ok(PENCIL_WIDTH_THIN < PENCIL_WIDTH_THICK);
@@ -530,12 +532,31 @@ describe("noter-annotations math, eraser, and undo/redo", () => {
       "fermata",
       "breath",
       "glasses",
+      "caesura",
+      "accent",
+      "marcato",
+      "tenuto",
+      "staccato",
+      "sharp",
+      "flat",
+      "natural",
+      "coda",
+      "segno",
+      "check",
+      "star",
+      "arrow-up",
+      "arrow-down",
+      "arrow-left",
+      "arrow-right",
+      "arrow-repeat",
       "pp",
       "p",
       "mp",
       "mf",
       "f",
       "ff",
+      "sfz",
+      "fp",
       "0",
       "1",
       "2",
@@ -633,6 +654,41 @@ describe("noter-annotations math, eraser, and undo/redo", () => {
     assert.deepEqual(
       afterStamp.map((i) => i.id),
       ["s1", "h1", "t1"],
+    );
+
+    // Whiteout strokes can also be hit-tested and erased
+    const whiteout: AnnotationItem = {
+      id: "w1",
+      kind: "whiteout",
+      color: "#faf6ec",
+      width: WHITEOUT_WIDTH_MEDIUM,
+      opacity: 1,
+      points: [
+        { x: 0.4, y: 0.6 },
+        { x: 0.5, y: 0.6 },
+      ],
+    };
+    assert.equal(hitTestAnnotation(whiteout, { x: 0.45, y: 0.6 }), true);
+    assert.equal(eraseAnnotationsAtPoint([whiteout], { x: 0.45, y: 0.6 }).length, 0);
+  });
+
+  it("picks median light background color from canvas samples and falls back to #ffffff", () => {
+    assert.equal(pickBackgroundColorFromSamples([]), "#ffffff");
+    assert.equal(
+      pickBackgroundColorFromSamples([
+        { r: 0, g: 0, b: 0, a: 255 },
+        { r: 250, g: 246, b: 236, a: 255 },
+        { r: 250, g: 246, b: 236, a: 255 },
+        { r: 255, g: 255, b: 255, a: 255 },
+      ]),
+      "#faf6ec",
+    );
+    assert.equal(
+      pickBackgroundColorFromSamples([
+        { r: 10, g: 10, b: 10, a: 255 },
+        { r: 255, g: 255, b: 255, a: 0 },
+      ]),
+      "#ffffff",
     );
   });
 

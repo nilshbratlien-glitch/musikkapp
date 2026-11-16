@@ -1,4 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { listSetlists, listSheets } from "@/lib/noter-db";
+import type { SetlistRecord, SheetMeta } from "@/lib/noter";
 import {
   applyPreset,
   blockName,
@@ -13,6 +15,7 @@ import {
   BLOCK_COLOR,
   type PlanItem,
   type PlanPreset,
+  type RepTarget,
 } from "@/lib/oveplan";
 import {
   beginBlock,
@@ -55,7 +58,25 @@ export function Oveplan() {
   useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
   const duetViewPaired = useSyncExternalStore(subscribeDuetViewPaired, isDuetViewPaired, () => false);
   const [pairedPart, setPairedPart] = useState<DuetViewPart>("score");
+  const [noterSheets, setNoterSheets] = useState<SheetMeta[]>([]);
+  const [noterSetlists, setNoterSetlists] = useState<SetlistRecord[]>([]);
   const redraw = () => touchPlanClock();
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([listSheets(), listSetlists()])
+      .then(([sheets, setlists]) => {
+        if (!active) return;
+        setNoterSheets(sheets);
+        setNoterSetlists(setlists);
+      })
+      .catch(() => {
+        /* best effort when IndexedDB is unavailable */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function persist() {
     savePlanStore(clock.current.store);
@@ -276,6 +297,68 @@ export function Oveplan() {
                     <button type="button" onClick={() => changeMins(item.id, 1)} className="metro-press size-10 rounded-xl border border-line">+</button>
                     <button type="button" disabled={!item.on || item.skipped} onClick={() => skip(item.id)} className="metro-press min-h-10 rounded-xl border border-line px-2 text-sm disabled:opacity-30">Hopp</button>
                   </span>
+                  {item.id === "rep" && (noterSheets.length > 0 || noterSetlists.length > 0 || cur.store.repTarget) ? (
+                    <div className="col-span-4 mt-1 flex items-center gap-2 border-t border-line/60 pt-2">
+                      <label htmlFor="oveplan-rep-target" className="shrink-0 text-xs font-medium text-muted">
+                        Noter:
+                      </label>
+                      <select
+                        id="oveplan-rep-target"
+                        aria-label="Koblet noteark eller settliste"
+                        value={
+                          cur.store.repTarget
+                            ? `${cur.store.repTarget.kind}:${cur.store.repTarget.id}`
+                            : ""
+                        }
+                        onChange={(event) => {
+                          const raw = event.target.value;
+                          let next: RepTarget | null = null;
+                          if (raw.startsWith("sheet:")) {
+                            const id = raw.slice("sheet:".length);
+                            const found = noterSheets.find((s) => s.id === id);
+                            if (found) next = { kind: "sheet", id: found.id, title: found.title };
+                          } else if (raw.startsWith("setlist:")) {
+                            const id = raw.slice("setlist:".length);
+                            const found = noterSetlists.find((sl) => sl.id === id);
+                            if (found) next = { kind: "setlist", id: found.id, title: found.name };
+                          }
+                          cur.store.repTarget = next;
+                          persist();
+                          redraw();
+                        }}
+                        className="metro-field min-h-9 min-w-0 flex-1 rounded-lg border border-line bg-header px-2.5 text-xs text-fg"
+                      >
+                        <option value="">Ingen kobling</option>
+                        {noterSetlists.length > 0 ? (
+                          <optgroup label="Settlister">
+                            {noterSetlists.map((sl) => (
+                              <option key={sl.id} value={`setlist:${sl.id}`}>
+                                {sl.name} ({sl.sheetIds.length})
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
+                        {noterSheets.length > 0 ? (
+                          <optgroup label="Noteark">
+                            {noterSheets.map((sheet) => (
+                              <option key={sheet.id} value={`sheet:${sheet.id}`}>
+                                {sheet.title}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
+                        {cur.store.repTarget &&
+                        ((cur.store.repTarget.kind === "sheet" &&
+                          !noterSheets.some((s) => s.id === cur.store.repTarget?.id)) ||
+                          (cur.store.repTarget.kind === "setlist" &&
+                            !noterSetlists.some((sl) => sl.id === cur.store.repTarget?.id))) ? (
+                          <option value={`${cur.store.repTarget.kind}:${cur.store.repTarget.id}`}>
+                            {cur.store.repTarget.title}
+                          </option>
+                        ) : null}
+                      </select>
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
