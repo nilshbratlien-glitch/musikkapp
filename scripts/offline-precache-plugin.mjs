@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 
 export const OFFLINE_MANIFEST_FILENAME = "offline-manifest.json";
 
@@ -19,6 +21,19 @@ export function collectPrecacheAssets(bundle) {
   return assets;
 }
 
+export function collectMalletsightAudioAssets(
+  dir = join(process.cwd(), "public", "malletsight"),
+) {
+  try {
+    return readdirSync(dir)
+      .filter((name) => name.startsWith("sample-") && name.endsWith(".mp3"))
+      .sort()
+      .map((name) => `/malletsight/${name}`);
+  } catch {
+    return [];
+  }
+}
+
 export function buildOfflineManifest(assets) {
   const unique = [...new Set(assets)].sort();
   const version = createHash("sha256")
@@ -28,20 +43,21 @@ export function buildOfflineManifest(assets) {
   return { version, assets: unique };
 }
 
-export function offlinePrecachePlugin() {
+export function offlinePrecachePlugin(options = {}) {
   return {
     name: "musikkapp:offline-precache",
     apply: "build",
     enforce: "post",
-    generateBundle(_options, bundle) {
+    generateBundle(_outputOptions, bundle) {
       if (this.environment && this.environment.name !== "client") {
         return;
       }
-      const assets = collectPrecacheAssets(bundle);
-      if (assets.length === 0) {
+      const bundleAssets = collectPrecacheAssets(bundle);
+      if (bundleAssets.length === 0) {
         return;
       }
-      const manifest = buildOfflineManifest(assets);
+      const audioAssets = collectMalletsightAudioAssets(options.malletsightDir);
+      const manifest = buildOfflineManifest([...bundleAssets, ...audioAssets]);
       this.emitFile({
         type: "asset",
         fileName: OFFLINE_MANIFEST_FILENAME,

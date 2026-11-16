@@ -127,12 +127,174 @@ export function StampSvgContent({ stampId, color }: { stampId: StampId; color: s
           />
         </>
       );
+    case "caesura":
+      return (
+        <>
+          <path d="M -5 10 L 0 -10" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" />
+          <path d="M 1 10 L 6 -10" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" />
+        </>
+      );
+    case "accent":
+      return (
+        <path
+          d="M -9 -6 L 9 0 L -9 6"
+          fill="none"
+          stroke={color}
+          strokeWidth={2.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      );
+    case "marcato":
+      return (
+        <path
+          d="M -7 7 L 0 -9 L 7 7"
+          fill="none"
+          stroke={color}
+          strokeWidth={2.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      );
+    case "tenuto":
+      return (
+        <path
+          d="M -10 0 L 10 0"
+          fill="none"
+          stroke={color}
+          strokeWidth={3.2}
+          strokeLinecap="round"
+        />
+      );
+    case "staccato":
+      return <circle cx={0} cy={0} r={3.6} fill={color} />;
+    case "sharp":
+      return (
+        <>
+          <path d="M -4 -12 L -4 12" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" />
+          <path d="M 4 -12 L 4 12" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" />
+          <path d="M -10 -3 L 10 -6" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" />
+          <path d="M -10 6 L 10 3" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" />
+        </>
+      );
+    case "flat":
+      return (
+        <path
+          d="M -5 -13 L -5 11 C 2 9 7 4 6 -1 C 5 -5 0 -5 -5 -1"
+          fill="none"
+          stroke={color}
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      );
+    case "natural":
+      return (
+        <>
+          <path d="M -4 -12 L -4 6 L 5 3" fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M 5 12 L 5 -6 L -4 -3" fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      );
+    case "coda":
+      return (
+        <>
+          <ellipse cx={0} cy={0} rx={8} ry={10} fill="none" stroke={color} strokeWidth={2.4} />
+          <path d="M 0 -14 L 0 14" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" />
+          <path d="M -12 0 L 12 0" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" />
+        </>
+      );
+    case "segno":
+      return (
+        <>
+          <path
+            d="M 5 -9 C 1 -12 -5 -10 -5 -5 C -5 0 6 0 6 5 C 6 10 0 12 -5 9"
+            fill="none"
+            stroke={color}
+            strokeWidth={2.3}
+            strokeLinecap="round"
+          />
+          <path d="M -9 10 L 9 -10" fill="none" stroke={color} strokeWidth={2.2} strokeLinecap="round" />
+          <circle cx={-8} cy={-2} r={2} fill={color} />
+          <circle cx={8} cy={2} r={2} fill={color} />
+        </>
+      );
+    case "check":
+      return (
+        <path
+          d="M -9 1 L -3 7 L 10 -7"
+          fill="none"
+          stroke={color}
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      );
+    case "star":
+      return (
+        <path
+          d="M 0 -12 L 3.4 -4.2 L 11.8 -3.5 L 5.4 2.1 L 7.3 10.4 L 0 6 L -7.3 10.4 L -5.4 2.1 L -11.8 -3.5 L -3.4 -4.2 Z"
+          fill="none"
+          stroke={color}
+          strokeWidth={2.2}
+          strokeLinejoin="round"
+        />
+      );
+    case "arrow-up":
+      return (
+        <>
+          <path d="M 0 11 L 0 -10" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" />
+          <path d="M -7 -3 L 0 -11 L 7 -3" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      );
+    case "arrow-down":
+      return (
+        <>
+          <path d="M 0 -11 L 0 10" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" />
+          <path d="M -7 3 L 0 11 L 7 3" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      );
+    case "arrow-left":
+      return (
+        <>
+          <path d="M 11 0 L -10 0" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" />
+          <path d="M -3 -7 L -11 0 L -3 7" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      );
+    case "arrow-right":
+      return (
+        <>
+          <path d="M -11 0 L 10 0" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" />
+          <path d="M 3 -7 L 11 0 L 3 7" fill="none" stroke={color} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      );
+    case "arrow-repeat":
+      return (
+        <>
+          <path
+            d="M -9 -3 L 3 -3 C 8 -3 11 0 11 4 C 11 8 8 11 3 11 L -6 11"
+            fill="none"
+            stroke={color}
+            strokeWidth={2.6}
+            strokeLinecap="round"
+          />
+          <path
+            d="M -3 -9 L -10 -3 L -3 3"
+            fill="none"
+            stroke={color}
+            strokeWidth={2.6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </>
+      );
     case "pp":
     case "p":
     case "mp":
     case "mf":
     case "f":
     case "ff":
+    case "sfz":
+    case "fp":
       return (
         <text
           x={0}
@@ -140,7 +302,7 @@ export function StampSvgContent({ stampId, color }: { stampId: StampId; color: s
           textAnchor="middle"
           dominantBaseline="central"
           fill={color}
-          fontSize={22}
+          fontSize={stampId.length >= 3 ? 18 : 22}
           fontWeight="700"
           fontStyle="italic"
           fontFamily="Georgia, 'Times New Roman', serif"

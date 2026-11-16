@@ -40,6 +40,12 @@ export type PlanLog = {
   note: string;
 };
 
+export type RepTarget = {
+  kind: "sheet" | "setlist";
+  id: string;
+  title: string;
+};
+
 export type PlanStore = {
   items: PlanItem[];
   done: string[];
@@ -50,6 +56,7 @@ export type PlanStore = {
   bpm: number;
   beats: number;
   sub: number;
+  repTarget?: RepTarget | null;
 };
 
 export const DEFAULT_MINS: Record<BlockId, number> = {
@@ -138,11 +145,23 @@ export const TRUMPET_EXERCISES: Record<BlockId, ExerciseCard> = {
   },
 };
 
-/** The tool a block opens when it starts: 2- and 4-mallet practise with the metronome, SRF is sight-reading, and trumpet Korpslekse opens metronome with exercise instructions. */
-export function blockTool(id: BlockId, profile: InstrumentProfile = getProfile()) {
+/** The tool a block opens when it starts: 2- and 4-mallet practise with the metronome, SRF is sight-reading, linked Repertoar opens Noter, and unlinked trumpet Korpslekse opens metronome with exercise instructions. */
+export function blockTool(
+  id: BlockId,
+  profile: InstrumentProfile = getProfile(),
+  repTarget?: RepTarget | null,
+) {
   if (id === "twomallet" || id === "fourmallet") return "/metronom";
   if (id === "srf") return "/bladlesing";
-  if (id === "rep" && profile === "trumpet") return "/metronom";
+  if (id === "rep") {
+    if (repTarget?.kind === "sheet" && repTarget.id) {
+      return `/noter?sheet=${encodeURIComponent(repTarget.id)}`;
+    }
+    if (repTarget?.kind === "setlist" && repTarget.id) {
+      return `/noter?setlist=${encodeURIComponent(repTarget.id)}`;
+    }
+    if (profile === "trumpet") return "/metronom";
+  }
   return null;
 }
 
@@ -306,6 +325,7 @@ export function emptyPlanStore(profile: InstrumentProfile = getProfile()): PlanS
     bpm: 80,
     beats: 4,
     sub: 1,
+    repTarget: null,
   };
 }
 
@@ -346,6 +366,12 @@ export function parsePlanStore(raw: unknown, profile: InstrumentProfile = getPro
   if (typeof record.bpm === "number") base.bpm = clampBpm(record.bpm);
   if (typeof record.beats === "number") base.beats = record.beats;
   if (typeof record.sub === "number") base.sub = record.sub;
+  if (record.repTarget && typeof record.repTarget === "object" && !Array.isArray(record.repTarget)) {
+    const rt = record.repTarget as Partial<RepTarget>;
+    if ((rt.kind === "sheet" || rt.kind === "setlist") && typeof rt.id === "string" && rt.id && typeof rt.title === "string") {
+      base.repTarget = { kind: rt.kind, id: rt.id, title: rt.title };
+    }
+  }
   return base;
 }
 
@@ -377,6 +403,7 @@ export function savePlanStore(store: PlanStore, profile: InstrumentProfile = get
       bpm: store.bpm,
       beats: store.beats,
       sub: store.sub,
+      repTarget: store.repTarget ?? null,
     },
     profile,
   );

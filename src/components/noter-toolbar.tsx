@@ -69,6 +69,7 @@ const STAMP_GROUPS: ReadonlyArray<{
   title: string;
 }> = [
   { category: "symbol", title: "Symboler" },
+  { category: "arrow", title: "Piler" },
   { category: "dynamic", title: "Dynamikk" },
   { category: "fingering", title: "Fingersetting" },
 ];

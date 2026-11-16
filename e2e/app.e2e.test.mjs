@@ -1754,6 +1754,10 @@ describe("offline precache", () => {
     assert.ok(manifestRes && Array.isArray(manifestRes.assets), "offline-manifest.json exists");
     assert.ok(manifestRes.assets.some((a) => a.endsWith(".js")), "manifest lists JS bundles");
     assert.ok(manifestRes.assets.some((a) => a.endsWith(".css")), "manifest lists CSS bundles");
+    assert.ok(
+      manifestRes.assets.some((a) => a.startsWith("/malletsight/sample-") && a.endsWith(".mp3")),
+      "manifest lists malletsight sample MP3s",
+    );
 
     // Wait for service worker to become active and control this page
     await page.evaluate(async () => {
@@ -1768,6 +1772,11 @@ describe("offline precache", () => {
       for (const path of ["/noter", "/metronom", "/notekort", "/bladlesing", "/"]) {
         await tab(path);
       }
+      const mp3Ok = await page.evaluate(async () => {
+        const res = await fetch("/malletsight/sample-marimba-C4.mp3");
+        return res.ok;
+      });
+      assert.equal(mp3Ok, true, "precached malletsight sample MP3 loads offline");
       assert.deepEqual(pageErrors, [], `unexpected offline page errors: ${pageErrors.join("; ")}`);
     } finally {
       await page.context().setOffline(false);
@@ -1775,10 +1784,60 @@ describe("offline precache", () => {
   });
 });
 
+describe("Øveplan Repertoar linked to Noter and expanded stamps", () => {
+  it("links a Noter sheet to Repertoar, opens it on Start, and shows arrow stamps", async () => {
+    const pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
 
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(mockPdfJsLib);
 
+    await open("/noter");
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles({
+      name: "Konsertmarsj.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%fake-pdf"),
+    });
+    await page.getByRole("button", { name: /^Konsertmarsj/i }).waitFor({ state: "visible" });
 
+    // Configure Øveplan with only the Repertoar block and link Konsertmarsj
+    await page.evaluate((value) => {
+      localStorage.setItem("musikkapp.oveplan", JSON.stringify(value));
+    }, plan(["rep"]));
+    await tab("/");
 
+    const repSelect = page.getByLabel("Koblet noteark eller settliste", { exact: true });
+    await repSelect.waitFor({ state: "visible" });
+    const optionValue = await repSelect.locator("option", { hasText: "Konsertmarsj" }).getAttribute("value");
+    assert.ok(optionValue && optionValue.startsWith("sheet:"), "Konsertmarsj option exists");
+    await repSelect.selectOption(optionValue);
 
+    // Start the Repertoar block -> navigates to /noter?sheet=... and opens Noteviser
+    await page.getByRole("button", { name: "Start", exact: true }).click();
+    await page.waitForFunction(() => location.pathname === "/noter");
+    assert.match(await header().innerText(), /Repertoar/);
 
+    const viewer = page.locator('[role="dialog"][aria-label^="Noteviser:"]');
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
 
+    // Open Stempel tool and verify Piler group + Pil høyre stamp are available
+    await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
+    await viewer.getByRole("button", { name: "Velg stempel", exact: true }).click();
+    const stampPopover = viewer.getByRole("dialog", { name: "Velg musikalsk stempel" });
+    await stampPopover.waitFor({ state: "visible" });
+    await stampPopover.getByText("Piler", { exact: true }).waitFor({ state: "visible" });
+    await stampPopover.getByRole("button", { name: "Pil høyre", exact: true }).click();
+    await stampPopover.waitFor({ state: "detached" });
+
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+  });
+});

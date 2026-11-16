@@ -4,12 +4,31 @@ export type StampId =
   | "fermata"
   | "breath"
   | "glasses"
+  | "caesura"
+  | "accent"
+  | "marcato"
+  | "tenuto"
+  | "staccato"
+  | "sharp"
+  | "flat"
+  | "natural"
+  | "coda"
+  | "segno"
+  | "check"
+  | "star"
+  | "arrow-up"
+  | "arrow-down"
+  | "arrow-left"
+  | "arrow-right"
+  | "arrow-repeat"
   | "pp"
   | "p"
   | "mp"
   | "mf"
   | "f"
   | "ff"
+  | "sfz"
+  | "fp"
   | "0"
   | "1"
   | "2"
@@ -84,19 +103,38 @@ export type StampDefinition = {
   id: StampId;
   label: string;
   glyph: string;
-  category: "symbol" | "dynamic" | "fingering";
+  category: "symbol" | "arrow" | "dynamic" | "fingering";
 };
 
 export const STAMP_DEFINITIONS: readonly StampDefinition[] = [
   { id: "fermata", label: "Fermate", glyph: "𝄐", category: "symbol" },
   { id: "breath", label: "Pustetegn", glyph: ",", category: "symbol" },
   { id: "glasses", label: "Briller (se opp)", glyph: "👓", category: "symbol" },
+  { id: "caesura", label: "Caesura (//)", glyph: "//", category: "symbol" },
+  { id: "accent", label: "Aksent (>)", glyph: ">", category: "symbol" },
+  { id: "marcato", label: "Marcato (^)", glyph: "^", category: "symbol" },
+  { id: "tenuto", label: "Tenuto (—)", glyph: "—", category: "symbol" },
+  { id: "staccato", label: "Staccato (·)", glyph: "•", category: "symbol" },
+  { id: "sharp", label: "Kryss (♯)", glyph: "♯", category: "symbol" },
+  { id: "flat", label: "B (♭)", glyph: "♭", category: "symbol" },
+  { id: "natural", label: "Oppløsningstegn (♮)", glyph: "♮", category: "symbol" },
+  { id: "coda", label: "Coda", glyph: "⌖", category: "symbol" },
+  { id: "segno", label: "Segno", glyph: "𝄋", category: "symbol" },
+  { id: "check", label: "Sjekk / OK", glyph: "✓", category: "symbol" },
+  { id: "star", label: "Viktig", glyph: "★", category: "symbol" },
+  { id: "arrow-up", label: "Pil opp", glyph: "↑", category: "arrow" },
+  { id: "arrow-down", label: "Pil ned", glyph: "↓", category: "arrow" },
+  { id: "arrow-left", label: "Pil venstre", glyph: "←", category: "arrow" },
+  { id: "arrow-right", label: "Pil høyre", glyph: "→", category: "arrow" },
+  { id: "arrow-repeat", label: "Tilbake / Gjenta", glyph: "↩", category: "arrow" },
   { id: "pp", label: "Pianissimo", glyph: "pp", category: "dynamic" },
   { id: "p", label: "Piano", glyph: "p", category: "dynamic" },
   { id: "mp", label: "Mezzopiano", glyph: "mp", category: "dynamic" },
   { id: "mf", label: "Mezzoforte", glyph: "mf", category: "dynamic" },
   { id: "f", label: "Forte", glyph: "f", category: "dynamic" },
   { id: "ff", label: "Fortissimo", glyph: "ff", category: "dynamic" },
+  { id: "sfz", label: "Sforzando", glyph: "sfz", category: "dynamic" },
+  { id: "fp", label: "Fortepiano", glyph: "fp", category: "dynamic" },
   { id: "0", label: "Fingersetting 0", glyph: "0", category: "fingering" },
   { id: "1", label: "Fingersetting 1", glyph: "1", category: "fingering" },
   { id: "2", label: "Fingersetting 2", glyph: "2", category: "fingering" },

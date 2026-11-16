@@ -235,6 +235,37 @@ export function Noter() {
     }
   }, []);
 
+  const handledDeepLinkRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (loading || typeof window === "undefined") return;
+    const searchStr = window.location.search;
+    if (!searchStr || handledDeepLinkRef.current === searchStr) return;
+    const params = new URLSearchParams(searchStr);
+    const targetSheetId = params.get("sheet");
+    const targetSetlistId = params.get("setlist");
+
+    if (targetSheetId) {
+      if (!sheets.some((s) => s.id === targetSheetId)) return;
+      handledDeepLinkRef.current = searchStr;
+      void handleOpenSheet(targetSheetId);
+      return;
+    }
+
+    if (targetSetlistId) {
+      const setlist = setlists.find((sl) => sl.id === targetSetlistId);
+      if (!setlist) return;
+      const firstSheetId = setlist.sheetIds.find((id) => sheets.some((s) => s.id === id));
+      if (!firstSheetId) return;
+      handledDeepLinkRef.current = searchStr;
+      void handleOpenSheet(firstSheetId, {
+        setlistId: setlist.id,
+        activeIndex: 0,
+        initialPage: 1,
+      });
+    }
+  }, [loading, sheets, setlists, handleOpenSheet]);
+
   const handleUpdateActiveMeta = useCallback(
     async (patch: UpdateSheetMetaPatch) => {
       if (!activeSheet) return;

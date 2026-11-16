@@ -517,7 +517,7 @@ describe("noter-crop white-margin detection and half-page regions", () => {
 });
 
 describe("noter-annotations math, eraser, and undo/redo", () => {
-  it("exports expected palettes, widths, and all 17 musical stamps", () => {
+  it("exports expected palettes, widths, and all 36 musical stamps", () => {
     assert.ok(ANNOTATION_COLORS.length >= 6);
     assert.ok(HIGHLIGHTER_COLORS.length >= 4);
     assert.ok(PENCIL_WIDTH_THIN < PENCIL_WIDTH_THICK);
@@ -530,12 +530,31 @@ describe("noter-annotations math, eraser, and undo/redo", () => {
       "fermata",
       "breath",
       "glasses",
+      "caesura",
+      "accent",
+      "marcato",
+      "tenuto",
+      "staccato",
+      "sharp",
+      "flat",
+      "natural",
+      "coda",
+      "segno",
+      "check",
+      "star",
+      "arrow-up",
+      "arrow-down",
+      "arrow-left",
+      "arrow-right",
+      "arrow-repeat",
       "pp",
       "p",
       "mp",
       "mf",
       "f",
       "ff",
+      "sfz",
+      "fp",
       "0",
       "1",
       "2",

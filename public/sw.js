@@ -22,9 +22,18 @@ const PRECACHE_CDN_URLS = [
   `${PDF_LIB_CDN_PREFIX}dist/pdf-lib.min.js`,
 ];
 
+function isMalletsightAudio(url) {
+  return url.pathname.startsWith("/malletsight/") && url.pathname.endsWith(".mp3");
+}
+
 function isAsset(url) {
   if (url.pathname === "/sw.js" || url.pathname === "/offline-manifest.json") return false;
-  return url.pathname.endsWith(".js") || url.pathname.endsWith(".mjs") || url.pathname.endsWith(".css");
+  return (
+    url.pathname.endsWith(".js") ||
+    url.pathname.endsWith(".mjs") ||
+    url.pathname.endsWith(".css") ||
+    isMalletsightAudio(url)
+  );
 }
 
 function isPinnedCdn(href) {
@@ -142,7 +151,7 @@ self.addEventListener("fetch", (event) => {
 
   if (!SHELL.includes(url.pathname) && !isAsset(url)) return;
 
-  if (url.pathname.startsWith("/assets/")) {
+  if (url.pathname.startsWith("/assets/") || isMalletsightAudio(url)) {
     event.respondWith(
       caches.match(event.request).then(
         (cached) =>

@@ -208,14 +208,29 @@ export function Shell() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   useEffect(() => {
+    const go = (to: string) => {
+      const [pathname, query] = to.split("?", 2);
+      const current = window.location.pathname + window.location.search;
+      if (current === to) return;
+      if (query) {
+        const search: Record<string, string> = {};
+        new URLSearchParams(query).forEach((value, key) => {
+          search[key] = value;
+        });
+        void navigate({
+          to: pathname as "/",
+          search: search as never,
+        });
+        return;
+      }
+      void navigate({ to: pathname as "/" });
+    };
     bindPlanNavigate((to) => {
       const state = getSyncState();
       if (state.connected && state.role === "controller") return;
-      if (window.location.pathname !== to) void navigate({ to });
+      go(to);
     });
-    registerSyncNavigator((to) => {
-      if (window.location.pathname !== to) void navigate({ to });
-    });
+    registerSyncNavigator(go);
     initSyncBridge();
     autoReconnectIfConfigured();
   }, [navigate]);

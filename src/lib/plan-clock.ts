@@ -331,7 +331,7 @@ function openBlockTool(id: BlockId) {
   if (planBroadcastHook?.shouldNavigateLocally && !planBroadcastHook.shouldNavigateLocally()) {
     return;
   }
-  const to = blockTool(id);
+  const to = blockTool(id, getProfile(), clock.store.repTarget);
   if (to) navigate(to);
 }
 
@@ -685,7 +685,11 @@ function onVisible() {
 
 /** A 2- or 4-mallet block is active (running or paused), or trumpet Korpslekse: the Metronom tab is the plan's. */
 export function planMalletBlock() {
-  return !!clock.activeId && (playsMetronome(clock.activeId) || (getProfile() === "trumpet" && clock.activeId === "rep"));
+  return (
+    !!clock.activeId &&
+    (playsMetronome(clock.activeId) ||
+      (getProfile() === "trumpet" && clock.activeId === "rep" && !clock.store.repTarget))
+  );
 }
 
 /** Metronom's Start: in a 2-/4-mallet block it resumes the block at the block's tempo, otherwise `local` starts. */
