@@ -1861,7 +1861,6 @@ describe("offline precache", () => {
 describe("Øveplan Repertoar linked to Noter and expanded stamps", () => {
   it("links a Noter sheet to Repertoar, opens it on Start, and shows arrow stamps", async () => {
     const pageErrors = [];
-    page.on("pageerror", (err) => pageErrors.push(err.message));
 
     await page.route("https://cdn.jsdelivr.net/**", (route) =>
       route.fulfill({
@@ -1884,6 +1883,7 @@ describe("Øveplan Repertoar linked to Noter and expanded stamps", () => {
 
     // Configure Øveplan with only the Repertoar block and link Konsertmarsj
     await open("/", plan(["rep"]));
+    page.on("pageerror", (err) => pageErrors.push(err.message));
 
     const repSelect = page.getByLabel("Koblet noteark eller settliste", { exact: true });
     await repSelect.waitFor({ state: "visible" });
