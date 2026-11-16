@@ -72,6 +72,11 @@ type LinkDraft = {
 
 const PALM_REJECTION_WINDOW_MS = 800;
 const MIN_POINT_DISTANCE = 0.0015;
+export const TOUCH_PLACEMENT_OFFSET_PX = 48;
+
+export function getEffectivePlacementClientY(clientY: number, pointerType: string): number {
+  return pointerType === "touch" ? clientY - TOUCH_PLACEMENT_OFFSET_PX : clientY;
+}
 
 function createAnnotationId(): string {
   if (typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.randomUUID === "function") {
@@ -413,6 +418,57 @@ function renderAnnotationItem(item: AnnotationItem, nightFilter?: string) {
   }
 }
 
+function AlignmentReticle({
+  minX,
+  minY,
+  maxX,
+  maxY,
+}: {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}) {
+  const centerX = ((minX + maxX) / 2) * ANNOTATION_VIEWBOX_SIZE;
+  const centerY = ((minY + maxY) / 2) * ANNOTATION_VIEWBOX_SIZE;
+  return (
+    <g data-testid="annotation-drag-reticle" className="pointer-events-none">
+      <line
+        x1={0}
+        y1={centerY}
+        x2={ANNOTATION_VIEWBOX_SIZE}
+        y2={centerY}
+        stroke="#e0b15a"
+        strokeWidth={1.2}
+        strokeOpacity={0.45}
+        strokeDasharray="6 6"
+      />
+      <line
+        x1={centerX}
+        y1={0}
+        x2={centerX}
+        y2={ANNOTATION_VIEWBOX_SIZE}
+        stroke="#e0b15a"
+        strokeWidth={1.2}
+        strokeOpacity={0.45}
+        strokeDasharray="6 6"
+      />
+      <rect
+        x={minX * ANNOTATION_VIEWBOX_SIZE}
+        y={minY * ANNOTATION_VIEWBOX_SIZE}
+        width={Math.max(12, (maxX - minX) * ANNOTATION_VIEWBOX_SIZE)}
+        height={Math.max(12, (maxY - minY) * ANNOTATION_VIEWBOX_SIZE)}
+        rx={6}
+        fill="rgba(224, 177, 90, 0.1)"
+        stroke="#e0b15a"
+        strokeWidth={2}
+        strokeDasharray="5 4"
+      />
+      <circle cx={centerX} cy={centerY} r={5} fill="none" stroke="#e0b15a" strokeWidth={2} />
+    </g>
+  );
+}
+
 export function NoterAnnotationLayer({
   pageNumber,
   pageCount = 1,
@@ -442,11 +498,17 @@ export function NoterAnnotationLayer({
   const [erasedIds, setErasedIds] = useState<Set<string>>(() => new Set());
   const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
   const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
+  const [draftPlacement, setDraftPlacement] = useState<{
+    kind: "stamp" | "link";
+    x: number;
+    y: number;
+  } | null>(null);
   const [viewDrag, setViewDrag] = useState<
     | {
         kind: "annotation";
         pointerId: number;
         startPt: { x: number; y: number };
+        touchOffsetDy: number;
         originalItem: AnnotationItem;
         currentItem: AnnotationItem;
       }
@@ -454,6 +516,7 @@ export function NoterAnnotationLayer({
         kind: "jumpLink";
         pointerId: number;
         startPt: { x: number; y: number };
+        touchOffsetDy: number;
         link: JumpLink;
         currentX: number;
         currentY: number;
@@ -488,6 +551,7 @@ export function NoterAnnotationLayer({
     activePointerIdRef.current = null;
     draftStrokeRef.current = null;
     setDraftStroke(null);
+    setDraftPlacement(null);
     erasedIdsRef.current = new Set();
     setErasedIds(new Set());
     beforeEraseSnapshotRef.current = null;
@@ -532,16 +596,24 @@ export function NoterAnnotationLayer({
 
   const startLongPressWatcher = (
     e: React.PointerEvent<HTMLElement>,
-    onActivate: (startPt: { x: number; y: number }) => void,
+    onActivate: (startPt: { x: number; y: number }, touchOffsetDy: number) => void,
   ) => {
     clearPendingLongPress();
     const layerEl = viewLayerRef.current;
     if (!layerEl) return;
     const pointerId = e.pointerId;
+    const pointerType = e.pointerType;
     const startClientX = e.clientX;
     const startClientY = e.clientY;
     const rect = layerEl.getBoundingClientRect();
     const startPt = clientPointToNormalizedPage(startClientX, startClientY, rect, normRegion);
+    const liftedPt = clientPointToNormalizedPage(
+      startClientX,
+      getEffectivePlacementClientY(startClientY, pointerType),
+      rect,
+      normRegion,
+    );
+    const touchOffsetDy = liftedPt.y - startPt.y;
 
     const onWindowMove = (ev: PointerEvent) => {
       if (ev.pointerId !== pointerId) return;
@@ -567,7 +639,7 @@ export function NoterAnnotationLayer({
       cleanupWindow();
       pendingLongPressRef.current = null;
       onViewDragActiveChange?.(true);
-      onActivate(startPt);
+      onActivate(startPt, touchOffsetDy);
     }, 350);
 
     pendingLongPressRef.current = { pointerId, timerId, cleanupWindow };
@@ -588,7 +660,7 @@ export function NoterAnnotationLayer({
       const rect = layerEl.getBoundingClientRect();
       const pt = clientPointToNormalizedPage(ev.clientX, ev.clientY, rect, normRegion);
       const dx = pt.x - drag.startPt.x;
-      const dy = pt.y - drag.startPt.y;
+      const dy = pt.y + drag.touchOffsetDy - drag.startPt.y;
       if (drag.kind === "annotation") {
         setViewDrag({
           ...drag,
@@ -660,25 +732,21 @@ export function NoterAnnotationLayer({
       const hitItem = findTopmostAnnotationAtPoint(items, pt, hitRadius);
       if (!hitItem) return;
 
-      startLongPressWatcher(e, (startPt) => {
+      startLongPressWatcher(e, (startPt, touchOffsetDy) => {
         setViewDrag({
           kind: "annotation",
           pointerId: e.pointerId,
           startPt,
+          touchOffsetDy,
           originalItem: hitItem,
-          currentItem: hitItem,
+          currentItem:
+            touchOffsetDy !== 0 ? translateAnnotationItem(hitItem, 0, touchOffsetDy) : hitItem,
         });
       });
     };
 
     const draggedBounds =
       viewDrag?.kind === "annotation" ? getAnnotationBounds(viewDrag.currentItem) : null;
-    const draggedCenterX = draggedBounds
-      ? ((draggedBounds.minX + draggedBounds.maxX) / 2) * ANNOTATION_VIEWBOX_SIZE
-      : 0;
-    const draggedCenterY = draggedBounds
-      ? ((draggedBounds.minY + draggedBounds.maxY) / 2) * ANNOTATION_VIEWBOX_SIZE
-      : 0;
 
     return (
       <div
@@ -707,53 +775,12 @@ export function NoterAnnotationLayer({
               return renderAnnotationItem(activeItem, nightFilter);
             })}
             {draggedBounds ? (
-              <g data-testid="annotation-drag-reticle" className="pointer-events-none">
-                <line
-                  x1={0}
-                  y1={draggedCenterY}
-                  x2={ANNOTATION_VIEWBOX_SIZE}
-                  y2={draggedCenterY}
-                  stroke="#e0b15a"
-                  strokeWidth={1.2}
-                  strokeOpacity={0.45}
-                  strokeDasharray="6 6"
-                />
-                <line
-                  x1={draggedCenterX}
-                  y1={0}
-                  x2={draggedCenterX}
-                  y2={ANNOTATION_VIEWBOX_SIZE}
-                  stroke="#e0b15a"
-                  strokeWidth={1.2}
-                  strokeOpacity={0.45}
-                  strokeDasharray="6 6"
-                />
-                <rect
-                  x={draggedBounds.minX * ANNOTATION_VIEWBOX_SIZE}
-                  y={draggedBounds.minY * ANNOTATION_VIEWBOX_SIZE}
-                  width={Math.max(
-                    12,
-                    (draggedBounds.maxX - draggedBounds.minX) * ANNOTATION_VIEWBOX_SIZE,
-                  )}
-                  height={Math.max(
-                    12,
-                    (draggedBounds.maxY - draggedBounds.minY) * ANNOTATION_VIEWBOX_SIZE,
-                  )}
-                  rx={6}
-                  fill="rgba(224, 177, 90, 0.1)"
-                  stroke="#e0b15a"
-                  strokeWidth={2}
-                  strokeDasharray="5 4"
-                />
-                <circle
-                  cx={draggedCenterX}
-                  cy={draggedCenterY}
-                  r={5}
-                  fill="none"
-                  stroke="#e0b15a"
-                  strokeWidth={2}
-                />
-              </g>
+              <AlignmentReticle
+                minX={draggedBounds.minX}
+                minY={draggedBounds.minY}
+                maxX={draggedBounds.maxX}
+                maxY={draggedBounds.maxY}
+              />
             ) : null}
           </svg>
         ) : null}
@@ -780,15 +807,16 @@ export function NoterAnnotationLayer({
               onPointerDown={(e) => {
                 e.stopPropagation();
                 if (e.pointerType === "mouse" && e.button !== 0) return;
-                startLongPressWatcher(e, (startPt) => {
+                startLongPressWatcher(e, (startPt, touchOffsetDy) => {
                   suppressedLinkClickIdRef.current = link.id;
                   setViewDrag({
                     kind: "jumpLink",
                     pointerId: e.pointerId,
                     startPt,
+                    touchOffsetDy,
                     link,
                     currentX: link.x,
-                    currentY: link.y,
+                    currentY: Math.min(0.94, Math.max(0.06, link.y + touchOffsetDy)),
                   });
                 });
               }}
@@ -833,6 +861,7 @@ export function NoterAnnotationLayer({
     activePointerIdRef.current = null;
     draftStrokeRef.current = null;
     setDraftStroke(null);
+    setDraftPlacement(null);
     erasedIdsRef.current = new Set();
     setErasedIds(new Set());
     beforeEraseSnapshotRef.current = null;
@@ -899,6 +928,21 @@ export function NoterAnnotationLayer({
       }
       erasedIdsRef.current = nextErased;
       setErasedIds(nextErased);
+      return;
+    }
+
+    if (tool === "stamp" || (tool === "link" && linkDraft === null)) {
+      const placementPt = clientPointToNormalizedPage(
+        e.clientX,
+        getEffectivePlacementClientY(e.clientY, e.pointerType),
+        rect,
+        normRegion,
+      );
+      setDraftPlacement({
+        kind: tool,
+        x: placementPt.x,
+        y: placementPt.y,
+      });
     }
   };
 
@@ -942,6 +986,21 @@ export function NoterAnnotationLayer({
         erasedIdsRef.current = nextErased;
         setErasedIds(nextErased);
       }
+      return;
+    }
+
+    if (tool === "stamp" || (tool === "link" && linkDraft === null)) {
+      const placementPt = clientPointToNormalizedPage(
+        e.clientX,
+        getEffectivePlacementClientY(e.clientY, e.pointerType),
+        rect,
+        normRegion,
+      );
+      setDraftPlacement({
+        kind: tool,
+        x: placementPt.x,
+        y: placementPt.y,
+      });
     }
   };
 
@@ -953,6 +1012,12 @@ export function NoterAnnotationLayer({
 
     const rect = e.currentTarget.getBoundingClientRect();
     const pt = clientPointToNormalizedPage(e.clientX, e.clientY, rect, normRegion);
+    const placementPt = clientPointToNormalizedPage(
+      e.clientX,
+      getEffectivePlacementClientY(e.clientY, e.pointerType),
+      rect,
+      normRegion,
+    );
 
     if (tool === "pencil" || tool === "highlighter" || tool === "whiteout") {
       const finished = draftStrokeRef.current;
@@ -978,14 +1043,15 @@ export function NoterAnnotationLayer({
     }
 
     if (tool === "stamp") {
+      setDraftPlacement(null);
       onCommitItems(pageNumber, [
         ...items,
         {
           id: createAnnotationId(),
           kind: "stamp",
           stampId: activeStampId,
-          x: pt.x,
-          y: pt.y,
+          x: placementPt.x,
+          y: placementPt.y,
           color: pencilColor,
         },
       ]);
@@ -998,10 +1064,11 @@ export function NoterAnnotationLayer({
     }
 
     if (tool === "link" && linkDraft === null) {
+      setDraftPlacement(null);
       const total = Math.max(1, pageCount ?? 1);
       setLinkDraft({
-        x: pt.x,
-        y: pt.y,
+        x: placementPt.x,
+        y: placementPt.y,
         targetPage: pageNumber < total ? pageNumber + 1 : 1,
         label: "D.S.",
       });
@@ -1063,6 +1130,18 @@ export function NoterAnnotationLayer({
   const linkLeftPct = linkDraft ? ((linkDraft.x - normRegion.x) / normRegion.width) * 100 : 0;
   const linkTopPct = linkDraft ? ((linkDraft.y - normRegion.y) / normRegion.height) * 100 : 0;
   const totalPageCount = Math.max(1, pageCount ?? 1);
+  const draftStampItem: AnnotationItem | null =
+    draftPlacement?.kind === "stamp"
+      ? {
+          id: "draft-stamp-preview",
+          kind: "stamp",
+          stampId: activeStampId,
+          x: draftPlacement.x,
+          y: draftPlacement.y,
+          color: pencilColor,
+        }
+      : null;
+  const draftStampBounds = draftStampItem ? getAnnotationBounds(draftStampItem) : null;
 
   return (
     <div
@@ -1091,7 +1170,35 @@ export function NoterAnnotationLayer({
               .map((item) => renderAnnotationItem(item, nightFilter))
           : null}
         {draftStroke ? renderAnnotationItem(draftStroke, nightFilter) : null}
+        {draftStampItem ? (
+          <>
+            {renderAnnotationItem(draftStampItem, nightFilter)}
+            {draftStampBounds ? (
+              <AlignmentReticle
+                minX={draftStampBounds.minX}
+                minY={draftStampBounds.minY}
+                maxX={draftStampBounds.maxX}
+                maxY={draftStampBounds.maxY}
+              />
+            ) : null}
+          </>
+        ) : null}
       </svg>
+
+      {draftPlacement?.kind === "link" ? (
+        <div
+          data-testid="link-placement-preview"
+          style={{
+            left: `${((draftPlacement.x - normRegion.x) / normRegion.width) * 100}%`,
+            top: `${((draftPlacement.y - normRegion.y) / normRegion.height) * 100}%`,
+            backgroundColor: "rgba(22, 26, 34, 0.94)",
+          }}
+          className="pointer-events-none absolute z-30 flex min-h-8 -translate-x-1/2 -translate-y-1/2 scale-105 items-center gap-1 rounded-full border-2 border-accent px-2.5 py-1 text-xs font-bold text-accent shadow-2xl ring-4 ring-accent/30"
+        >
+          <Link2 className="size-3 shrink-0" aria-hidden="true" />
+          <span>Lenke</span>
+        </div>
+      ) : null}
 
       {tool === "link"
         ? visibleJumpLinks.map((link) => {
