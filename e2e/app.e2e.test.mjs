@@ -1613,6 +1613,56 @@ describe("Noter annotation & stage mode", () => {
       `expected Vis touch long-press to lift ~48px (touchY=${touchY}, liftedY=${liftedY})`,
     );
 
+    // Switch to Tekst mode and place text with touch -> preview + reticle appear and text lands ~48px higher
+    await viewer.getByRole("button", { name: "Tekst", exact: true }).click();
+    box = await getSettledLayerBox(page, layer);
+    const textFingerY = box.y + box.height * 0.5;
+    const textFingerX = box.x + box.width * 0.4;
+    await layer.evaluate(
+      (el, { x, y }) => {
+        el.dispatchEvent(
+          new PointerEvent("pointerdown", {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 13,
+            pointerType: "touch",
+            clientX: x,
+            clientY: y,
+            isPrimary: true,
+          }),
+        );
+      },
+      { x: textFingerX, y: textFingerY },
+    );
+    await layer.locator('[data-testid="annotation-drag-reticle"]').waitFor({ state: "visible" });
+    await layer.evaluate(
+      (el, { x, y }) => {
+        el.dispatchEvent(
+          new PointerEvent("pointerup", {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 13,
+            pointerType: "touch",
+            clientX: x,
+            clientY: y,
+            isPrimary: true,
+          }),
+        );
+      },
+      { x: textFingerX, y: textFingerY },
+    );
+
+    await viewer.getByLabel("Tekstnotat", { exact: true }).fill("Cresc.");
+    await viewer.getByRole("button", { name: "Bekreft", exact: true }).click();
+    const textEl = layer.locator("svg text", { hasText: "Cresc." });
+    await textEl.waitFor({ state: "visible" });
+    const placedTextY = Number.parseFloat((await textEl.getAttribute("y")) ?? "0");
+    const expectedTextY = 500 - (48 / box.height) * 1000;
+    assert.ok(
+      Math.abs(placedTextY - expectedTextY) < 8,
+      `expected touch text ~48px higher (placedTextY=${placedTextY}, expectedTextY=${expectedTextY})`,
+    );
+
     assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
     assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
   });

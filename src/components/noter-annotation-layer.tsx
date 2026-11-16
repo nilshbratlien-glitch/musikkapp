@@ -499,7 +499,7 @@ export function NoterAnnotationLayer({
   const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
   const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
   const [draftPlacement, setDraftPlacement] = useState<{
-    kind: "stamp" | "link";
+    kind: "stamp" | "text" | "link";
     x: number;
     y: number;
   } | null>(null);
@@ -931,7 +931,11 @@ export function NoterAnnotationLayer({
       return;
     }
 
-    if (tool === "stamp" || (tool === "link" && linkDraft === null)) {
+    if (
+      tool === "stamp" ||
+      (tool === "text" && textDraft === null) ||
+      (tool === "link" && linkDraft === null)
+    ) {
       const placementPt = clientPointToNormalizedPage(
         e.clientX,
         getEffectivePlacementClientY(e.clientY, e.pointerType),
@@ -989,7 +993,11 @@ export function NoterAnnotationLayer({
       return;
     }
 
-    if (tool === "stamp" || (tool === "link" && linkDraft === null)) {
+    if (
+      tool === "stamp" ||
+      (tool === "text" && textDraft === null) ||
+      (tool === "link" && linkDraft === null)
+    ) {
       const placementPt = clientPointToNormalizedPage(
         e.clientX,
         getEffectivePlacementClientY(e.clientY, e.pointerType),
@@ -1011,7 +1019,6 @@ export function NoterAnnotationLayer({
     activePointerIdRef.current = null;
 
     const rect = e.currentTarget.getBoundingClientRect();
-    const pt = clientPointToNormalizedPage(e.clientX, e.clientY, rect, normRegion);
     const placementPt = clientPointToNormalizedPage(
       e.clientX,
       getEffectivePlacementClientY(e.clientY, e.pointerType),
@@ -1059,7 +1066,8 @@ export function NoterAnnotationLayer({
     }
 
     if (tool === "text" && textDraft === null) {
-      setTextDraft({ x: pt.x, y: pt.y, value: "" });
+      setDraftPlacement(null);
+      setTextDraft({ x: placementPt.x, y: placementPt.y, value: "" });
       return;
     }
 
@@ -1130,7 +1138,7 @@ export function NoterAnnotationLayer({
   const linkLeftPct = linkDraft ? ((linkDraft.x - normRegion.x) / normRegion.width) * 100 : 0;
   const linkTopPct = linkDraft ? ((linkDraft.y - normRegion.y) / normRegion.height) * 100 : 0;
   const totalPageCount = Math.max(1, pageCount ?? 1);
-  const draftStampItem: AnnotationItem | null =
+  const draftPreviewItem: AnnotationItem | null =
     draftPlacement?.kind === "stamp"
       ? {
           id: "draft-stamp-preview",
@@ -1140,8 +1148,18 @@ export function NoterAnnotationLayer({
           y: draftPlacement.y,
           color: pencilColor,
         }
-      : null;
-  const draftStampBounds = draftStampItem ? getAnnotationBounds(draftStampItem) : null;
+      : draftPlacement?.kind === "text"
+        ? {
+            id: "draft-text-preview",
+            kind: "text",
+            x: draftPlacement.x,
+            y: draftPlacement.y,
+            text: "Tekst",
+            color: pencilColor,
+            fontSize: 18,
+          }
+        : null;
+  const draftPreviewBounds = draftPreviewItem ? getAnnotationBounds(draftPreviewItem) : null;
 
   return (
     <div
@@ -1170,15 +1188,15 @@ export function NoterAnnotationLayer({
               .map((item) => renderAnnotationItem(item, nightFilter))
           : null}
         {draftStroke ? renderAnnotationItem(draftStroke, nightFilter) : null}
-        {draftStampItem ? (
+        {draftPreviewItem ? (
           <>
-            {renderAnnotationItem(draftStampItem, nightFilter)}
-            {draftStampBounds ? (
+            {renderAnnotationItem(draftPreviewItem, nightFilter)}
+            {draftPreviewBounds ? (
               <AlignmentReticle
-                minX={draftStampBounds.minX}
-                minY={draftStampBounds.minY}
-                maxX={draftStampBounds.maxX}
-                maxY={draftStampBounds.maxY}
+                minX={draftPreviewBounds.minX}
+                minY={draftPreviewBounds.minY}
+                maxX={draftPreviewBounds.maxX}
+                maxY={draftPreviewBounds.maxY}
               />
             ) : null}
           </>
