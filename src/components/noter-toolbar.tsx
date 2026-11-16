@@ -346,7 +346,7 @@ export function NoterToolbar({
                   role="dialog"
                   aria-label="Velg musikalsk stempel"
                   style={{ backgroundColor: "rgba(22, 26, 34, 0.98)" }}
-                  className="absolute left-0 top-full z-30 mt-1.5 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-line p-3 shadow-2xl"
+                  className="absolute left-0 top-full z-30 mt-1.5 max-h-[60vh] w-72 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line p-3 shadow-2xl"
                 >
                   <div className="flex flex-col gap-3">
                     {STAMP_GROUPS.map((group) => {

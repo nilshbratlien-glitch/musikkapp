@@ -1809,10 +1809,7 @@ describe("Øveplan Repertoar linked to Noter and expanded stamps", () => {
     await page.getByRole("button", { name: /^Konsertmarsj/i }).waitFor({ state: "visible" });
 
     // Configure Øveplan with only the Repertoar block and link Konsertmarsj
-    await page.evaluate((value) => {
-      localStorage.setItem("musikkapp.oveplan", JSON.stringify(value));
-    }, plan(["rep"]));
-    await tab("/");
+    await open("/", plan(["rep"]));
 
     const repSelect = page.getByLabel("Koblet noteark eller settliste", { exact: true });
     await repSelect.waitFor({ state: "visible" });
