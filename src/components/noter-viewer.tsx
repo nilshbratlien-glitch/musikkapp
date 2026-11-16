@@ -130,6 +130,41 @@ function createItemId(prefix: string): string {
 const NIGHT_FILTER = "invert(0.92) hue-rotate(180deg) contrast(1.08)";
 const DEFAULT_PAGE_DIMS: PageDimensions = { width: 612, height: 792 };
 
+function computeSinglePageBaseScale(
+  viewportSize: { width: number; height: number },
+  dims: PageDimensions,
+  region: NormalizedRect,
+): number {
+  const availableWidth = Math.max(240, viewportSize.width - 24);
+  const availableHeight = Math.max(200, viewportSize.height - 24);
+  const effW = Math.max(1, dims.width * region.width);
+  const effH = Math.max(1, dims.height * region.height);
+  const widthScale = availableWidth / effW;
+  const heightScale = availableHeight / effH;
+  return Math.min(2.4, Math.max(0.5, Math.min(widthScale, heightScale)));
+}
+
+function computeSplitPageBaseScale(
+  viewportSize: { width: number; height: number },
+  topDims: PageDimensions,
+  topRegion: NormalizedRect,
+  bottomDims: PageDimensions,
+  bottomRegion: NormalizedRect,
+): number {
+  const availableWidth = Math.max(240, viewportSize.width - 24);
+  const availableHeight = Math.max(200, viewportSize.height - 24);
+  const paneAvailableHeight = Math.max(120, (availableHeight - 36) * 0.5);
+  const widthScaleTop = availableWidth / Math.max(1, topDims.width * topRegion.width);
+  const heightScaleTop = paneAvailableHeight / Math.max(1, topDims.height * topRegion.height);
+  const widthScaleBottom = availableWidth / Math.max(1, bottomDims.width * bottomRegion.width);
+  const heightScaleBottom =
+    paneAvailableHeight / Math.max(1, bottomDims.height * bottomRegion.height);
+  return Math.min(
+    2.4,
+    Math.max(0.5, Math.min(widthScaleTop, heightScaleTop, widthScaleBottom, heightScaleBottom)),
+  );
+}
+
 export function NoterViewer({
   sheet,
   initialPage,
@@ -408,8 +443,11 @@ export function NoterViewer({
   useEffect(() => {
     const targetSheetId = sheet.id;
     const pagesToLoad = [page];
-    if (halfPageTurn && page < pageCount) {
+    if (page < pageCount) {
       pagesToLoad.push(page + 1);
+    }
+    if (page > 1) {
+      pagesToLoad.push(page - 1);
     }
 
     for (const p of pagesToLoad) {
@@ -426,7 +464,7 @@ export function NoterViewer({
           }
         });
     }
-  }, [sheet.id, page, pageCount, halfPageTurn]);
+  }, [sheet.id, page, pageCount]);
 
   // Measure viewport dimensions for responsive fit-to-viewport scaling
   useEffect(() => {
@@ -458,16 +496,16 @@ export function NoterViewer({
     };
   }, []);
 
-  // Load page dimensions & auto-crop bounds for active/preloaded pages
+  // Load page dimensions & auto-crop bounds for active and adjacent pages
   useEffect(() => {
     if (!docReady || !docRef.current) return;
     let cancelled = false;
     const doc = docRef.current;
 
     const pagesToInspect = new Set<number>([page]);
-    if ((isSplitView || halfPageTurn) && page < pageCount) {
-      pagesToInspect.add(page + 1);
-    }
+    if (page < pageCount) pagesToInspect.add(page + 1);
+    if (page > 1) pagesToInspect.add(page - 1);
+    if (halfPageTurn && page + 2 <= pageCount) pagesToInspect.add(page + 2);
 
     for (const p of pagesToInspect) {
       if (!pageDims[p]) {
@@ -499,7 +537,7 @@ export function NoterViewer({
     return () => {
       cancelled = true;
     };
-  }, [docReady, page, pageCount, autoCrop, halfPageTurn, isSplitView, pageDims, cropRects]);
+  }, [docReady, page, pageCount, autoCrop, halfPageTurn, pageDims, cropRects]);
 
   const singleRegion = useMemo<NormalizedRect>(() => {
     return resolveEffectiveCropRect(page, autoCrop, manualCrops, cropRects);
@@ -518,31 +556,20 @@ export function NoterViewer({
   }, [isSplitView, autoCrop, manualCrops, cropRects, page]);
 
   const baseScale = useMemo(() => {
-    const availableWidth = Math.max(240, viewportSize.width - 24);
-    const availableHeight = Math.max(200, viewportSize.height - 24);
-
     if (!isSplitView) {
-      const dims = pageDims[page] ?? DEFAULT_PAGE_DIMS;
-      const effW = Math.max(1, dims.width * singleRegion.width);
-      const effH = Math.max(1, dims.height * singleRegion.height);
-      const widthScale = availableWidth / effW;
-      const heightScale = availableHeight / effH;
-      return Math.min(2.4, Math.max(0.5, Math.min(widthScale, heightScale)));
+      return computeSinglePageBaseScale(
+        viewportSize,
+        pageDims[page] ?? DEFAULT_PAGE_DIMS,
+        singleRegion,
+      );
     }
 
-    const topDims = pageDims[page + 1] ?? DEFAULT_PAGE_DIMS;
-    const bottomDims = pageDims[page] ?? DEFAULT_PAGE_DIMS;
-    const paneAvailableHeight = Math.max(120, (availableHeight - 36) * 0.5);
-
-    const widthScaleTop = availableWidth / Math.max(1, topDims.width * topRegion.width);
-    const heightScaleTop = paneAvailableHeight / Math.max(1, topDims.height * topRegion.height);
-    const widthScaleBottom = availableWidth / Math.max(1, bottomDims.width * bottomRegion.width);
-    const heightScaleBottom =
-      paneAvailableHeight / Math.max(1, bottomDims.height * bottomRegion.height);
-
-    return Math.min(
-      2.4,
-      Math.max(0.5, Math.min(widthScaleTop, heightScaleTop, widthScaleBottom, heightScaleBottom)),
+    return computeSplitPageBaseScale(
+      viewportSize,
+      pageDims[page + 1] ?? DEFAULT_PAGE_DIMS,
+      topRegion,
+      pageDims[page] ?? DEFAULT_PAGE_DIMS,
+      bottomRegion,
     );
   }, [viewportSize, isSplitView, pageDims, page, singleRegion, topRegion, bottomRegion]);
 
@@ -613,6 +640,92 @@ export function NoterViewer({
       controller.abort();
     };
   }, [docReady, isSplitView, page, zoom, baseScale, singleRegion, topRegion, bottomRegion]);
+
+  // Pre-render adjacent pages (including half-page split views) after the active page finishes
+  useEffect(() => {
+    if (!docReady || rendering || !docRef.current) return;
+    const doc = docRef.current;
+    let cancelled = false;
+
+    const singleScaleFor = (p: number) => {
+      const reg = resolveEffectiveCropRect(p, autoCrop, manualCrops, cropRects);
+      return computeSinglePageBaseScale(viewportSize, pageDims[p] ?? DEFAULT_PAGE_DIMS, reg) * zoom;
+    };
+
+    const splitScaleFor = (lowerPage: number) => {
+      const topBase = resolveEffectiveCropRect(lowerPage + 1, autoCrop, manualCrops, cropRects);
+      const bottomBase = resolveEffectiveCropRect(lowerPage, autoCrop, manualCrops, cropRects);
+      return (
+        computeSplitPageBaseScale(
+          viewportSize,
+          pageDims[lowerPage + 1] ?? DEFAULT_PAGE_DIMS,
+          getHalfPageRegions(topBase).top,
+          pageDims[lowerPage] ?? DEFAULT_PAGE_DIMS,
+          getHalfPageRegions(bottomBase).bottom,
+        ) * zoom
+      );
+    };
+
+    const targets: Array<{ pageNumber: number; scale: number }> = [];
+
+    if (halfPageTurn) {
+      if (halfOffset === 0) {
+        if (page < pageCount) {
+          const nextSplitScale = splitScaleFor(page);
+          targets.push({ pageNumber: page + 1, scale: nextSplitScale });
+          targets.push({ pageNumber: page, scale: nextSplitScale });
+          targets.push({ pageNumber: page + 1, scale: singleScaleFor(page + 1) });
+        }
+        if (page > 1) {
+          const prevSplitScale = splitScaleFor(page - 1);
+          targets.push({ pageNumber: page - 1, scale: prevSplitScale });
+        }
+      } else {
+        if (page < pageCount) {
+          targets.push({ pageNumber: page + 1, scale: singleScaleFor(page + 1) });
+        }
+        targets.push({ pageNumber: page, scale: singleScaleFor(page) });
+        if (page + 2 <= pageCount) {
+          const upcomingSplitScale = splitScaleFor(page + 1);
+          targets.push({ pageNumber: page + 2, scale: upcomingSplitScale });
+        }
+      }
+    } else {
+      if (page < pageCount) {
+        targets.push({ pageNumber: page + 1, scale: singleScaleFor(page + 1) });
+      }
+      if (page > 1) {
+        targets.push({ pageNumber: page - 1, scale: singleScaleFor(page - 1) });
+      }
+      if (page + 2 <= pageCount) {
+        targets.push({ pageNumber: page + 2, scale: singleScaleFor(page + 2) });
+      }
+    }
+
+    void (async () => {
+      for (const target of targets) {
+        if (cancelled) return;
+        await doc.prefetchPage(target.pageNumber, target.scale);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    docReady,
+    rendering,
+    page,
+    pageCount,
+    halfPageTurn,
+    halfOffset,
+    zoom,
+    viewportSize,
+    autoCrop,
+    manualCrops,
+    cropRects,
+    pageDims,
+  ]);
 
   const goToPage = useCallback(
     (nextPage: number) => {
