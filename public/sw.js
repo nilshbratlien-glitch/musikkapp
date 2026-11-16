@@ -65,6 +65,8 @@ self.addEventListener("install", (event) => {
       const manifestAssets = await fetchManifestAssets();
       const immutableUrls = [...(manifestAssets ?? []), ...PRECACHE_CDN_URLS];
 
+      const CONCURRENCY = 6;
+      const queue = [...immutableUrls];
       await Promise.all([
         ...SHELL.map(async (path) => {
           try {
@@ -74,14 +76,18 @@ self.addEventListener("install", (event) => {
             /* En feilet fil skal ikke stoppe installasjonen. */
           }
         }),
-        ...immutableUrls.map(async (url) => {
-          try {
-            const existing = await cache.match(url);
-            if (existing) return;
-            const response = await fetch(url);
-            if (response.ok && !response.redirected) await cache.put(url, response);
-          } catch {
-            /* En feilet fil skal ikke stoppe installasjonen. */
+        ...Array.from({ length: CONCURRENCY }, async () => {
+          while (queue.length > 0) {
+            const url = queue.shift();
+            if (!url) continue;
+            try {
+              const existing = await cache.match(url);
+              if (existing) continue;
+              const response = await fetch(url);
+              if (response.ok && !response.redirected) await cache.put(url, response);
+            } catch {
+              /* En feilet fil skal ikke stoppe installasjonen. */
+            }
           }
         }),
       ]);
