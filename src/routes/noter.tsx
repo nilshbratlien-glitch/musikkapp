@@ -11,5 +11,10 @@ export const Route = createFileRoute("/noter")({
     ...(typeof search.sheet === "string" && search.sheet ? { sheet: search.sheet } : {}),
     ...(typeof search.setlist === "string" && search.setlist ? { setlist: search.setlist } : {}),
   }),
-  component: Noter,
+  component: NoterRoute,
 });
+
+function NoterRoute() {
+  const { sheet, setlist } = Route.useSearch();
+  return <Noter deepLinkSheetId={sheet} deepLinkSetlistId={setlist} />;
+}
