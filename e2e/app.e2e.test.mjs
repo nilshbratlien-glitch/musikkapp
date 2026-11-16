@@ -1295,6 +1295,80 @@ describe("Noter annotation & stage mode", () => {
     assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
     assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
   });
+
+  it("supports Korrekturlakk whiteout paint matching page background and placing a stamp on top", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(mockPdfJsLib);
+    await open("/noter");
+
+    await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+      name: "dynamikk-test.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%mock\n"),
+    });
+
+    const sheetButton = page.getByRole("button", { name: /^dynamikk test/i });
+    await sheetButton.waitFor({ state: "visible" });
+    await sheetButton.click();
+
+    const viewer = page.getByRole("dialog", { name: /Noteviser:/ });
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // Select Korrekturlakk and Stor brush size
+    await viewer.getByRole("button", { name: "Korrekturlakk", exact: true }).click();
+    await viewer.getByRole("button", { name: "Stor", exact: true }).click();
+
+    const layer = viewer.locator('[data-testid="annotation-layer-page-1"]');
+    const box = await getSettledLayerBox(page, layer);
+    await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.5);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.5, { steps: 5 });
+    await page.mouse.up();
+
+    assert.equal(await layer.locator("svg path").count(), 1, "whiteout stroke renders an SVG path");
+    assert.equal(
+      await layer.locator("svg path").first().getAttribute("stroke"),
+      "#ffffff",
+      "whiteout stroke matches sampled white canvas background",
+    );
+
+    // Place a Forte (f) stamp on top of the whiteout stroke
+    await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
+    await viewer.getByRole("button", { name: "Velg stempel", exact: true }).click();
+    const stampDialog = viewer.getByRole("dialog", { name: "Velg musikalsk stempel" });
+    await stampDialog.waitFor({ state: "visible" });
+    await stampDialog.getByRole("button", { name: "Forte", exact: true }).click();
+
+    await page.mouse.click(box.x + box.width * 0.48, box.y + box.height * 0.5);
+    assert.equal(await layer.locator("svg g").count(), 1, "stamp renders on top of whiteout");
+
+    // Verify DOM order: whiteout <path> comes before stamp <g>
+    const whiteoutBeforeStamp = await layer.evaluate((el) => {
+      const children = Array.from(el.querySelectorAll("svg > path, svg > g"));
+      const pathIdx = children.findIndex((n) => n.tagName.toLowerCase() === "path");
+      const gIdx = children.findIndex((n) => n.tagName.toLowerCase() === "g");
+      return pathIdx !== -1 && gIdx !== -1 && pathIdx < gIdx;
+    });
+    assert.equal(whiteoutBeforeStamp, true, "stamp is layered above whiteout in SVG");
+
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
 });
 
 describe("Noter setlists, navigation & backup", () => {

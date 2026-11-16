@@ -5,6 +5,7 @@ import {
   ANNOTATION_VIEWBOX_SIZE,
   HIGHLIGHTER_OPACITY,
   HIGHLIGHTER_WIDTH,
+  WHITEOUT_WIDTH_MEDIUM,
   clientPointToNormalizedPage,
   getAnnotationSvgViewBox,
   hitTestAnnotation,
@@ -15,8 +16,17 @@ import {
 } from "@/lib/noter-annotations";
 import { normalizeCropRect, type NormalizedRect } from "@/lib/noter-crop";
 
-export type AnnotationTool = "view" | "pencil" | "highlighter" | "eraser" | "stamp" | "text" | "link";
+export type AnnotationTool =
+  | "view"
+  | "pencil"
+  | "highlighter"
+  | "whiteout"
+  | "eraser"
+  | "stamp"
+  | "text"
+  | "link";
 export type PencilThickness = "thin" | "thick";
+export type WhiteoutSize = "small" | "medium" | "large";
 
 export type NoterAnnotationLayerProps = {
   pageNumber: number;
@@ -30,6 +40,9 @@ export type NoterAnnotationLayerProps = {
   pencilColor: string;
   pencilWidth: number;
   highlighterColor: string;
+  whiteoutColor?: string;
+  whiteoutWidth?: number;
+  nightFilter?: string;
   activeStampId: StampId;
   stylusOnly: boolean;
   onCommitItems: (pageNumber: number, nextItems: AnnotationItem[]) => void;
@@ -328,11 +341,14 @@ export function StampSvgContent({ stampId, color }: { stampId: StampId; color: s
   }
 }
 
-function renderAnnotationItem(item: AnnotationItem) {
+function renderAnnotationItem(item: AnnotationItem, nightFilter?: string) {
   switch (item.kind) {
     case "pencil":
-    case "highlighter": {
+    case "highlighter":
+    case "whiteout": {
       if (item.points.length === 0) return null;
+      const whiteoutStyle =
+        item.kind === "whiteout" && nightFilter ? { filter: nightFilter } : undefined;
       if (item.points.length === 1) {
         const p0 = item.points[0]!;
         return (
@@ -343,6 +359,7 @@ function renderAnnotationItem(item: AnnotationItem) {
             r={item.width / 2}
             fill={item.color}
             fillOpacity={item.opacity}
+            style={whiteoutStyle}
           />
         );
       }
@@ -356,6 +373,7 @@ function renderAnnotationItem(item: AnnotationItem) {
           strokeOpacity={item.opacity}
           strokeLinecap="round"
           strokeLinejoin="round"
+          style={whiteoutStyle}
         />
       );
     }
@@ -402,6 +420,9 @@ export function NoterAnnotationLayer({
   pencilColor,
   pencilWidth,
   highlighterColor,
+  whiteoutColor = "#ffffff",
+  whiteoutWidth = WHITEOUT_WIDTH_MEDIUM,
+  nightFilter,
   activeStampId,
   stylusOnly,
   onCommitItems,
@@ -474,7 +495,7 @@ export function NoterAnnotationLayer({
             preserveAspectRatio="none"
             className="pointer-events-none block h-full w-full"
           >
-            {items.map((item) => renderAnnotationItem(item))}
+            {items.map((item) => renderAnnotationItem(item, nightFilter))}
           </svg>
         ) : null}
 
@@ -554,12 +575,22 @@ export function NoterAnnotationLayer({
     const rect = e.currentTarget.getBoundingClientRect();
     const pt = clientPointToNormalizedPage(e.clientX, e.clientY, rect, normRegion);
 
-    if (tool === "pencil" || tool === "highlighter") {
+    if (tool === "pencil" || tool === "highlighter" || tool === "whiteout") {
       const stroke: StrokeAnnotation = {
         id: createAnnotationId(),
         kind: tool,
-        color: tool === "highlighter" ? highlighterColor : pencilColor,
-        width: tool === "highlighter" ? HIGHLIGHTER_WIDTH : pencilWidth,
+        color:
+          tool === "highlighter"
+            ? highlighterColor
+            : tool === "whiteout"
+              ? whiteoutColor
+              : pencilColor,
+        width:
+          tool === "highlighter"
+            ? HIGHLIGHTER_WIDTH
+            : tool === "whiteout"
+              ? whiteoutWidth
+              : pencilWidth,
         opacity: tool === "highlighter" ? HIGHLIGHTER_OPACITY : 1,
         points: [e.pressure > 0 ? { x: pt.x, y: pt.y, p: e.pressure } : { x: pt.x, y: pt.y }],
       };
@@ -588,7 +619,7 @@ export function NoterAnnotationLayer({
     const rect = e.currentTarget.getBoundingClientRect();
     const pt = clientPointToNormalizedPage(e.clientX, e.clientY, rect, normRegion);
 
-    if (tool === "pencil" || tool === "highlighter") {
+    if (tool === "pencil" || tool === "highlighter" || tool === "whiteout") {
       const current = draftStrokeRef.current;
       if (!current) return;
       const last = current.points[current.points.length - 1];
@@ -633,7 +664,7 @@ export function NoterAnnotationLayer({
     const rect = e.currentTarget.getBoundingClientRect();
     const pt = clientPointToNormalizedPage(e.clientX, e.clientY, rect, normRegion);
 
-    if (tool === "pencil" || tool === "highlighter") {
+    if (tool === "pencil" || tool === "highlighter" || tool === "whiteout") {
       const finished = draftStrokeRef.current;
       draftStrokeRef.current = null;
       setDraftStroke(null);
@@ -767,9 +798,9 @@ export function NoterAnnotationLayer({
         {visible
           ? items
               .filter((item) => !erasedIds.has(item.id))
-              .map((item) => renderAnnotationItem(item))
+              .map((item) => renderAnnotationItem(item, nightFilter))
           : null}
-        {draftStroke ? renderAnnotationItem(draftStroke) : null}
+        {draftStroke ? renderAnnotationItem(draftStroke, nightFilter) : null}
       </svg>
 
       {tool === "link"
