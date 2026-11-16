@@ -1369,6 +1369,108 @@ describe("Noter annotation & stage mode", () => {
     assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
     assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
   });
+
+  it("moves stamps and jump links via long-press in Vis mode with alignment reticle and single-step undo", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(mockPdfJsLib);
+    await open("/noter");
+
+    await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
+      name: "flytt-test.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%mock\n"),
+    });
+
+    const sheetButton = page.getByRole("button", { name: /^flytt test/i });
+    await sheetButton.waitFor({ state: "visible" });
+    await sheetButton.click();
+
+    const viewer = page.getByRole("dialog", { name: /Noteviser:/ });
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // Place a Fermate stamp at (0.35, 0.35)
+    await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
+    const layer = viewer.locator('[data-testid="annotation-layer-page-1"]');
+    let box = await getSettledLayerBox(page, layer);
+    await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.35);
+    const stampTransformBefore = await layer.locator("svg g").first().getAttribute("transform");
+    assert.ok(stampTransformBefore, "stamp has initial transform");
+
+    // Place a jump link at (0.3, 0.7) -> page 3
+    await viewer.getByRole("button", { name: "Lenke", exact: true }).click();
+    await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.7);
+    await viewer.getByLabel("Målside", { exact: true }).fill("3");
+    await viewer.getByRole("button", { name: "Lagre lenke", exact: true }).click();
+
+    // Switch to Vis mode
+    await viewer.getByRole("button", { name: "Vis", exact: true }).click();
+    box = await getSettledLayerBox(page, layer);
+
+    // Long-press the stamp for 420ms, verify alignment reticle appears, and drag to (0.65, 0.5)
+    await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35);
+    await page.mouse.down();
+    await page.waitForTimeout(420);
+    await layer.locator('[data-testid="annotation-drag-reticle"]').waitFor({ state: "visible" });
+    await page.mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.5, { steps: 6 });
+    await page.mouse.up();
+
+    const stampTransformAfter = await layer.locator("svg g").first().getAttribute("transform");
+    assert.notEqual(stampTransformAfter, stampTransformBefore, "stamp moved to new position");
+
+    // Long-press the jump-link chip for 420ms and drag it without activating page jump
+    const jumpChip = viewer.getByRole("button", { name: "Hopp til side 3: D.S.", exact: true });
+    const chipBefore = await jumpChip.boundingBox();
+    assert.ok(chipBefore, "jump chip bounding box exists");
+    await page.mouse.move(
+      chipBefore.x + chipBefore.width / 2,
+      chipBefore.y + chipBefore.height / 2,
+    );
+    await page.mouse.down();
+    await page.waitForTimeout(420);
+    await page.mouse.move(
+      chipBefore.x + chipBefore.width / 2 + 80,
+      chipBefore.y + chipBefore.height / 2 - 40,
+      { steps: 6 },
+    );
+    await page.mouse.up();
+
+    // Still on Side 1 / 3 (release after long-press did not trigger jump)
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+    await page.waitForFunction(
+      ({ selector, prevX }) => {
+        const el = document.querySelector(selector);
+        if (!el) return false;
+        return Math.abs(el.getBoundingClientRect().x - prevX) > 40;
+      },
+      { selector: '[aria-label="Hopp til side 3: D.S."]', prevX: chipBefore.x },
+    );
+    const chipAfter = await jumpChip.boundingBox();
+    assert.ok(chipAfter && Math.abs(chipAfter.x - chipBefore.x) > 40, "jump chip moved");
+
+    // Undo in one step reverts the stamp back to its original position
+    await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
+    await viewer.getByRole("button", { name: "Angre", exact: true }).click();
+    const stampTransformUndone = await layer.locator("svg g").first().getAttribute("transform");
+    assert.equal(stampTransformUndone, stampTransformBefore, "single-step undo restores stamp");
+
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
 });
 
 describe("Noter setlists, navigation & backup", () => {

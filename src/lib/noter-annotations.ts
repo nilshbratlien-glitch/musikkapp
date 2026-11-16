@@ -277,6 +277,132 @@ export function eraseAnnotationsAtPoint(
   return items.filter((item) => !hitTestAnnotation(item, point, radius));
 }
 
+export type AnnotationBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+export function findTopmostAnnotationAtPoint(
+  items: readonly AnnotationItem[],
+  point: { x: number; y: number },
+  radius?: number,
+): AnnotationItem | null {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]!;
+    if (hitTestAnnotation(item, point, radius)) {
+      return item;
+    }
+  }
+  return null;
+}
+
+export function getAnnotationBounds(item: AnnotationItem): AnnotationBounds {
+  switch (item.kind) {
+    case "pencil":
+    case "highlighter":
+    case "whiteout": {
+      if (item.points.length === 0) {
+        return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+      }
+      let minX = 1;
+      let minY = 1;
+      let maxX = 0;
+      let maxY = 0;
+      for (const pt of item.points) {
+        if (pt.x < minX) minX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y > maxY) maxY = pt.y;
+      }
+      const pad = Math.max(0.012, (item.width / ANNOTATION_VIEWBOX_SIZE) * 0.6);
+      return {
+        minX: Math.max(0, minX - pad),
+        minY: Math.max(0, minY - pad),
+        maxX: Math.min(1, maxX + pad),
+        maxY: Math.min(1, maxY + pad),
+      };
+    }
+
+    case "stamp": {
+      const scale = Number.isFinite(item.scale) && (item.scale ?? 1) > 0 ? (item.scale ?? 1) : 1;
+      const half = 0.024 * scale;
+      return {
+        minX: Math.max(0, item.x - half),
+        minY: Math.max(0, item.y - half),
+        maxX: Math.min(1, item.x + half),
+        maxY: Math.min(1, item.y + half),
+      };
+    }
+
+    case "text": {
+      const fontSize =
+        Number.isFinite(item.fontSize) && (item.fontSize ?? 18) > 0 ? (item.fontSize ?? 18) : 18;
+      const fontNorm = fontSize / ANNOTATION_VIEWBOX_SIZE;
+      const textWidth = Math.max(0.04, item.text.length * fontNorm * 0.6);
+      const halfH = Math.max(0.016, fontNorm * 0.75);
+      return {
+        minX: Math.max(0, item.x - 0.008),
+        minY: Math.max(0, item.y - halfH),
+        maxX: Math.min(1, item.x + textWidth + 0.008),
+        maxY: Math.min(1, item.y + halfH),
+      };
+    }
+  }
+}
+
+export function translateAnnotationItem(
+  item: AnnotationItem,
+  dx: number,
+  dy: number,
+): AnnotationItem {
+  const safeDx = Number.isFinite(dx) ? dx : 0;
+  const safeDy = Number.isFinite(dy) ? dy : 0;
+
+  switch (item.kind) {
+    case "pencil":
+    case "highlighter":
+    case "whiteout": {
+      if (item.points.length === 0) return cloneItem(item);
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const pt of item.points) {
+        if (pt.x < minX) minX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y > maxY) maxY = pt.y;
+      }
+      const clampedDx = Math.min(1 - maxX, Math.max(-minX, safeDx));
+      const clampedDy = Math.min(1 - maxY, Math.max(-minY, safeDy));
+      return {
+        ...item,
+        points: item.points.map((pt) => ({
+          ...pt,
+          x: clamp01(pt.x + clampedDx),
+          y: clamp01(pt.y + clampedDy),
+        })),
+      };
+    }
+
+    case "stamp":
+      return {
+        ...item,
+        x: Math.min(0.98, Math.max(0.02, item.x + safeDx)),
+        y: Math.min(0.98, Math.max(0.02, item.y + safeDy)),
+      };
+
+    case "text":
+      return {
+        ...item,
+        x: Math.min(0.92, Math.max(0.02, item.x + safeDx)),
+        y: Math.min(0.96, Math.max(0.03, item.y + safeDy)),
+      };
+  }
+}
+
 export type AnnotationHistoryState = {
   undoStack: AnnotationItem[][];
   redoStack: AnnotationItem[][];
