@@ -279,6 +279,7 @@ export function Noter({
     async (patch: UpdateSheetMetaPatch) => {
       if (!activeSheet) return;
       const targetId = activeSheet.id;
+      setActiveSheet((prev) => (prev && prev.id === targetId ? { ...prev, ...patch } : prev));
       try {
         const updated = await updateSheetMeta(targetId, patch);
         if (updated) {

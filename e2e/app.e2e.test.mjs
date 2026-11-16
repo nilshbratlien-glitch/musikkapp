@@ -1451,6 +1451,14 @@ describe("Noter annotation & stage mode", () => {
 
     // Still on Side 1 / 3 (release after long-press did not trigger jump)
     await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+    await page.waitForFunction(
+      ({ selector, prevX }) => {
+        const el = document.querySelector(selector);
+        if (!el) return false;
+        return Math.abs(el.getBoundingClientRect().x - prevX) > 40;
+      },
+      { selector: '[aria-label="Hopp til side 3: D.S."]', prevX: chipBefore.x },
+    );
     const chipAfter = await jumpChip.boundingBox();
     assert.ok(chipAfter && Math.abs(chipAfter.x - chipBefore.x) > 40, "jump chip moved");
 
