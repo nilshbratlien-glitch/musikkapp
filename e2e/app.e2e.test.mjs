@@ -1406,7 +1406,7 @@ describe("Noter annotation & stage mode", () => {
     // Place a Fermate stamp at (0.35, 0.35)
     await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
     const layer = viewer.locator('[data-testid="annotation-layer-page-1"]');
-    const box = await getSettledLayerBox(page, layer);
+    let box = await getSettledLayerBox(page, layer);
     await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.35);
     const stampTransformBefore = await layer.locator("svg g").first().getAttribute("transform");
     assert.ok(stampTransformBefore, "stamp has initial transform");
@@ -1419,6 +1419,7 @@ describe("Noter annotation & stage mode", () => {
 
     // Switch to Vis mode
     await viewer.getByRole("button", { name: "Vis", exact: true }).click();
+    box = await getSettledLayerBox(page, layer);
 
     // Long-press the stamp for 420ms, verify alignment reticle appears, and drag to (0.65, 0.5)
     await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.35);

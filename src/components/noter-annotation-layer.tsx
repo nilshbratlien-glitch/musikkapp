@@ -629,13 +629,14 @@ export function NoterAnnotationLayer({
       }
     };
 
-    const finishViewDrag = (e: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
+    const finishViewDrag = (e: React.PointerEvent<HTMLElement>, commit: boolean) => {
       const drag = viewDragRef.current;
       if (!drag || drag.pointerId !== e.pointerId) return;
       e.stopPropagation();
+      const layerEl = viewLayerRef.current;
       try {
-        if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
-          e.currentTarget.releasePointerCapture(e.pointerId);
+        if (layerEl?.hasPointerCapture?.(e.pointerId)) {
+          layerEl.releasePointerCapture(e.pointerId);
         }
       } catch {
         /* ignore */
