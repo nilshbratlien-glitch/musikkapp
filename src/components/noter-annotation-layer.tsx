@@ -685,9 +685,6 @@ export function NoterAnnotationLayer({
         ref={viewLayerRef}
         data-testid={`annotation-layer-page-${pageNumber}`}
         onPointerDown={handleViewPointerDown}
-        onPointerMove={handleViewPointerMove}
-        onPointerUp={(e) => finishViewDrag(e, true)}
-        onPointerCancel={(e) => finishViewDrag(e, false)}
         style={
           width > 0 && height > 0
             ? { width: `${width}px`, height: `${height}px`, touchAction: "none" }
