@@ -7,8 +7,11 @@ import {
   HIGHLIGHTER_WIDTH,
   WHITEOUT_WIDTH_MEDIUM,
   clientPointToNormalizedPage,
+  findTopmostAnnotationAtPoint,
+  getAnnotationBounds,
   getAnnotationSvgViewBox,
   hitTestAnnotation,
+  translateAnnotationItem,
   type AnnotationItem,
   type AnnotationPoint,
   type StampId,
@@ -48,8 +51,10 @@ export type NoterAnnotationLayerProps = {
   onCommitItems: (pageNumber: number, nextItems: AnnotationItem[]) => void;
   jumpLinks?: readonly JumpLink[];
   onAddJumpLink?: (link: Omit<JumpLink, "id">) => void;
+  onUpdateJumpLink?: (id: string, patch: { x: number; y: number }) => void;
   onDeleteJumpLink?: (id: string) => void;
   onActivateJumpLink?: (link: JumpLink) => void;
+  onViewDragActiveChange?: (active: boolean) => void;
 };
 
 type TextDraft = {
@@ -428,19 +433,56 @@ export function NoterAnnotationLayer({
   onCommitItems,
   jumpLinks = [],
   onAddJumpLink,
+  onUpdateJumpLink,
   onDeleteJumpLink,
   onActivateJumpLink,
+  onViewDragActiveChange,
 }: NoterAnnotationLayerProps) {
   const [draftStroke, setDraftStroke] = useState<StrokeAnnotation | null>(null);
   const [erasedIds, setErasedIds] = useState<Set<string>>(() => new Set());
   const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
   const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
+  const [viewDrag, setViewDrag] = useState<
+    | {
+        kind: "annotation";
+        pointerId: number;
+        startPt: { x: number; y: number };
+        originalItem: AnnotationItem;
+        currentItem: AnnotationItem;
+      }
+    | {
+        kind: "jumpLink";
+        pointerId: number;
+        startPt: { x: number; y: number };
+        link: JumpLink;
+        currentX: number;
+        currentY: number;
+      }
+    | null
+  >(null);
 
   const activePointerIdRef = useRef<number | null>(null);
   const lastPenTimeRef = useRef<number>(0);
   const draftStrokeRef = useRef<StrokeAnnotation | null>(null);
   const erasedIdsRef = useRef<Set<string>>(new Set());
   const beforeEraseSnapshotRef = useRef<readonly AnnotationItem[] | null>(null);
+  const viewLayerRef = useRef<HTMLDivElement | null>(null);
+  const viewDragRef = useRef<typeof viewDrag>(null);
+  viewDragRef.current = viewDrag;
+  const suppressedLinkClickIdRef = useRef<string | null>(null);
+  const pendingLongPressRef = useRef<{
+    pointerId: number;
+    timerId: number;
+    cleanupWindow: () => void;
+  } | null>(null);
+
+  const clearPendingLongPress = () => {
+    const pending = pendingLongPressRef.current;
+    if (!pending) return;
+    window.clearTimeout(pending.timerId);
+    pending.cleanupWindow();
+    pendingLongPressRef.current = null;
+  };
 
   useEffect(() => {
     activePointerIdRef.current = null;
@@ -449,7 +491,18 @@ export function NoterAnnotationLayer({
     erasedIdsRef.current = new Set();
     setErasedIds(new Set());
     beforeEraseSnapshotRef.current = null;
-  }, [pageNumber, tool]);
+    clearPendingLongPress();
+    if (viewDragRef.current) {
+      setViewDrag(null);
+      onViewDragActiveChange?.(false);
+    }
+  }, [pageNumber, tool, onViewDragActiveChange]);
+
+  useEffect(() => {
+    return () => {
+      clearPendingLongPress();
+    };
+  }, []);
 
   useEffect(() => {
     if (tool !== "text") {
@@ -477,16 +530,153 @@ export function NoterAnnotationLayer({
       link.y <= normRegion.y + normRegion.height,
   );
 
+  const startLongPressWatcher = (
+    e: React.PointerEvent<HTMLElement>,
+    onActivate: (startPt: { x: number; y: number }) => void,
+  ) => {
+    clearPendingLongPress();
+    const layerEl = viewLayerRef.current;
+    if (!layerEl) return;
+    const pointerId = e.pointerId;
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const rect = layerEl.getBoundingClientRect();
+    const startPt = clientPointToNormalizedPage(startClientX, startClientY, rect, normRegion);
+
+    const onWindowMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      if (Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY) > 8) {
+        clearPendingLongPress();
+      }
+    };
+    const onWindowEnd = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      clearPendingLongPress();
+    };
+    const cleanupWindow = () => {
+      window.removeEventListener("pointermove", onWindowMove);
+      window.removeEventListener("pointerup", onWindowEnd);
+      window.removeEventListener("pointercancel", onWindowEnd);
+    };
+
+    window.addEventListener("pointermove", onWindowMove);
+    window.addEventListener("pointerup", onWindowEnd);
+    window.addEventListener("pointercancel", onWindowEnd);
+
+    const timerId = window.setTimeout(() => {
+      cleanupWindow();
+      pendingLongPressRef.current = null;
+      onViewDragActiveChange?.(true);
+      try {
+        layerEl.setPointerCapture(pointerId);
+      } catch {
+        /* ignore if synthetic PointerEvent does not support capture */
+      }
+      onActivate(startPt);
+    }, 350);
+
+    pendingLongPressRef.current = { pointerId, timerId, cleanupWindow };
+  };
+
   if (tool === "view") {
     if (!visible && visibleJumpLinks.length === 0) return null;
+
+    const handleViewPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      if (!visible || viewDragRef.current) return;
+      if (
+        e.pointerType === "touch" &&
+        (stylusOnly || Date.now() - lastPenTimeRef.current < PALM_REJECTION_WINDOW_MS)
+      ) {
+        return;
+      }
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pt = clientPointToNormalizedPage(e.clientX, e.clientY, rect, normRegion);
+      const hitRadius = e.pointerType === "touch" ? 0.032 : 0.022;
+      const hitItem = findTopmostAnnotationAtPoint(items, pt, hitRadius);
+      if (!hitItem) return;
+
+      startLongPressWatcher(e, (startPt) => {
+        setViewDrag({
+          kind: "annotation",
+          pointerId: e.pointerId,
+          startPt,
+          originalItem: hitItem,
+          currentItem: hitItem,
+        });
+      });
+    };
+
+    const handleViewPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+      const drag = viewDragRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      e.stopPropagation();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pt = clientPointToNormalizedPage(e.clientX, e.clientY, rect, normRegion);
+      const dx = pt.x - drag.startPt.x;
+      const dy = pt.y - drag.startPt.y;
+      if (drag.kind === "annotation") {
+        setViewDrag({
+          ...drag,
+          currentItem: translateAnnotationItem(drag.originalItem, dx, dy),
+        });
+      } else {
+        setViewDrag({
+          ...drag,
+          currentX: Math.min(0.94, Math.max(0.06, drag.link.x + dx)),
+          currentY: Math.min(0.94, Math.max(0.06, drag.link.y + dy)),
+        });
+      }
+    };
+
+    const finishViewDrag = (e: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
+      const drag = viewDragRef.current;
+      if (!drag || drag.pointerId !== e.pointerId) return;
+      e.stopPropagation();
+      try {
+        if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        /* ignore */
+      }
+      setViewDrag(null);
+      onViewDragActiveChange?.(false);
+
+      if (!commit) return;
+      if (drag.kind === "annotation") {
+        const nextItems = items.map((item) =>
+          item.id === drag.currentItem.id ? drag.currentItem : item,
+        );
+        onCommitItems(pageNumber, nextItems);
+      } else {
+        onUpdateJumpLink?.(drag.link.id, { x: drag.currentX, y: drag.currentY });
+      }
+    };
+
+    const draggedBounds =
+      viewDrag?.kind === "annotation" ? getAnnotationBounds(viewDrag.currentItem) : null;
+    const draggedCenterX = draggedBounds
+      ? ((draggedBounds.minX + draggedBounds.maxX) / 2) * ANNOTATION_VIEWBOX_SIZE
+      : 0;
+    const draggedCenterY = draggedBounds
+      ? ((draggedBounds.minY + draggedBounds.maxY) / 2) * ANNOTATION_VIEWBOX_SIZE
+      : 0;
+
     return (
       <div
+        ref={viewLayerRef}
+        data-testid={`annotation-layer-page-${pageNumber}`}
+        onPointerDown={handleViewPointerDown}
+        onPointerMove={handleViewPointerMove}
+        onPointerUp={(e) => finishViewDrag(e, true)}
+        onPointerCancel={(e) => finishViewDrag(e, false)}
         style={
           width > 0 && height > 0
-            ? { width: `${width}px`, height: `${height}px` }
-            : undefined
+            ? { width: `${width}px`, height: `${height}px`, touchAction: "none" }
+            : { touchAction: "none" }
         }
-        className="pointer-events-none absolute inset-0 z-10"
+        className="pointer-events-auto absolute inset-0 z-10"
       >
         {visible ? (
           <svg
@@ -495,30 +685,117 @@ export function NoterAnnotationLayer({
             preserveAspectRatio="none"
             className="pointer-events-none block h-full w-full"
           >
-            {items.map((item) => renderAnnotationItem(item, nightFilter))}
+            {items.map((item) => {
+              const activeItem =
+                viewDrag?.kind === "annotation" && viewDrag.currentItem.id === item.id
+                  ? viewDrag.currentItem
+                  : item;
+              return renderAnnotationItem(activeItem, nightFilter);
+            })}
+            {draggedBounds ? (
+              <g data-testid="annotation-drag-reticle" className="pointer-events-none">
+                <line
+                  x1={0}
+                  y1={draggedCenterY}
+                  x2={ANNOTATION_VIEWBOX_SIZE}
+                  y2={draggedCenterY}
+                  stroke="#e0b15a"
+                  strokeWidth={1.2}
+                  strokeOpacity={0.45}
+                  strokeDasharray="6 6"
+                />
+                <line
+                  x1={draggedCenterX}
+                  y1={0}
+                  x2={draggedCenterX}
+                  y2={ANNOTATION_VIEWBOX_SIZE}
+                  stroke="#e0b15a"
+                  strokeWidth={1.2}
+                  strokeOpacity={0.45}
+                  strokeDasharray="6 6"
+                />
+                <rect
+                  x={draggedBounds.minX * ANNOTATION_VIEWBOX_SIZE}
+                  y={draggedBounds.minY * ANNOTATION_VIEWBOX_SIZE}
+                  width={Math.max(
+                    12,
+                    (draggedBounds.maxX - draggedBounds.minX) * ANNOTATION_VIEWBOX_SIZE,
+                  )}
+                  height={Math.max(
+                    12,
+                    (draggedBounds.maxY - draggedBounds.minY) * ANNOTATION_VIEWBOX_SIZE,
+                  )}
+                  rx={6}
+                  fill="rgba(224, 177, 90, 0.1)"
+                  stroke="#e0b15a"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                />
+                <circle
+                  cx={draggedCenterX}
+                  cy={draggedCenterY}
+                  r={5}
+                  fill="none"
+                  stroke="#e0b15a"
+                  strokeWidth={2}
+                />
+              </g>
+            ) : null}
           </svg>
         ) : null}
 
         {visibleJumpLinks.map((link) => {
-          const leftPct = ((link.x - normRegion.x) / normRegion.width) * 100;
-          const topPct = ((link.y - normRegion.y) / normRegion.height) * 100;
+          const isDraggingThisLink =
+            viewDrag?.kind === "jumpLink" && viewDrag.link.id === link.id;
+          const displayX = isDraggingThisLink ? viewDrag.currentX : link.x;
+          const displayY = isDraggingThisLink ? viewDrag.currentY : link.y;
+          const leftPct = ((displayX - normRegion.x) / normRegion.width) * 100;
+          const topPct = ((displayY - normRegion.y) / normRegion.height) * 100;
           return (
             <button
               key={link.id}
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                if (suppressedLinkClickIdRef.current === link.id) {
+                  suppressedLinkClickIdRef.current = null;
+                  return;
+                }
                 onActivateJumpLink?.(link);
               }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onPointerUp={(e) => e.stopPropagation()}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (e.pointerType === "mouse" && e.button !== 0) return;
+                startLongPressWatcher(e, (startPt) => {
+                  suppressedLinkClickIdRef.current = link.id;
+                  setViewDrag({
+                    kind: "jumpLink",
+                    pointerId: e.pointerId,
+                    startPt,
+                    link,
+                    currentX: link.x,
+                    currentY: link.y,
+                  });
+                });
+              }}
+              onPointerUp={(e) => {
+                if (viewDragRef.current?.kind === "jumpLink") {
+                  finishViewDrag(e, true);
+                  return;
+                }
+                e.stopPropagation();
+              }}
               style={{
                 left: `${leftPct}%`,
                 top: `${topPct}%`,
                 backgroundColor: "rgba(22, 26, 34, 0.92)",
               }}
               aria-label={`Hopp til side ${link.targetPage}: ${link.label}`}
-              className="metro-press pointer-events-auto absolute z-20 flex min-h-8 -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-accent px-2.5 py-1 text-xs font-bold text-accent shadow-lg"
+              className={
+                isDraggingThisLink
+                  ? "metro-press pointer-events-auto absolute z-30 flex min-h-8 -translate-x-1/2 -translate-y-1/2 scale-105 items-center gap-1 rounded-full border-2 border-accent px-2.5 py-1 text-xs font-bold text-accent shadow-2xl ring-4 ring-accent/30"
+                  : "metro-press pointer-events-auto absolute z-20 flex min-h-8 -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-accent px-2.5 py-1 text-xs font-bold text-accent shadow-lg"
+              }
             >
               <Link2 className="size-3 shrink-0" aria-hidden="true" />
               <span>{link.label}</span>

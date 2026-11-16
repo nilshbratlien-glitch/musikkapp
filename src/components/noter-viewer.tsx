@@ -901,6 +901,19 @@ export function NoterViewer({
     void onUpdateMetaRef.current({ jumpLinks: existing.filter((l) => l.id !== id) });
   }, []);
 
+  const handleUpdateJumpLink = useCallback((id: string, patch: { x: number; y: number }) => {
+    const existing = latestSheetRef.current.jumpLinks ?? [];
+    void onUpdateMetaRef.current({
+      jumpLinks: existing.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+    });
+  }, []);
+
+  const handleViewDragActiveChange = useCallback((active: boolean) => {
+    if (active) {
+      pointerStartRef.current = null;
+    }
+  }, []);
+
   const handleActivateJumpLink = useCallback(
     (link: JumpLink) => {
       const fromPage = positionRef.current.page;
@@ -1577,8 +1590,10 @@ export function NoterViewer({
                   onCommitItems={handleCommitItems}
                   jumpLinks={sheet.jumpLinks ?? []}
                   onAddJumpLink={handleAddJumpLink}
+                  onUpdateJumpLink={handleUpdateJumpLink}
                   onDeleteJumpLink={handleDeleteJumpLink}
                   onActivateJumpLink={handleActivateJumpLink}
+                  onViewDragActiveChange={handleViewDragActiveChange}
                 />
               </div>
 
@@ -1616,8 +1631,10 @@ export function NoterViewer({
                   onCommitItems={handleCommitItems}
                   jumpLinks={sheet.jumpLinks ?? []}
                   onAddJumpLink={handleAddJumpLink}
+                  onUpdateJumpLink={handleUpdateJumpLink}
                   onDeleteJumpLink={handleDeleteJumpLink}
                   onActivateJumpLink={handleActivateJumpLink}
+                  onViewDragActiveChange={handleViewDragActiveChange}
                 />
               </div>
             </div>
@@ -1648,8 +1665,10 @@ export function NoterViewer({
                 onCommitItems={handleCommitItems}
                 jumpLinks={sheet.jumpLinks ?? []}
                 onAddJumpLink={handleAddJumpLink}
+                onUpdateJumpLink={handleUpdateJumpLink}
                 onDeleteJumpLink={handleDeleteJumpLink}
                 onActivateJumpLink={handleActivateJumpLink}
+                onViewDragActiveChange={handleViewDragActiveChange}
               />
             </div>
           )}

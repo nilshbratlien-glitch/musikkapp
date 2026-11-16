@@ -41,12 +41,15 @@ import {
   clientPointToNormalizedPage,
   createAnnotationHistory,
   eraseAnnotationsAtPoint,
+  findTopmostAnnotationAtPoint,
+  getAnnotationBounds,
   getAnnotationSvgViewBox,
   WHITEOUT_WIDTH_MEDIUM,
   hitTestAnnotation,
   pickBackgroundColorFromSamples,
   pushAnnotationHistory,
   redoAnnotationHistory,
+  translateAnnotationItem,
   undoAnnotationHistory,
   type AnnotationItem,
   type StampId,
@@ -670,6 +673,57 @@ describe("noter-annotations math, eraser, and undo/redo", () => {
     };
     assert.equal(hitTestAnnotation(whiteout, { x: 0.45, y: 0.6 }), true);
     assert.equal(eraseAnnotationsAtPoint([whiteout], { x: 0.45, y: 0.6 }).length, 0);
+  });
+
+  it("finds topmost annotation at point, computes bounds, and translates items with clamping", () => {
+    const whiteout: AnnotationItem = {
+      id: "w-bottom",
+      kind: "whiteout",
+      color: "#ffffff",
+      width: WHITEOUT_WIDTH_MEDIUM,
+      opacity: 1,
+      points: [
+        { x: 0.45, y: 0.5 },
+        { x: 0.55, y: 0.5 },
+      ],
+    };
+    const stamp: AnnotationItem = {
+      id: "st-top",
+      kind: "stamp",
+      stampId: "f",
+      x: 0.5,
+      y: 0.5,
+      color: "#dc2626",
+    };
+
+    // Topmost (last in array) is picked when overlapping
+    const topmost = findTopmostAnnotationAtPoint([whiteout, stamp], { x: 0.5, y: 0.5 });
+    assert.equal(topmost?.id, "st-top");
+    assert.equal(findTopmostAnnotationAtPoint([whiteout, stamp], { x: 0.1, y: 0.1 }), null);
+
+    // Translating a stamp shifts coordinates and clamps within [0.02, 0.98]
+    const movedStamp = translateAnnotationItem(stamp, 0.15, -0.2);
+    assert.equal(movedStamp.kind, "stamp");
+    if (movedStamp.kind === "stamp") {
+      assert.ok(Math.abs(movedStamp.x - 0.65) < 1e-6);
+      assert.ok(Math.abs(movedStamp.y - 0.3) < 1e-6);
+    }
+    const clampedStamp = translateAnnotationItem(stamp, 0.9, -0.9);
+    if (clampedStamp.kind === "stamp") {
+      assert.equal(clampedStamp.x, 0.98);
+      assert.equal(clampedStamp.y, 0.02);
+    }
+
+    // Translating a stroke preserves its shape when hitting the right edge
+    const movedStroke = translateAnnotationItem(whiteout, 0.9, 0);
+    if (movedStroke.kind === "whiteout") {
+      assert.equal(movedStroke.points[1]!.x, 1);
+      assert.ok(Math.abs(movedStroke.points[0]!.x - 0.9) < 1e-6);
+    }
+
+    const bounds = getAnnotationBounds(stamp);
+    assert.ok(bounds.minX < 0.5 && bounds.maxX > 0.5);
+    assert.ok(bounds.minY < 0.5 && bounds.maxY > 0.5);
   });
 
   it("picks median light background color from canvas samples and falls back to #ffffff", () => {
