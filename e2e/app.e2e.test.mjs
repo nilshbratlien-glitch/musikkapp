@@ -1831,7 +1831,7 @@ describe("Øveplan Repertoar linked to Noter and expanded stamps", () => {
     await viewer.getByRole("button", { name: "Velg stempel", exact: true }).click();
     const stampPopover = viewer.getByRole("dialog", { name: "Velg musikalsk stempel" });
     await stampPopover.waitFor({ state: "visible" });
-    await stampPopover.getByText("Piler", { exact: true }).waitFor({ state: "visible" });
+    await stampPopover.getByText(/^Piler$/i).waitFor({ state: "visible" });
     await stampPopover.getByRole("button", { name: "Pil høyre", exact: true }).click();
     await stampPopover.waitFor({ state: "detached" });
 
