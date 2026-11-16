@@ -9,7 +9,7 @@ import {
 const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.js`;
 const PDFJS_WORKER_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
-const MAX_OFFSCREEN_CACHE = 4;
+const MAX_OFFSCREEN_CACHE = 6;
 const CROP_SCAN_SCALE = 0.75;
 
 type PdfViewport = {
@@ -71,6 +71,7 @@ export type LoadedPdfDocument = {
     scale: number,
     options?: RenderPageOptions,
   ) => Promise<PageDimensions>;
+  prefetchPage: (pageNumber: number, scale: number) => Promise<void>;
   detectPageCropRect: (pageNumber: number) => Promise<NormalizedRect>;
   getPageDimensions: (pageNumber: number, scale: number) => Promise<PageDimensions>;
   renderThumbnail: (pageNumber: number, maxWidth?: number) => Promise<string>;
@@ -429,53 +430,27 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
         const region = options?.region ? normalizeCropRect(options.region) : FULL_PAGE_RECT;
         const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
 
-        if (isFullPageRect(region)) {
-          const page = await doc.getPage(pageNumber);
-          if (destroyed || epoch !== state.epoch || options?.signal?.aborted) {
-            return { width: 0, height: 0 };
-          }
-
-          const cssViewport = page.getViewport({ scale });
-          const renderViewport = page.getViewport({ scale: scale * dpr });
-          const cssWidth = Math.max(1, Math.floor(cssViewport.width));
-          const cssHeight = Math.max(1, Math.floor(cssViewport.height));
-
-          canvas.width = Math.max(1, Math.floor(renderViewport.width));
-          canvas.height = Math.max(1, Math.floor(renderViewport.height));
-          canvas.style.width = `${cssWidth}px`;
-          canvas.style.height = `${cssHeight}px`;
-
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            throw new Error("Kunne ikke opprette 2D-kontekst for PDF-visning.");
-          }
-
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-          const task = page.render({ canvasContext: ctx, viewport: renderViewport });
-          state.activeTask = task;
-          activeTasks.add(task);
-          try {
-            await task.promise;
-          } catch (err) {
-            if (isCancelledError(err)) {
-              return { width: cssWidth, height: cssHeight };
-            }
-            throw err;
-          } finally {
-            activeTasks.delete(task);
-            if (state.activeTask === task) {
-              state.activeTask = null;
-            }
-          }
-
-          return { width: cssWidth, height: cssHeight };
-        }
-
         const entry = await getOrRenderOffscreenPage(pageNumber, scale, dpr);
         if (!entry || destroyed || epoch !== state.epoch || options?.signal?.aborted) {
           return { width: 0, height: 0 };
+        }
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Kunne ikke opprette 2D-kontekst for PDF-visning.");
+        }
+
+        if (isFullPageRect(region)) {
+          canvas.width = entry.canvas.width;
+          canvas.height = entry.canvas.height;
+          canvas.style.width = `${entry.cssWidth}px`;
+          canvas.style.height = `${entry.cssHeight}px`;
+
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(entry.canvas, 0, 0);
+
+          return { width: entry.cssWidth, height: entry.cssHeight };
         }
 
         const metrics = computeSliceMetrics(
@@ -490,11 +465,6 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
         canvas.height = metrics.destHeight;
         canvas.style.width = `${metrics.cssWidth}px`;
         canvas.style.height = `${metrics.cssHeight}px`;
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          throw new Error("Kunne ikke opprette 2D-kontekst for PDF-visning.");
-        }
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -518,6 +488,15 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
             state.abortCleanup = null;
           }
         }
+      }
+    },
+    async prefetchPage(pageNumber: number, scale: number): Promise<void> {
+      if (destroyed || pageNumber < 1 || pageNumber > doc.numPages) return;
+      const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+      try {
+        await getOrRenderOffscreenPage(pageNumber, scale, dpr);
+      } catch {
+        /* ignore background prefetch errors */
       }
     },
     async detectPageCropRect(pageNumber: number): Promise<NormalizedRect> {
