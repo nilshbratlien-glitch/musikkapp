@@ -47,6 +47,7 @@ export function PlainMetronome() {
   const bpmRef = useRef(80);
   const meterRef = useRef<Meter>("4/4");
   const subRef = useRef<Subdivision>(1);
+  const tapsRef = useRef<number[]>([]);
 
   bpmRef.current = bpm;
   meterRef.current = meter;
@@ -62,6 +63,42 @@ export function PlainMetronome() {
       pulseStop("metronom");
     };
   }, [profile]);
+
+  useEffect(() => {
+    if (!playing || owns) return;
+    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    let active = true;
+    let sentinel: { release: () => Promise<void> } | null = null;
+    const requestLock = async () => {
+      try {
+        const nav = navigator as Navigator & {
+          wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> };
+        };
+        const lock = await nav.wakeLock?.request("screen");
+        if (!active) {
+          void lock?.release();
+          return;
+        }
+        sentinel = lock ?? null;
+      } catch {
+        /* ignore */
+      }
+    };
+    void requestLock();
+    return () => {
+      active = false;
+      void sentinel?.release();
+    };
+  }, [playing, owns]);
+
+  function handleTap() {
+    const now = Date.now();
+    tapsRef.current = [...tapsRef.current.filter((tap) => now - tap < 3000), now];
+    const next = bpmFromTaps(tapsRef.current);
+    if (next != null) {
+      changeBpm(next);
+    }
+  }
 
   function remember() {
     const store = readToolStore("metronom");
