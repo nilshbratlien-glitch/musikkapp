@@ -206,6 +206,17 @@ export function Shell() {
   const profileMeta = PROFILE_META[profile];
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [installDismissed, setInstallDismissed] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("musikkapp.installDismissed") === "1") {
+        setInstallDismissed(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     const go = (to: string) => {
