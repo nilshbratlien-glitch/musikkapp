@@ -173,3 +173,32 @@ export function stepPageBackward(
 
   return { page: current.page - 1, halfOffset: 1 };
 }
+
+export type StageTapZone = "prev" | "next" | "toggle-hud";
+
+const EDGE_TAP_FRACTION = 0.25;
+
+export function classifyStageTapZone(
+  clientX: number,
+  rectLeft: number,
+  rectWidth: number,
+): StageTapZone {
+  if (!Number.isFinite(clientX) || !Number.isFinite(rectLeft) || !Number.isFinite(rectWidth) || rectWidth <= 0) {
+    return "toggle-hud";
+  }
+  const rel = (clientX - rectLeft) / rectWidth;
+  if (rel < EDGE_TAP_FRACTION) return "prev";
+  if (rel > 1 - EDGE_TAP_FRACTION) return "next";
+  return "toggle-hud";
+}
+
+export function stepSpreadForward(page: number, pageCount: number): number {
+  const maxPage = Number.isFinite(pageCount) && pageCount >= 1 ? Math.floor(pageCount) : 1;
+  const current = clampPage(page, maxPage);
+  return Math.min(maxPage, current + 2);
+}
+
+export function stepSpreadBackward(page: number): number {
+  const current = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
+  return Math.max(1, current - 2);
+}

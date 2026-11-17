@@ -30,7 +30,12 @@ import {
   type SheetRecord,
   type SheetSortBy,
 } from "@/lib/noter";
-import { exportNoterBackup, parseNoterBackupJson, restoreNoterBackup } from "@/lib/noter-backup";
+import {
+  exportFullNoterBackup,
+  exportNoterBackup,
+  parseNoterBackupJson,
+  restoreNoterBackup,
+} from "@/lib/noter-backup";
 import {
   ALL_CATEGORIES_FILTER,
   UNCATEGORIZED_FILTER,
@@ -60,7 +65,7 @@ import {
   updateSheetMeta,
   type UpdateSheetMetaPatch,
 } from "@/lib/noter-db";
-import { loadPdfDocument } from "@/lib/noter-pdf";
+import { loadPdfDocument, preloadPdfJs } from "@/lib/noter-pdf";
 import { moveSetlistItem } from "@/lib/noter-setlists";
 
 type LibraryTab = "sheets" | "setlists";
@@ -132,9 +137,34 @@ export function Noter({
     }
   }, []);
 
+  const preloadedSheetsRef = useRef<Map<string, SheetRecord>>(new Map());
+
   useEffect(() => {
     void refreshLibrary();
+    preloadPdfJs();
   }, [refreshLibrary]);
+
+  // Pre-warm next setlist piece so concert-mode switching is near-instant
+  useEffect(() => {
+    if (!activeSetlistSession || !activeSheet) return;
+    const setlist = setlists.find((s) => s.id === activeSetlistSession.setlistId);
+    if (!setlist) return;
+    const nextId = setlist.sheetIds[activeSetlistSession.activeIndex + 1];
+    if (!nextId || preloadedSheetsRef.current.has(nextId)) return;
+    let cancelled = false;
+    void getSheet(nextId)
+      .then((rec) => {
+        if (!cancelled && rec) {
+          preloadedSheetsRef.current.set(nextId, rec);
+        }
+      })
+      .catch(() => {
+        /* ignore background pre-warm error */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSetlistSession, activeSheet, setlists]);
 
   const handleFiles = useCallback(
     async (fileList: FileList | File[]) => {
@@ -224,7 +254,8 @@ export function Noter({
   const handleOpenSheet = useCallback(async (id: string, setlistSession?: ActiveSetlistSession | null) => {
     setError(null);
     try {
-      const record = await getSheet(id);
+      const cached = preloadedSheetsRef.current.get(id);
+      const record = cached ?? (await getSheet(id));
       if (!record) {
         setError("Fant ikke PDF-filen i lokal lagring.");
         return;
@@ -430,6 +461,31 @@ export function Noter({
     }
   };
 
+  const handleExportFullBackup = async () => {
+    setError(null);
+    setBackupNotice(null);
+    try {
+      const payload = await exportFullNoterBackup();
+      const json = JSON.stringify(payload);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStr = new Date(payload.exportedAt).toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `noter-full-backup-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      const pdfCount = payload.pdfs?.length ?? 0;
+      setBackupNotice(
+        `Eksporterte full backup med ${pdfCount} PDF-er, ${payload.sheets.length} noter og ${payload.setlists.length} settlister.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke eksportere full backup.");
+    }
+  };
+
   const handleImportBackup = async (file: File) => {
     setError(null);
     setBackupNotice(null);
@@ -438,8 +494,10 @@ export function Noter({
       const payload = parseNoterBackupJson(text);
       const summary = await restoreNoterBackup(payload);
       await refreshLibrary();
+      const createdNote =
+        summary.createdSheets > 0 ? ` (${summary.createdSheets} nye PDF-er lagt til)` : "";
       setBackupNotice(
-        `Gjenopprettet ${summary.matchedSheets} stykker, ${summary.restoredAnnotationPages} annoteringssider og ${summary.restoredSetlists} settlister.`,
+        `Gjenopprettet ${summary.matchedSheets} stykker${createdNote}, ${summary.restoredAnnotationPages} annoteringssider og ${summary.restoredSetlists} settlister.`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunne ikke gjenopprette backup.");
@@ -702,6 +760,14 @@ export function Noter({
               >
                 <Download className="size-4" aria-hidden="true" />
                 <span>Eksporter backup (JSON)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExportFullBackup()}
+                className="metro-press flex min-h-10 items-center gap-1.5 rounded-xl border border-accent bg-header px-3.5 text-xs font-bold text-accent hover:bg-surface"
+              >
+                <Download className="size-4" aria-hidden="true" />
+                <span>Full backup (inkl. PDF-er)</span>
               </button>
               <button
                 type="button"

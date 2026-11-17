@@ -221,6 +221,13 @@ function loadPdfJs(): Promise<PdfJsLib> {
   return pdfjsPromise;
 }
 
+export function preloadPdfJs(): void {
+  if (typeof window === "undefined") return;
+  void loadPdfJs().catch(() => {
+    /* ignore background preload failure */
+  });
+}
+
 type CanvasRenderState = {
   epoch: number;
   activeTask: PdfRenderTask | null;

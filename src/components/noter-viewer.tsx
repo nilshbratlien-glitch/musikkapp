@@ -1,7 +1,9 @@
 import {
   ChevronLeft,
   ChevronRight,
+  Columns2,
   Crop,
+  FileDown,
   LayoutGrid,
   ListMusic,
   Maximize2,
@@ -47,6 +49,8 @@ import {
   HIGHLIGHTER_COLORS,
   PENCIL_WIDTH_THICK,
   PENCIL_WIDTH_THIN,
+  STAMP_SCALE_MAP,
+  TEXT_FONT_SIZE_MAP,
   WHITEOUT_WIDTH_LARGE,
   WHITEOUT_WIDTH_MEDIUM,
   WHITEOUT_WIDTH_SMALL,
@@ -58,6 +62,7 @@ import {
   undoAnnotationHistory,
   type AnnotationHistoryState,
   type AnnotationItem,
+  type AnnotationSizeOption,
   type StampId,
 } from "@/lib/noter-annotations";
 import {
@@ -75,13 +80,17 @@ import {
   saveTrimmedSheetAsCopy,
   type UpdateSheetMetaPatch,
 } from "@/lib/noter-db";
+import { exportAnnotatedPdf } from "@/lib/noter-export";
 import {
+  classifyStageTapZone,
   detectSwipeDirection,
   isEditableTarget,
   mapKeyToViewerAction,
   normalizeHalfPagePosition,
   stepPageBackward,
   stepPageForward,
+  stepSpreadBackward,
+  stepSpreadForward,
   type HalfPagePosition,
 } from "@/lib/noter-input";
 import {
@@ -129,6 +138,29 @@ function createItemId(prefix: string): string {
 
 const NIGHT_FILTER = "invert(0.92) hue-rotate(180deg) contrast(1.08)";
 const DEFAULT_PAGE_DIMS: PageDimensions = { width: 612, height: 792 };
+const STYLUS_ONLY_STORAGE_KEY = "musikkapp.noter.stylusOnly";
+const TWO_PAGE_SPREAD_STORAGE_KEY = "musikkapp.noter.twoPageSpread";
+
+function readStoredBooleanPref(key: string, fallback = false): boolean {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+  } catch {
+    /* ignore storage access errors */
+  }
+  return fallback;
+}
+
+function writeStoredBooleanPref(key: string, value: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value ? "true" : "false");
+  } catch {
+    /* ignore storage write errors */
+  }
+}
 
 function computeSinglePageBaseScale(
   viewportSize: { width: number; height: number },
@@ -165,6 +197,26 @@ function computeSplitPageBaseScale(
   );
 }
 
+function computeTwoPageSpreadBaseScale(
+  viewportSize: { width: number; height: number },
+  leftDims: PageDimensions,
+  leftRegion: NormalizedRect,
+  rightDims: PageDimensions,
+  rightRegion: NormalizedRect,
+): number {
+  const availableWidth = Math.max(280, viewportSize.width - 24);
+  const paneAvailableWidth = Math.max(120, (availableWidth - 12) * 0.5);
+  const availableHeight = Math.max(200, viewportSize.height - 24);
+  const widthScaleLeft = paneAvailableWidth / Math.max(1, leftDims.width * leftRegion.width);
+  const heightScaleLeft = availableHeight / Math.max(1, leftDims.height * leftRegion.height);
+  const widthScaleRight = paneAvailableWidth / Math.max(1, rightDims.width * rightRegion.width);
+  const heightScaleRight = availableHeight / Math.max(1, rightDims.height * rightRegion.height);
+  return Math.min(
+    2.4,
+    Math.max(0.5, Math.min(widthScaleLeft, heightScaleLeft, widthScaleRight, heightScaleRight)),
+  );
+}
+
 export function NoterViewer({
   sheet,
   initialPage,
@@ -177,6 +229,7 @@ export function NoterViewer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const rightCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const topCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const bottomCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const docRef = useRef<LoadedPdfDocument | null>(null);
@@ -201,6 +254,9 @@ export function NoterViewer({
   const [loadedDoc, setLoadedDoc] = useState<LoadedPdfDocument | null>(null);
   const [pageCount, setPageCount] = useState(() => Math.max(1, sheet.pageCount || 1));
   const [halfPageTurn, setHalfPageTurn] = useState(() => Boolean(sheet.halfPageTurn));
+  const [twoPageSpread, setTwoPageSpread] = useState(() =>
+    sheet.halfPageTurn ? false : readStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY),
+  );
   const [autoCrop, setAutoCrop] = useState(() => Boolean(sheet.autoCrop));
   const [annotationsVisible, setAnnotationsVisible] = useState(
     () => sheet.annotationsVisible ?? true,
@@ -221,6 +277,7 @@ export function NoterViewer({
   const page = position.page;
   const halfOffset = position.halfOffset;
   const isSplitView = halfPageTurn && halfOffset === 1 && page < pageCount;
+  const isTwoPageSpread = twoPageSpread && !isSplitView && !halfPageTurn && page < pageCount;
 
   const [zoom, setZoom] = useState(1);
   const zoomRef = useRef(zoom);
@@ -230,6 +287,8 @@ export function NoterViewer({
     height: 900,
   });
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panRef = useRef(pan);
+  panRef.current = pan;
   const [nightMode, setNightMode] = useState(() => Boolean(sheet.nightMode));
   const [hudVisible, setHudVisible] = useState(true);
   const [metronomeOpen, setMetronomeOpen] = useState(false);
@@ -257,7 +316,14 @@ export function NoterViewer({
   const [whiteoutSize, setWhiteoutSize] = useState<WhiteoutSize>("medium");
   const [pageBackgroundColor, setPageBackgroundColor] = useState<string>("#ffffff");
   const [activeStampId, setActiveStampId] = useState<StampId>("fermata");
-  const [stylusOnly, setStylusOnly] = useState(false);
+  const [stampSize, setStampSize] = useState<AnnotationSizeOption>("medium");
+  const [textSize, setTextSize] = useState<AnnotationSizeOption>("medium");
+  const [stylusOnly, setStylusOnly] = useState(() =>
+    readStoredBooleanPref(STYLUS_ONLY_STORAGE_KEY),
+  );
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [edgeTapFlash, setEdgeTapFlash] = useState<"prev" | "next" | null>(null);
+  const edgeTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [annotationsByPage, setAnnotationsByPage] = useState<Record<number, AnnotationItem[]>>({});
   const annotationsRef = useRef(annotationsByPage);
@@ -279,6 +345,7 @@ export function NoterViewer({
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [pageDims, setPageDims] = useState<Record<number, PageDimensions>>({});
   const [singleCanvasSize, setSingleCanvasSize] = useState<PageDimensions>({ width: 0, height: 0 });
+  const [rightCanvasSize, setRightCanvasSize] = useState<PageDimensions>({ width: 0, height: 0 });
   const [topCanvasSize, setTopCanvasSize] = useState<PageDimensions>({ width: 0, height: 0 });
   const [bottomCanvasSize, setBottomCanvasSize] = useState<PageDimensions>({ width: 0, height: 0 });
 
@@ -294,6 +361,16 @@ export function NoterViewer({
     pointerId: number;
     moved: boolean;
   } | null>(null);
+  const activeTouchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStateRef = useRef<{
+    startDist: number;
+    startZoom: number;
+    startPanX: number;
+    startPanY: number;
+    startMidX: number;
+    startMidY: number;
+  } | null>(null);
+  const didPinchRef = useRef(false);
 
   const metroRunning = pulseState.running && pulseState.owner === "noter";
 
@@ -309,6 +386,53 @@ export function NoterViewer({
     return () => {
       unmountedRef.current = true;
       stopReferenceTone();
+      if (edgeTapTimerRef.current !== null) {
+        clearTimeout(edgeTapTimerRef.current);
+        edgeTapTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Keep tablet screen awake while sheet viewer is open
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    let activeSentinel: { release: () => Promise<void> } | null = null;
+    let disposed = false;
+
+    const acquire = async () => {
+      if (disposed || document.visibilityState !== "visible") return;
+      try {
+        const sentinel = await (
+          navigator as Navigator & {
+            wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> };
+          }
+        ).wakeLock?.request("screen");
+        if (!sentinel) return;
+        if (disposed) {
+          void sentinel.release().catch(() => {});
+          return;
+        }
+        activeSentinel = sentinel;
+      } catch {
+        /* ignore wakeLock denial on restricted browsers */
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void acquire();
+      }
+    };
+
+    void acquire();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      disposed = true;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (activeSentinel) {
+        void activeSentinel.release().catch(() => {});
+        activeSentinel = null;
+      }
     };
   }, []);
 
@@ -325,10 +449,14 @@ export function NoterViewer({
     setCropModalOpen(false);
     setPageDims({});
     setSingleCanvasSize({ width: 0, height: 0 });
+    setRightCanvasSize({ width: 0, height: 0 });
     setTopCanvasSize({ width: 0, height: 0 });
     setBottomCanvasSize({ width: 0, height: 0 });
     setAutoCrop(Boolean(s.autoCrop));
     setHalfPageTurn(Boolean(s.halfPageTurn));
+    if (s.halfPageTurn) {
+      setTwoPageSpread(false);
+    }
     setAnnotationsVisible(s.annotationsVisible ?? true);
     setNightMode(Boolean(s.nightMode));
     setBpm(clampBpm(s.bpm));
@@ -349,10 +477,13 @@ export function NoterViewer({
     setLastEditedPage(initialPos.page);
   }, [sheet.id, initialPage]);
 
-  // Clear in-progress viewport swipe/pan tracking whenever switching to an annotation tool
+  // Clear in-progress viewport swipe/pan/pinch tracking whenever switching to an annotation tool
   useEffect(() => {
     if (tool !== "view") {
       pointerStartRef.current = null;
+      activeTouchPointersRef.current.clear();
+      pinchStateRef.current = null;
+      didPinchRef.current = false;
     }
   }, [tool]);
 
@@ -449,6 +580,11 @@ export function NoterViewer({
     if (page > 1) {
       pagesToLoad.push(page - 1);
     }
+    if (twoPageSpread) {
+      if (page + 2 <= pageCount) pagesToLoad.push(page + 2);
+      if (page + 3 <= pageCount) pagesToLoad.push(page + 3);
+      if (page - 2 >= 1) pagesToLoad.push(page - 2);
+    }
 
     for (const p of pagesToLoad) {
       if (loadedPagesRef.current.has(p)) continue;
@@ -464,7 +600,7 @@ export function NoterViewer({
           }
         });
     }
-  }, [sheet.id, page, pageCount]);
+  }, [sheet.id, page, pageCount, twoPageSpread]);
 
   // Measure viewport dimensions for responsive fit-to-viewport scaling
   useEffect(() => {
@@ -505,7 +641,9 @@ export function NoterViewer({
     const pagesToInspect = new Set<number>([page]);
     if (page < pageCount) pagesToInspect.add(page + 1);
     if (page > 1) pagesToInspect.add(page - 1);
-    if (halfPageTurn && page + 2 <= pageCount) pagesToInspect.add(page + 2);
+    if ((halfPageTurn || twoPageSpread) && page + 2 <= pageCount) pagesToInspect.add(page + 2);
+    if (twoPageSpread && page + 3 <= pageCount) pagesToInspect.add(page + 3);
+    if (twoPageSpread && page - 2 >= 1) pagesToInspect.add(page - 2);
 
     for (const p of pagesToInspect) {
       if (!pageDims[p]) {
@@ -537,11 +675,16 @@ export function NoterViewer({
     return () => {
       cancelled = true;
     };
-  }, [docReady, page, pageCount, autoCrop, halfPageTurn, pageDims, cropRects]);
+  }, [docReady, page, pageCount, autoCrop, halfPageTurn, twoPageSpread, pageDims, cropRects]);
 
   const singleRegion = useMemo<NormalizedRect>(() => {
     return resolveEffectiveCropRect(page, autoCrop, manualCrops, cropRects);
   }, [autoCrop, manualCrops, cropRects, page]);
+
+  const rightRegion = useMemo<NormalizedRect>(() => {
+    if (!isTwoPageSpread) return FULL_PAGE_RECT;
+    return resolveEffectiveCropRect(page + 1, autoCrop, manualCrops, cropRects);
+  }, [isTwoPageSpread, autoCrop, manualCrops, cropRects, page]);
 
   const topRegion = useMemo<NormalizedRect>(() => {
     if (!isSplitView) return FULL_PAGE_RECT;
@@ -556,22 +699,42 @@ export function NoterViewer({
   }, [isSplitView, autoCrop, manualCrops, cropRects, page]);
 
   const baseScale = useMemo(() => {
-    if (!isSplitView) {
-      return computeSinglePageBaseScale(
+    if (isSplitView) {
+      return computeSplitPageBaseScale(
         viewportSize,
+        pageDims[page + 1] ?? DEFAULT_PAGE_DIMS,
+        topRegion,
         pageDims[page] ?? DEFAULT_PAGE_DIMS,
-        singleRegion,
+        bottomRegion,
       );
     }
 
-    return computeSplitPageBaseScale(
+    if (isTwoPageSpread) {
+      return computeTwoPageSpreadBaseScale(
+        viewportSize,
+        pageDims[page] ?? DEFAULT_PAGE_DIMS,
+        singleRegion,
+        pageDims[page + 1] ?? DEFAULT_PAGE_DIMS,
+        rightRegion,
+      );
+    }
+
+    return computeSinglePageBaseScale(
       viewportSize,
-      pageDims[page + 1] ?? DEFAULT_PAGE_DIMS,
-      topRegion,
       pageDims[page] ?? DEFAULT_PAGE_DIMS,
-      bottomRegion,
+      singleRegion,
     );
-  }, [viewportSize, isSplitView, pageDims, page, singleRegion, topRegion, bottomRegion]);
+  }, [
+    viewportSize,
+    isSplitView,
+    isTwoPageSpread,
+    pageDims,
+    page,
+    singleRegion,
+    rightRegion,
+    topRegion,
+    bottomRegion,
+  ]);
 
   // Render active page(s) whenever doc, position, regions, zoom, or baseScale changes
   useEffect(() => {
@@ -611,6 +774,36 @@ export function NoterViewer({
           setRendering(false);
           setError(err instanceof Error ? err.message : "Kunne ikke tegne PDF-siden.");
         });
+    } else if (isTwoPageSpread) {
+      const leftCanvas = canvasRef.current;
+      const rightCanvas = rightCanvasRef.current;
+      if (!leftCanvas || !rightCanvas) return;
+
+      setRendering(true);
+      setError(null);
+
+      Promise.all([
+        doc.renderPage(page, leftCanvas, scale, {
+          region: singleRegion,
+          signal: controller.signal,
+        }),
+        doc.renderPage(page + 1, rightCanvas, scale, {
+          region: rightRegion,
+          signal: controller.signal,
+        }),
+      ])
+        .then(([leftSize, rightSize]) => {
+          if (controller.signal.aborted || renderSeqRef.current !== seq) return;
+          if (leftSize.width > 0 && leftSize.height > 0) setSingleCanvasSize(leftSize);
+          if (rightSize.width > 0 && rightSize.height > 0) setRightCanvasSize(rightSize);
+          setPageBackgroundColor(sampleCanvasBackgroundColor(leftCanvas));
+          setRendering(false);
+        })
+        .catch((err) => {
+          if (controller.signal.aborted || renderSeqRef.current !== seq) return;
+          setRendering(false);
+          setError(err instanceof Error ? err.message : "Kunne ikke tegne PDF-siden.");
+        });
     } else {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -639,9 +832,20 @@ export function NoterViewer({
     return () => {
       controller.abort();
     };
-  }, [docReady, isSplitView, page, zoom, baseScale, singleRegion, topRegion, bottomRegion]);
+  }, [
+    docReady,
+    isSplitView,
+    isTwoPageSpread,
+    page,
+    zoom,
+    baseScale,
+    singleRegion,
+    rightRegion,
+    topRegion,
+    bottomRegion,
+  ]);
 
-  // Pre-render adjacent pages (including half-page split views) after the active page finishes
+  // Pre-render adjacent pages (including half-page split views & two-page spreads) after the active page finishes
   useEffect(() => {
     if (!docReady || rendering || !docRef.current) return;
     const doc = docRef.current;
@@ -650,6 +854,23 @@ export function NoterViewer({
     const singleScaleFor = (p: number) => {
       const reg = resolveEffectiveCropRect(p, autoCrop, manualCrops, cropRects);
       return computeSinglePageBaseScale(viewportSize, pageDims[p] ?? DEFAULT_PAGE_DIMS, reg) * zoom;
+    };
+
+    const spreadScaleFor = (leftPage: number) => {
+      if (leftPage >= pageCount) {
+        return singleScaleFor(leftPage);
+      }
+      const leftReg = resolveEffectiveCropRect(leftPage, autoCrop, manualCrops, cropRects);
+      const rightReg = resolveEffectiveCropRect(leftPage + 1, autoCrop, manualCrops, cropRects);
+      return (
+        computeTwoPageSpreadBaseScale(
+          viewportSize,
+          pageDims[leftPage] ?? DEFAULT_PAGE_DIMS,
+          leftReg,
+          pageDims[leftPage + 1] ?? DEFAULT_PAGE_DIMS,
+          rightReg,
+        ) * zoom
+      );
     };
 
     const splitScaleFor = (lowerPage: number) => {
@@ -690,6 +911,23 @@ export function NoterViewer({
           targets.push({ pageNumber: page + 2, scale: upcomingSplitScale });
         }
       }
+    } else if (twoPageSpread) {
+      const nextStart = page + 2;
+      if (nextStart <= pageCount) {
+        const nextScale = spreadScaleFor(nextStart);
+        targets.push({ pageNumber: nextStart, scale: nextScale });
+        if (nextStart + 1 <= pageCount) {
+          targets.push({ pageNumber: nextStart + 1, scale: nextScale });
+        }
+      }
+      if (page > 1) {
+        const prevStart = Math.max(1, page - 2);
+        const prevScale = spreadScaleFor(prevStart);
+        targets.push({ pageNumber: prevStart, scale: prevScale });
+        if (prevStart + 1 <= pageCount) {
+          targets.push({ pageNumber: prevStart + 1, scale: prevScale });
+        }
+      }
     } else {
       if (page < pageCount) {
         targets.push({ pageNumber: page + 1, scale: singleScaleFor(page + 1) });
@@ -718,6 +956,7 @@ export function NoterViewer({
     page,
     pageCount,
     halfPageTurn,
+    twoPageSpread,
     halfOffset,
     zoom,
     viewportSize,
@@ -745,7 +984,10 @@ export function NoterViewer({
 
   const stepForward = useCallback(() => {
     const prev = positionRef.current;
-    const next = stepPageForward(prev, pageCount, halfPageTurn);
+    const next: HalfPagePosition =
+      twoPageSpread && !halfPageTurn
+        ? { page: stepSpreadForward(prev.page, pageCount), halfOffset: 0 }
+        : stepPageForward(prev, pageCount, halfPageTurn);
     if (next.page !== prev.page || next.halfOffset !== prev.halfOffset) {
       setPosition(next);
       setPan({ x: 0, y: 0 });
@@ -764,11 +1006,14 @@ export function NoterViewer({
         setlistContext.onSelectSheetIndex(step.sheetIndex, step.page);
       }
     }
-  }, [pageCount, halfPageTurn, setlistContext]);
+  }, [pageCount, halfPageTurn, twoPageSpread, setlistContext]);
 
   const stepBackward = useCallback(() => {
     const prev = positionRef.current;
-    const next = stepPageBackward(prev, pageCount, halfPageTurn);
+    const next: HalfPagePosition =
+      twoPageSpread && !halfPageTurn
+        ? { page: stepSpreadBackward(prev.page), halfOffset: 0 }
+        : stepPageBackward(prev, pageCount, halfPageTurn);
     if (next.page !== prev.page || next.halfOffset !== prev.halfOffset) {
       setPosition(next);
       setPan({ x: 0, y: 0 });
@@ -787,7 +1032,7 @@ export function NoterViewer({
         setlistContext.onSelectSheetIndex(step.sheetIndex, step.page);
       }
     }
-  }, [pageCount, halfPageTurn, setlistContext]);
+  }, [pageCount, halfPageTurn, twoPageSpread, setlistContext]);
 
   const toggleNightMode = useCallback(() => {
     setNightMode((prev) => {
@@ -809,12 +1054,36 @@ export function NoterViewer({
     setHalfPageTurn((prev) => {
       const next = !prev;
       void onUpdateMetaRef.current({ halfPageTurn: next });
-      if (!next) {
+      if (next) {
+        setTwoPageSpread(false);
+        writeStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY, false);
+      } else {
         setPosition((current) => normalizeHalfPagePosition(current, pageCount, false));
       }
       return next;
     });
   }, [pageCount]);
+
+  const toggleTwoPageSpread = useCallback(() => {
+    setTwoPageSpread((prev) => {
+      const next = !prev;
+      writeStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY, next);
+      if (next && halfPageTurn) {
+        setHalfPageTurn(false);
+        void onUpdateMetaRef.current({ halfPageTurn: false });
+        setPosition((current) => normalizeHalfPagePosition(current, pageCount, false));
+      }
+      return next;
+    });
+  }, [halfPageTurn, pageCount]);
+
+  const toggleStylusOnly = useCallback(() => {
+    setStylusOnly((prev) => {
+      const next = !prev;
+      writeStoredBooleanPref(STYLUS_ONLY_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
 
   const toggleAnnotationsVisible = useCallback(() => {
     setAnnotationsVisible((prev) => {
@@ -850,8 +1119,9 @@ export function NoterViewer({
     [sheet.id],
   );
 
-  const primaryPanePage = isSplitView && lastEditedPage === page + 1 ? page + 1 : page;
-  const secondaryPanePage = isSplitView ? (primaryPanePage === page ? page + 1 : page) : null;
+  const hasDualPane = isSplitView || isTwoPageSpread;
+  const primaryPanePage = hasDualPane && lastEditedPage === page + 1 ? page + 1 : page;
+  const secondaryPanePage = hasDualPane ? (primaryPanePage === page ? page + 1 : page) : null;
 
   const undoTargetPage =
     (historyByPage[primaryPanePage]?.undoStack.length ?? 0) > 0
@@ -1171,7 +1441,52 @@ export function NoterViewer({
     return () => el.removeEventListener("wheel", onWheel);
   }, [updateZoom]);
 
-  // Pointer swipe (when zoom <= 1.05) and pan (when zoom > 1.05) + tap to toggle HUD
+  const triggerEdgeTapFlash = useCallback((dir: "prev" | "next") => {
+    setEdgeTapFlash(dir);
+    if (edgeTapTimerRef.current !== null) {
+      clearTimeout(edgeTapTimerRef.current);
+    }
+    edgeTapTimerRef.current = setTimeout(() => {
+      edgeTapTimerRef.current = null;
+      setEdgeTapFlash(null);
+    }, 260);
+  }, []);
+
+  const handleExportAnnotatedPdf = useCallback(async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    setError(null);
+    try {
+      const fullAnnotations: Record<number, AnnotationItem[]> = { ...annotationsRef.current };
+      for (let p = 1; p <= pageCount; p += 1) {
+        if (fullAnnotations[p] === undefined) {
+          fullAnnotations[p] = await getPageAnnotations(sheet.id, p);
+        }
+      }
+      const bytes = await exportAnnotatedPdf(sheet.pdfData, fullAnnotations);
+      const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const safeTitle =
+        sheet.title
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9æøå\-_]+/gi, "-")
+          .replace(/^-+|-+$/g, "") || "noteark";
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${safeTitle}-annotert.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke eksportere annotert PDF.");
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [exportingPdf, pageCount, sheet.id, sheet.pdfData, sheet.title]);
+
+  // Pointer pinch-zoom (2 fingers), swipe/edge-tap (zoom <= 1.05), pan (zoom > 1.05), and center tap to toggle HUD
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (tool !== "view") return;
     if (e.button !== 0 && e.pointerType === "mouse") return;
@@ -1180,6 +1495,27 @@ export function NoterViewer({
     } catch {
       /* ignore if pointer capture is unsupported */
     }
+    activeTouchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activeTouchPointersRef.current.size >= 2) {
+      const pts = Array.from(activeTouchPointersRef.current.values());
+      const dist = Math.max(10, Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y));
+      const midX = (pts[0]!.x + pts[1]!.x) / 2;
+      const midY = (pts[0]!.y + pts[1]!.y) / 2;
+      pinchStateRef.current = {
+        startDist: dist,
+        startZoom: zoomRef.current,
+        startPanX: panRef.current.x,
+        startPanY: panRef.current.y,
+        startMidX: midX,
+        startMidY: midY,
+      };
+      didPinchRef.current = true;
+      pointerStartRef.current = null;
+      return;
+    }
+
+    didPinchRef.current = false;
     pointerStartRef.current = {
       x: e.clientX,
       y: e.clientY,
@@ -1193,6 +1529,29 @@ export function NoterViewer({
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (tool !== "view") return;
+    if (activeTouchPointersRef.current.has(e.pointerId)) {
+      activeTouchPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+
+    if (activeTouchPointersRef.current.size >= 2 && pinchStateRef.current) {
+      const pts = Array.from(activeTouchPointersRef.current.values());
+      const dist = Math.max(10, Math.hypot(pts[1]!.x - pts[0]!.x, pts[1]!.y - pts[0]!.y));
+      const midX = (pts[0]!.x + pts[1]!.x) / 2;
+      const midY = (pts[0]!.y + pts[1]!.y) / 2;
+      const pinch = pinchStateRef.current;
+      const nextZoom = clampZoom(Number((pinch.startZoom * (dist / pinch.startDist)).toFixed(2)));
+      setZoom(nextZoom);
+      if (nextZoom <= 1) {
+        setPan({ x: 0, y: 0 });
+      } else {
+        setPan({
+          x: pinch.startPanX + (midX - pinch.startMidX),
+          y: pinch.startPanY + (midY - pinch.startMidY),
+        });
+      }
+      return;
+    }
+
     const startInfo = pointerStartRef.current;
     if (!startInfo || startInfo.pointerId !== e.pointerId) return;
     const dx = e.clientX - startInfo.x;
@@ -1214,8 +1573,18 @@ export function NoterViewer({
         /* ignore */
       }
     }
+    activeTouchPointersRef.current.delete(e.pointerId);
+    if (activeTouchPointersRef.current.size < 2) {
+      pinchStateRef.current = null;
+    }
     const startInfo = pointerStartRef.current;
     pointerStartRef.current = null;
+    if (didPinchRef.current) {
+      if (activeTouchPointersRef.current.size === 0) {
+        didPinchRef.current = false;
+      }
+      return;
+    }
     if (!startInfo || startInfo.pointerId !== e.pointerId) return;
 
     const dx = e.clientX - startInfo.x;
@@ -1235,6 +1604,20 @@ export function NoterViewer({
     }
 
     if (!startInfo.moved && Math.hypot(dx, dy) < 10 && dtMs < 350) {
+      if (zoom <= 1.05) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const zone = classifyStageTapZone(e.clientX, rect.left, rect.width);
+        if (zone === "prev") {
+          triggerEdgeTapFlash("prev");
+          stepBackward();
+          return;
+        }
+        if (zone === "next") {
+          triggerEdgeTapFlash("next");
+          stepForward();
+          return;
+        }
+      }
       setHudVisible((v) => !v);
     }
   };
@@ -1247,6 +1630,8 @@ export function NoterViewer({
       : whiteoutSize === "large"
         ? WHITEOUT_WIDTH_LARGE
         : WHITEOUT_WIDTH_MEDIUM;
+  const activeStampScale = STAMP_SCALE_MAP[stampSize];
+  const activeTextFontSize = TEXT_FONT_SIZE_MAP[textSize];
   const hasPrevInSetlist = Boolean(setlistContext && setlistContext.activeIndex > 0);
   const hasNextInSetlist = Boolean(
     setlistContext && setlistContext.activeIndex < setlistContext.sheets.length - 1,
@@ -1381,6 +1766,37 @@ export function NoterViewer({
 
             <button
               type="button"
+              onClick={toggleTwoPageSpread}
+              aria-pressed={twoPageSpread}
+              aria-label={twoPageSpread ? "Slå av to-siders visning" : "Slå på to-siders visning"}
+              title={twoPageSpread ? "Slå av to-siders visning" : "Slå på to-siders visning"}
+              style={twoPageSpread ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+              className={
+                twoPageSpread
+                  ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent sm:px-2.5"
+                  : "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-2 text-xs font-medium text-muted hover:text-fg sm:px-2.5"
+              }
+            >
+              <Columns2 className="size-4 shrink-0" aria-hidden="true" />
+              <span className="hidden sm:inline">To sider</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleExportAnnotatedPdf()}
+              disabled={exportingPdf}
+              aria-label="Eksporter annotert PDF"
+              title="Eksporter annotert PDF"
+              className="metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-2 text-xs font-medium text-muted hover:text-fg disabled:opacity-50 sm:px-2.5"
+            >
+              <FileDown className="size-4 shrink-0" aria-hidden="true" />
+              <span className="hidden md:inline">
+                {exportingPdf ? "Eksporterer …" : "Eksporter PDF"}
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={toggleNightMode}
               aria-pressed={nightMode}
               aria-label={nightMode ? "Slå av nattmodus" : "Slå på nattmodus"}
@@ -1468,8 +1884,12 @@ export function NoterViewer({
           whiteoutColor={pageBackgroundColor}
           activeStampId={activeStampId}
           onSelectStampId={setActiveStampId}
+          stampSize={stampSize}
+          onSelectStampSize={setStampSize}
+          textSize={textSize}
+          onSelectTextSize={setTextSize}
           stylusOnly={stylusOnly}
-          onToggleStylusOnly={() => setStylusOnly((s) => !s)}
+          onToggleStylusOnly={toggleStylusOnly}
           annotationsVisible={annotationsVisible}
           onToggleAnnotationsVisible={toggleAnnotationsVisible}
           canUndo={canUndo}
@@ -1639,6 +2059,13 @@ export function NoterViewer({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={(e) => {
+          activeTouchPointersRef.current.delete(e.pointerId);
+          if (activeTouchPointersRef.current.size < 2) {
+            pinchStateRef.current = null;
+          }
+          if (activeTouchPointersRef.current.size === 0) {
+            didPinchRef.current = false;
+          }
           if (pointerStartRef.current?.pointerId === e.pointerId) {
             pointerStartRef.current = null;
           }
@@ -1699,6 +2126,8 @@ export function NoterViewer({
                   whiteoutWidth={activeWhiteoutWidth}
                   nightFilter={nightMode ? NIGHT_FILTER : undefined}
                   activeStampId={activeStampId}
+                  stampScale={activeStampScale}
+                  textFontSize={activeTextFontSize}
                   stylusOnly={stylusOnly}
                   onCommitItems={handleCommitItems}
                   jumpLinks={sheet.jumpLinks ?? []}
@@ -1740,6 +2169,79 @@ export function NoterViewer({
                   whiteoutWidth={activeWhiteoutWidth}
                   nightFilter={nightMode ? NIGHT_FILTER : undefined}
                   activeStampId={activeStampId}
+                  stampScale={activeStampScale}
+                  textFontSize={activeTextFontSize}
+                  stylusOnly={stylusOnly}
+                  onCommitItems={handleCommitItems}
+                  jumpLinks={sheet.jumpLinks ?? []}
+                  onAddJumpLink={handleAddJumpLink}
+                  onUpdateJumpLink={handleUpdateJumpLink}
+                  onDeleteJumpLink={handleDeleteJumpLink}
+                  onActivateJumpLink={handleActivateJumpLink}
+                  onViewDragActiveChange={handleViewDragActiveChange}
+                />
+              </div>
+            </div>
+          ) : isTwoPageSpread ? (
+            <div className="flex items-start gap-3">
+              <div className="relative inline-block">
+                <canvas
+                  ref={canvasRef}
+                  style={{ filter: nightMode ? NIGHT_FILTER : undefined }}
+                  className="block rounded-sm bg-white shadow-2xl"
+                />
+                <NoterAnnotationLayer
+                  pageNumber={page}
+                  pageCount={pageCount}
+                  items={annotationsByPage[page] ?? []}
+                  visible={annotationsVisible}
+                  region={singleRegion}
+                  width={singleCanvasSize.width}
+                  height={singleCanvasSize.height}
+                  tool={tool}
+                  pencilColor={pencilColor}
+                  pencilWidth={activePencilWidth}
+                  highlighterColor={highlighterColor}
+                  whiteoutColor={pageBackgroundColor}
+                  whiteoutWidth={activeWhiteoutWidth}
+                  nightFilter={nightMode ? NIGHT_FILTER : undefined}
+                  activeStampId={activeStampId}
+                  stampScale={activeStampScale}
+                  textFontSize={activeTextFontSize}
+                  stylusOnly={stylusOnly}
+                  onCommitItems={handleCommitItems}
+                  jumpLinks={sheet.jumpLinks ?? []}
+                  onAddJumpLink={handleAddJumpLink}
+                  onUpdateJumpLink={handleUpdateJumpLink}
+                  onDeleteJumpLink={handleDeleteJumpLink}
+                  onActivateJumpLink={handleActivateJumpLink}
+                  onViewDragActiveChange={handleViewDragActiveChange}
+                />
+              </div>
+              <div className="relative inline-block">
+                <canvas
+                  ref={rightCanvasRef}
+                  style={{ filter: nightMode ? NIGHT_FILTER : undefined }}
+                  className="block rounded-sm bg-white shadow-2xl"
+                />
+                <NoterAnnotationLayer
+                  pageNumber={page + 1}
+                  pageCount={pageCount}
+                  items={annotationsByPage[page + 1] ?? []}
+                  visible={annotationsVisible}
+                  region={rightRegion}
+                  width={rightCanvasSize.width}
+                  height={rightCanvasSize.height}
+                  tool={tool}
+                  pencilColor={pencilColor}
+                  pencilWidth={activePencilWidth}
+                  highlighterColor={highlighterColor}
+                  whiteoutColor={pageBackgroundColor}
+                  whiteoutWidth={activeWhiteoutWidth}
+                  nightFilter={nightMode ? NIGHT_FILTER : undefined}
+                  activeStampId={activeStampId}
+                  stampScale={activeStampScale}
+                  textFontSize={activeTextFontSize}
                   stylusOnly={stylusOnly}
                   onCommitItems={handleCommitItems}
                   jumpLinks={sheet.jumpLinks ?? []}
@@ -1774,6 +2276,8 @@ export function NoterViewer({
                 whiteoutWidth={activeWhiteoutWidth}
                 nightFilter={nightMode ? NIGHT_FILTER : undefined}
                 activeStampId={activeStampId}
+                stampScale={activeStampScale}
+                textFontSize={activeTextFontSize}
                 stylusOnly={stylusOnly}
                 onCommitItems={handleCommitItems}
                 jumpLinks={sheet.jumpLinks ?? []}
@@ -1786,6 +2290,26 @@ export function NoterViewer({
             </div>
           )}
         </div>
+
+        {edgeTapFlash === "prev" ? (
+          <div
+            aria-hidden="true"
+            style={{ backgroundColor: "rgba(224, 177, 90, 0.16)" }}
+            className="pointer-events-none absolute inset-y-0 left-0 flex w-14 items-center justify-center text-accent"
+          >
+            <ChevronLeft className="size-8" />
+          </div>
+        ) : null}
+
+        {edgeTapFlash === "next" ? (
+          <div
+            aria-hidden="true"
+            style={{ backgroundColor: "rgba(224, 177, 90, 0.16)" }}
+            className="pointer-events-none absolute inset-y-0 right-0 flex w-14 items-center justify-center text-accent"
+          >
+            <ChevronRight className="size-8" />
+          </div>
+        ) : null}
 
         {rendering && !loading && !error ? (
           <div
@@ -1820,7 +2344,9 @@ export function NoterViewer({
               aria-label="Åpne sideoversikt"
               className="metro-press min-h-10 min-w-20 rounded-lg border border-line bg-surface px-2.5 text-center text-xs font-semibold text-fg hover:border-accent tabular-nums sm:text-sm"
             >
-              {isSplitView ? `Side ${page}–${page + 1} / ${pageCount}` : `Side ${page} / ${pageCount}`}
+              {isSplitView || isTwoPageSpread
+                ? `Side ${page}–${page + 1} / ${pageCount}`
+                : `Side ${page} / ${pageCount}`}
             </button>
             <button
               type="button"
