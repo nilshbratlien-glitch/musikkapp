@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { METERS, SUBDIVISIONS, beatsInMeter, meterForBeats, type Meter, type Subdivision } from "@/lib/metronome";
-import { BLOCK_COLOR, blockName, blockStyle, TRUMPET_EXERCISES, type BlockId } from "@/lib/oveplan";
+import { BLOCK_COLOR, blockName, blockStyle, bpmFromTaps, TRUMPET_EXERCISES, type BlockId } from "@/lib/oveplan";
 import {
   getPlanClock,
   getPlanClockVersion,
@@ -137,111 +137,138 @@ export function PlainMetronome() {
   const block = (clock.activeId ?? "twomallet") as BlockId;
 
   return (
-    <div>
-      <div className="metro-hero rounded-card px-4 py-8">
-        <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums">{shownBpm}</p>
-        <p className="mt-3 text-center text-sm text-muted">
-          {plan ? (
-            <span className="plan-chip" style={blockStyle(block)}>
-              <span className="plan-chip-dot" aria-hidden="true" />
-              {blockName(block, profile)} · {beats} slag
-            </span>
-          ) : (
-            meter
-          )}
-        </p>
-      </div>
-      <div className="mt-4 flex min-h-12 items-center justify-center gap-2">
-        {Array.from({ length: beats }, (_, index) => (
-          <span
-            key={index}
-            className={
-              index === (playing ? pulse.beat : -1)
-                ? "metro-badge is-active size-4 rounded-full bg-accent"
-                : "metro-badge size-4 rounded-full bg-header"
-            }
-          />
-        ))}
-      </div>
-      <div className="mt-4 grid gap-3 rounded-card border border-line bg-surface p-4">
-        <div className="grid grid-cols-4 gap-1.5">
-          {METERS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => changeMeter(item)}
-              aria-pressed={item === shownMeter}
-              className={
-                item === shownMeter
-                  ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold"
-                  : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted"
-              }
-            >
-              {item}
-            </button>
-          ))}
+    <div className="md:grid md:grid-cols-[0.9fr_1.1fr] md:items-start md:gap-5">
+      <div className="space-y-4">
+        <div className="metro-hero rounded-card px-4 py-8 md:py-10">
+          <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums md:text-9xl">{shownBpm}</p>
+          <p className="mt-3 text-center text-sm text-muted">
+            {plan ? (
+              <span className="plan-chip" style={blockStyle(block)}>
+                <span className="plan-chip-dot" aria-hidden="true" />
+                {blockName(block, profile)} · {beats} slag
+              </span>
+            ) : (
+              meter
+            )}
+          </p>
         </div>
-        <p className="text-sm text-muted">Underdeling</p>
-        <div className="grid grid-cols-4 gap-1.5">
-          {SUBDIVISIONS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => changeSubdivision(item)}
-              aria-pressed={item === shownSub}
-              className={
-                item === shownSub
-                  ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold"
-                  : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted"
-              }
-            >
-              {SUB_LABELS[item]}
-            </button>
-          ))}
+        <div className="flex min-h-12 items-center justify-center gap-3">
+          {Array.from({ length: beats }, (_, index) => {
+            const isBeat = index === (playing ? pulse.beat : -1);
+            const isDownbeat = index === 0;
+            return (
+              <span
+                key={index}
+                className={
+                  isBeat
+                    ? `metro-badge is-active rounded-full bg-accent ${isDownbeat ? "size-7 ring-2 ring-accent/40" : "size-6"}`
+                    : `metro-badge rounded-full bg-header ${isDownbeat ? "size-7 border border-line" : "size-6"}`
+                }
+              />
+            );
+          })}
         </div>
-        <div className="flex items-center justify-center gap-2">
-          <button type="button" onClick={() => changeBpm(shownBpm - 1)} aria-label="Senk tempo" className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header text-xl">
-            −
-          </button>
-          <button type="button" onClick={() => changeBpm(shownBpm + 1)} aria-label="Øk tempo" className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header text-xl">
-            +
-          </button>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={start} disabled={playing} className="metro-press min-h-12 rounded-lg bg-accent font-semibold text-bg disabled:bg-header disabled:text-muted">
+        <div className="grid grid-cols-2 gap-2.5">
+          <button type="button" onClick={start} disabled={playing} className="metro-press min-h-14 rounded-xl bg-accent text-base font-semibold text-bg disabled:bg-header disabled:text-muted">
             Start
           </button>
           <button type="button" onClick={stop} disabled={!(pulse.owner === "metronom" || (owns && planMalletBlock()))}
             style={plan ? ({ "--block": BLOCK_COLOR[block] } as CSSProperties) : undefined}
-            className="metro-press min-h-12 rounded-lg border border-[var(--block,var(--color-accent))] bg-header font-semibold disabled:border-transparent disabled:bg-header disabled:text-muted"
+            className="metro-press min-h-14 rounded-xl border border-[var(--block,var(--color-accent))] bg-header text-base font-semibold disabled:border-transparent disabled:bg-header disabled:text-muted"
           >
             Stopp
           </button>
         </div>
       </div>
-      {plan && clock.activeId && profile === "trumpet" && TRUMPET_EXERCISES[block] && (
-        <aside
-          className="mt-4 hidden sm:block rounded-card border border-line bg-surface p-4 sm:p-5 shadow-sm"
-          style={blockStyle(block)}
-          aria-label={TRUMPET_EXERCISES[block].title}
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <span className="plan-chip text-xs font-semibold" style={blockStyle(block)}>
-              <span className="plan-chip-dot" aria-hidden="true" />
-              {TRUMPET_EXERCISES[block].title}
-            </span>
-            <span className="text-xs text-muted font-medium">Instruksjoner for denne blokka</span>
-          </div>
-          <ul className="space-y-2 text-sm text-fg/90 sm:space-y-2.5">
-            {TRUMPET_EXERCISES[block].items.map((item, idx) => (
-              <li key={idx} className="flex items-start gap-2.5">
-                <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[var(--block,var(--color-accent))]" aria-hidden="true" />
-                <span className="leading-relaxed">{item}</span>
-              </li>
+
+      <div className="mt-4 space-y-4 md:mt-0">
+        <div className="grid gap-3 rounded-card border border-line bg-surface p-4">
+          <div className="grid grid-cols-4 gap-1.5">
+            {METERS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => changeMeter(item)}
+                aria-pressed={item === shownMeter}
+                className={
+                  item === shownMeter
+                    ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold"
+                    : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted"
+                }
+              >
+                {item}
+              </button>
             ))}
-          </ul>
-        </aside>
-      )}
+          </div>
+          <p className="text-sm text-muted">Underdeling</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {SUBDIVISIONS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => changeSubdivision(item)}
+                aria-pressed={item === shownSub}
+                className={
+                  item === shownSub
+                    ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold"
+                    : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted"
+                }
+              >
+                {SUB_LABELS[item]}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+            <button type="button" onClick={() => changeBpm(shownBpm - 5)} aria-label="Senk tempo 5" className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header px-2.5 text-sm font-semibold">
+              −5
+            </button>
+            <button type="button" onClick={() => changeBpm(shownBpm - 1)} aria-label="Senk tempo" className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header text-xl">
+              −
+            </button>
+            <button type="button" onClick={handleTap} className="metro-press min-h-12 rounded-lg border border-accent/60 bg-header px-4 text-sm font-semibold text-accent">
+              Tap tempo
+            </button>
+            <button type="button" onClick={() => changeBpm(shownBpm + 1)} aria-label="Øk tempo" className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header text-xl">
+              +
+            </button>
+            <button type="button" onClick={() => changeBpm(shownBpm + 5)} aria-label="Øk tempo 5" className="metro-press min-h-12 min-w-12 rounded-lg border border-line bg-header px-2.5 text-sm font-semibold">
+              +5
+            </button>
+          </div>
+          <input
+            type="range"
+            min={40}
+            max={240}
+            value={shownBpm}
+            aria-label="Tempo BPM"
+            onChange={(e) => changeBpm(Number(e.target.value))}
+            className="mt-1 h-2 w-full cursor-pointer accent-accent"
+          />
+        </div>
+        {plan && clock.activeId && profile === "trumpet" && TRUMPET_EXERCISES[block] && (
+          <aside
+            className="hidden sm:block rounded-card border border-line bg-surface p-4 sm:p-5 shadow-sm"
+            style={blockStyle(block)}
+            aria-label={TRUMPET_EXERCISES[block].title}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span className="plan-chip text-xs font-semibold" style={blockStyle(block)}>
+                <span className="plan-chip-dot" aria-hidden="true" />
+                {TRUMPET_EXERCISES[block].title}
+              </span>
+              <span className="text-xs text-muted font-medium">Instruksjoner for denne blokka</span>
+            </div>
+            <ul className="space-y-2 text-sm text-fg/90 sm:space-y-2.5">
+              {TRUMPET_EXERCISES[block].items.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-2.5">
+                  <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[var(--block,var(--color-accent))]" aria-hidden="true" />
+                  <span className="leading-relaxed">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

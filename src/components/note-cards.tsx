@@ -117,8 +117,21 @@ export function NoteCards() {
     cont: null,
   });
   const answerRef = useRef<(letter: number) => void>(() => {});
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const autoAdvanceRef = useRef(true);
+  autoAdvanceRef.current = autoAdvance;
   const [, bump] = useState(0);
   const redraw = () => bump((n) => n + 1);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("musikkapp.notekortAutoAdvance") === "0") {
+        setAutoAdvance(false);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   function clearContinue() {
     const cur = model.current;
@@ -320,87 +333,132 @@ export function NoteCards() {
 
       {cur.tab === "drill" ? (
         pool.length && card ? (
-          <>
-            {isTrumpet ? (
-              <div className="mb-3 grid grid-cols-2 gap-1.5" role="group" aria-label="Øvingsmodus for trompet">
-                {(
-                  [
-                    ["valves", "🎺 Ventilgrep (0, 1, 1-2…)"],
-                    ["names", "🎵 Notenavn (C–H)"],
-                  ] as const
-                ).map(([m, label]) => (
-                  <button
-                    key={m}
-                    type="button"
-                    aria-pressed={activeMode === m}
-                    onClick={() => setDrillMode(m)}
-                    className={
-                      activeMode === m
-                        ? "min-h-10 rounded-lg bg-accent px-2 text-xs font-semibold text-bg"
-                        : "min-h-10 rounded-lg border border-line px-2 text-xs font-medium text-muted"
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
+          <div className="md:grid md:grid-cols-[1.1fr_0.9fr] md:items-center md:gap-6">
+            <div>
+              <div className="mb-2.5 flex items-center justify-between text-sm text-muted">
+                <p>
+                  <b className="font-semibold text-fg">{cur.session.right}</b> riktig · {cur.session.wrong} feil
+                  {total ? ` · ${Math.round((cur.session.right / total) * 100)}%` : ""}
+                </p>
+                <p>
+                  På rad: <b className="font-semibold text-fg">{cur.session.streak}</b>
+                  {cur.session.best > 2 ? ` (beste ${cur.session.best})` : ""}
+                </p>
               </div>
-            ) : null}
-            <div className="mb-2.5 flex items-center justify-between text-sm text-muted">
-              <p>
-                <b className="font-semibold text-fg">{cur.session.right}</b> riktig · {cur.session.wrong} feil
-                {total ? ` · ${Math.round((cur.session.right / total) * 100)}%` : ""}
-              </p>
-              <p>
-                På rad: <b className="font-semibold text-fg">{cur.session.streak}</b>
-                {cur.session.best > 2 ? ` (beste ${cur.session.best})` : ""}
+              <StaffCard clef={card[0] === "bass" ? "bass" : "treble"} idx={Number(card[1])} pool={pool} />
+              <p className="mt-2.5 text-center text-xs tracking-wider text-muted uppercase">
+                {CLEFS[card[0] === "bass" ? "bass" : "treble"].label}
+                {isTrumpet ? " · B-trompet" : ""}
               </p>
             </div>
-            <StaffCard clef={card[0] === "bass" ? "bass" : "treble"} idx={Number(card[1])} pool={pool} />
-            <p className="mt-2.5 text-center text-xs tracking-wider text-muted uppercase">
-              {CLEFS[card[0] === "bass" ? "bass" : "treble"].label}
-              {isTrumpet ? " · B-trompet" : ""}
-            </p>
-            <p
-              className={
-                cur.session.kind === "ok"
-                  ? "mt-2 min-h-8 text-center text-lg font-semibold text-ok"
-                  : cur.session.kind === "no"
-                    ? "mt-2 min-h-8 text-center text-lg font-semibold text-no"
-                    : "mt-2 min-h-8 text-center text-lg font-semibold"
-              }
-            >
-              {cur.session.feedback || "\u00a0"}
-            </p>
-            {activeMode === "valves" ? (
-              <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
-                {VALVE_COMBOS.map((combo) => (
-                  <button
-                    key={combo}
-                    type="button"
-                    disabled={cur.session.locked}
-                    onClick={() => answerValve(combo)}
-                    className="answer-key min-h-12 text-base font-bold"
-                  >
-                    {combo}
-                  </button>
-                ))}
+
+            <div className="mt-3 space-y-3 md:mt-0">
+              {isTrumpet ? (
+                <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Øvingsmodus for trompet">
+                  {(
+                    [
+                      ["valves", "🎺 Ventilgrep (0, 1, 1-2…)"],
+                      ["names", "🎵 Notenavn (C–H)"],
+                    ] as const
+                  ).map(([m, label]) => (
+                    <button
+                      key={m}
+                      type="button"
+                      aria-pressed={activeMode === m}
+                      onClick={() => setDrillMode(m)}
+                      className={
+                        activeMode === m
+                          ? "min-h-11 rounded-lg bg-accent px-2 text-xs font-semibold text-bg"
+                          : "min-h-11 rounded-lg border border-line px-2 text-xs font-medium text-muted"
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2">
+                <span className="text-xs font-medium text-muted">Neste kort etter svar</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={autoAdvance}
+                  onClick={() => {
+                    const next = !autoAdvance;
+                    setAutoAdvance(next);
+                    try {
+                      window.localStorage.setItem("musikkapp.notekortAutoAdvance", next ? "1" : "0");
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  className={
+                    autoAdvance
+                      ? "metro-press min-h-9 rounded-lg border border-accent bg-header px-3 text-xs font-semibold text-accent"
+                      : "metro-press min-h-9 rounded-lg border border-line bg-header px-3 text-xs font-semibold text-muted"
+                  }
+                >
+                  {autoAdvance ? "Auto-neste (0.8s)" : "Manuell"}
+                </button>
               </div>
-            ) : (
-              <div className="answer-row">
-                {LETTERS.map((letter, index) => (
-                  <button
-                    key={letter}
-                    type="button"
-                    disabled={cur.session.locked}
-                    onClick={() => answer(index)}
-                    className="answer-key text-lg"
-                  >
-                    {letter === "B" && cur.stored.lang === "no" ? "H" : letter}
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
+
+              <p
+                className={
+                  cur.session.kind === "ok"
+                    ? "min-h-8 text-center text-lg font-semibold text-ok"
+                    : cur.session.kind === "no"
+                      ? "min-h-8 text-center text-lg font-semibold text-no"
+                      : "min-h-8 text-center text-lg font-semibold"
+                }
+              >
+                {cur.session.feedback || "\u00a0"}
+              </p>
+
+              {activeMode === "valves" ? (
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-7 md:grid-cols-4">
+                  {VALVE_COMBOS.map((combo) => (
+                    <button
+                      key={combo}
+                      type="button"
+                      disabled={cur.session.locked}
+                      onClick={() => answerValve(combo)}
+                      className="answer-key min-h-14 text-lg font-bold"
+                    >
+                      {combo}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="answer-row">
+                  {LETTERS.map((letter, index) => (
+                    <button
+                      key={letter}
+                      type="button"
+                      disabled={cur.session.locked}
+                      onClick={() => answer(index)}
+                      className="answer-key min-h-14 text-xl md:min-h-16"
+                    >
+                      {letter === "B" && cur.stored.lang === "no" ? "H" : letter}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {cur.session.locked ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearContinue();
+                    nextCard();
+                  }}
+                  className="metro-press min-h-12 w-full rounded-xl bg-accent text-base font-bold text-[#1a1408]"
+                >
+                  Neste kort
+                </button>
+              ) : null}
+            </div>
+          </div>
         ) : (
           <div className="rounded-card border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
             <b className="mb-1 block font-semibold text-fg">Ingen noter valgt</b>
@@ -408,7 +466,7 @@ export function NoteCards() {
           </div>
         )
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-3 md:grid-cols-2 md:items-start">
           <div className="rounded-card border border-line bg-surface p-4">
             <h2 className="text-sm font-semibold">{isTrumpet ? "Trompet-register" : "Instrument"}</h2>
             <p className="mt-1 mb-2.5 text-sm text-muted">

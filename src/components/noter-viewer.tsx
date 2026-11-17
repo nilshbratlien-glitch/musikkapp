@@ -2311,6 +2311,23 @@ export function NoterViewer({
           </div>
         ) : null}
 
+        {tool === "view" && zoom > 1.05 ? (
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              setZoom(1);
+              setPan({ x: 0, y: 0 });
+            }}
+            aria-label="Tilbakestill zoom til 1x"
+            style={{ backgroundColor: "rgba(22, 26, 34, 0.9)" }}
+            className="metro-press absolute bottom-4 left-1/2 z-20 flex min-h-10 -translate-x-1/2 items-center gap-1.5 rounded-full border border-accent/60 px-3.5 text-xs font-semibold text-accent shadow-lg backdrop-blur-xs"
+          >
+            <RotateCcw className="size-3.5" aria-hidden="true" />
+            <span>Tilbakestill zoom (1x)</span>
+          </button>
+        ) : null}
+
         {rendering && !loading && !error ? (
           <div
             style={{ backgroundColor: "rgba(22, 26, 34, 0.9)" }}

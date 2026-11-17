@@ -133,26 +133,47 @@ export function SnareSpeed() {
   const best = bests[rudiment];
 
   return (
-    <section className="metro pb-4">
-      <div className="metro-hero rounded-card px-4 py-8">
-        <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums">{displayBpm}</p>
-        <p className="mt-3 min-h-5 text-center text-sm text-muted">{status}</p>
-      </div>
-      <div className="mt-4 flex min-h-12 flex-wrap items-center justify-center gap-2">
-        {pattern.map((stick, index) => (
-          <span
-            key={`${stick}-${index}`}
-            className={
-              index === active
-                ? "metro-badge is-active min-w-12 rounded-lg bg-accent px-3 py-2 text-center text-2xl font-semibold text-bg"
-                : "metro-badge min-w-12 rounded-lg bg-header px-3 py-2 text-center text-2xl font-semibold"
-            }
+    <section className="metro pb-4 md:grid md:grid-cols-[0.9fr_1.1fr] md:items-start md:gap-5">
+      <div className="space-y-4">
+        <div className="metro-hero rounded-card px-4 py-8 md:py-10">
+          <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums md:text-9xl">{displayBpm}</p>
+          <p className="mt-3 min-h-5 text-center text-sm text-muted">{status}</p>
+        </div>
+        <div className="flex min-h-12 flex-wrap items-center justify-center gap-2">
+          {pattern.map((stick, index) => (
+            <span
+              key={`${stick}-${index}`}
+              className={
+                index === active
+                  ? "metro-badge is-active min-w-12 rounded-lg bg-accent px-3 py-2 text-center text-2xl font-semibold text-bg"
+                  : "metro-badge min-w-12 rounded-lg bg-header px-3 py-2 text-center text-2xl font-semibold"
+              }
+            >
+              {stick}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={start}
+            disabled={playing}
+            className="metro-press min-h-14 rounded-xl bg-accent text-base font-semibold text-bg disabled:opacity-50"
           >
-            {stick}
-          </span>
-        ))}
+            Start
+          </button>
+          <button
+            type="button"
+            onClick={stop}
+            disabled={!playing}
+            className="metro-press min-h-14 rounded-xl bg-header text-base font-medium disabled:opacity-50"
+          >
+            Stopp
+          </button>
+        </div>
       </div>
-      <div className="mt-4 grid gap-3 rounded-card border border-line bg-surface p-4 shadow-[0_12px_28px_rgba(0,0,0,0.28)]">
+
+      <div className="mt-4 grid gap-3 rounded-card border border-line bg-surface p-4 shadow-[0_12px_28px_rgba(0,0,0,0.28)] md:mt-0">
         <label className="flex items-center justify-between gap-3 text-sm">
           Rudiment
           <select
@@ -212,24 +233,6 @@ export function SnareSpeed() {
             <option value={16}>Sekstendel</option>
           </select>
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={start}
-            disabled={playing}
-            className="metro-press min-h-12 rounded-lg bg-accent font-semibold text-bg disabled:opacity-50"
-          >
-            Start
-          </button>
-          <button
-            type="button"
-            onClick={stop}
-            disabled={!playing}
-            className="metro-press min-h-12 rounded-lg bg-header font-medium disabled:opacity-50"
-          >
-            Stopp
-          </button>
-        </div>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={markClean} className="metro-press min-h-12 rounded-lg bg-header font-medium">
             Merk ren

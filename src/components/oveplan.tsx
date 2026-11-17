@@ -126,16 +126,20 @@ export function Oveplan() {
   return (
     <section className="pb-4">
       {playing ? (
-        <div className="plan-hero py-6 text-center">
-          <p className="text-2xl font-semibold tracking-tight">{cur.activeId ? blockName(cur.activeId) : ""}</p>
+        <div className="plan-hero py-6 text-center md:py-8">
+          <p className="text-2xl font-semibold tracking-tight md:text-3xl">{cur.activeId ? blockName(cur.activeId) : ""}</p>
           <button
             type="button"
             onClick={togglePlanClock}
-            className={cur.blockPaused ? "mt-2 text-7xl font-bold tracking-tight text-muted tabular-nums" : "mt-2 text-7xl font-bold tracking-tight text-accent tabular-nums"}
+            className={
+              cur.blockPaused
+                ? "mt-2 text-7xl font-bold tracking-tight text-muted tabular-nums md:text-8xl"
+                : "mt-2 text-7xl font-bold tracking-tight text-accent tabular-nums md:text-8xl"
+            }
           >
             {fmtClock(cur.blockLeft)}
           </button>
-          <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
             {liveItems(cur.store.items).map((item) => {
               const done = cur.store.done.includes(item.id) && cur.activeId !== item.id;
               const on = cur.activeId === item.id;
@@ -152,10 +156,10 @@ export function Oveplan() {
                   }}
                   className={
                     on
-                      ? "min-h-11 rounded-full bg-accent px-3 text-xs font-semibold tracking-wide text-bg uppercase"
+                      ? "min-h-11 rounded-full bg-accent px-3.5 text-xs font-semibold tracking-wide text-bg uppercase md:px-4"
                       : done
-                        ? "min-h-11 rounded-full border border-line px-3 text-xs font-semibold tracking-wide text-muted uppercase line-through opacity-40"
-                        : "min-h-11 rounded-full border border-line px-3 text-xs font-semibold tracking-wide text-muted uppercase"
+                        ? "min-h-11 rounded-full border border-line px-3.5 text-xs font-semibold tracking-wide text-muted uppercase line-through opacity-40 md:px-4"
+                        : "min-h-11 rounded-full border border-line px-3.5 text-xs font-semibold tracking-wide text-muted uppercase md:px-4"
                   }
                 >
                   {blockName(item.id)}
@@ -164,105 +168,127 @@ export function Oveplan() {
               );
             })}
           </div>
-        </div>
-      ) : (
-        <>
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {cur.store.presets.map((preset) => (
-              <span key={preset.id} className="inline-flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    cur.store.items = applyPreset(preset);
-                    cur.store.done = [];
-                    cur.activeId = null;
-                    clearClock();
-                    cur.live = "Klar";
-                    if (preset.duet) enableBladlesingDuet(true);
-                    persist();
-                    redraw();
-                    syncPlanStop();
-                  }}
-                  className="metro-press min-h-10 rounded-full border border-line px-3 text-sm font-semibold"
-                >
-                  {preset.name}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Slett ${preset.name}`}
-                  onClick={() => {
-                    cur.store.presets = cur.store.presets.filter((item) => item.id !== preset.id);
-                    persist();
-                    redraw();
-                  }}
-                  className="metro-press min-h-10 min-w-10 rounded-full border border-line text-muted"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            {!cur.store.presets.some((preset) => preset.id === SAMSPILL_DUET_PRESET.id) ? (
+          {cur.activeId ? (
+            <div className="mt-3 flex justify-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  cur.store.items = applyPreset(SAMSPILL_DUET_PRESET);
-                  cur.store.done = [];
-                  cur.activeId = null;
-                  clearClock();
-                  cur.live = "Klar";
-                  enableBladlesingDuet(true);
-                  persist();
-                  redraw();
-                  syncPlanStop();
-                }}
-                className="metro-press min-h-10 rounded-full border border-accent/50 bg-accent/10 px-3 text-sm font-semibold text-accent"
+                onClick={() => changeMins(cur.activeId!, 1)}
+                className="metro-press min-h-10 rounded-full border border-line bg-surface px-3.5 text-xs font-semibold text-fg"
               >
-                {SAMSPILL_DUET_PRESET.name}
+                +1 min
               </button>
-            ) : null}
+              <button
+                type="button"
+                onClick={() => changeMins(cur.activeId!, 5)}
+                className="metro-press min-h-10 rounded-full border border-line bg-surface px-3.5 text-xs font-semibold text-fg"
+              >
+                +5 min
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="md:grid md:grid-cols-[1.2fr_0.8fr] md:items-start md:gap-5">
+          <div className="mb-3 space-y-3 md:order-2 md:mb-0">
+            <div className="rounded-card border border-line bg-surface p-3.5">
+              <p className="mb-2.5 text-sm text-muted">
+                Totalt: <b className="rounded-full bg-header px-2.5 py-1 font-semibold text-fg">{sum}</b> min
+              </p>
+              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                {cur.store.presets.map((preset) => (
+                  <span key={preset.id} className="inline-flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        cur.store.items = applyPreset(preset);
+                        cur.store.done = [];
+                        cur.activeId = null;
+                        clearClock();
+                        cur.live = "Klar";
+                        if (preset.duet) enableBladlesingDuet(true);
+                        persist();
+                        redraw();
+                        syncPlanStop();
+                      }}
+                      className="metro-press min-h-10 rounded-full border border-line px-3 text-sm font-semibold"
+                    >
+                      {preset.name}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Slett ${preset.name}`}
+                      onClick={() => {
+                        cur.store.presets = cur.store.presets.filter((item) => item.id !== preset.id);
+                        persist();
+                        redraw();
+                      }}
+                      className="metro-press min-h-10 min-w-10 rounded-full border border-line text-muted"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {!cur.store.presets.some((preset) => preset.id === SAMSPILL_DUET_PRESET.id) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      cur.store.items = applyPreset(SAMSPILL_DUET_PRESET);
+                      cur.store.done = [];
+                      cur.activeId = null;
+                      clearClock();
+                      cur.live = "Klar";
+                      enableBladlesingDuet(true);
+                      persist();
+                      redraw();
+                      syncPlanStop();
+                    }}
+                    className="metro-press min-h-10 rounded-full border border-accent/50 bg-accent/10 px-3 text-sm font-semibold text-accent"
+                  >
+                    {SAMSPILL_DUET_PRESET.name}
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <input
+                  value={cur.presetName}
+                  maxLength={32}
+                  placeholder="Presetnavn"
+                  onChange={(event) => {
+                    cur.presetName = event.target.value;
+                    redraw();
+                  }}
+                  className="metro-field min-h-11 min-w-36 flex-1 rounded-xl border border-line bg-header px-3 text-fg"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const name = cur.presetName.trim();
+                    const blocks = liveItems(cur.store.items).map((item) => ({ id: item.id, mins: item.mins }));
+                    if (!name || !blocks.length) return;
+                    const preset: PlanPreset = { id: `u${Date.now()}`, name, blocks };
+                    cur.store.presets = [preset, ...cur.store.presets.filter((item) => item.name !== name)].slice(0, 8);
+                    cur.presetName = "";
+                    persist();
+                    redraw();
+                  }}
+                  className="metro-press min-h-11 rounded-full border border-line px-3 text-sm font-semibold"
+                >
+                  Lagre
+                </button>
+                <button type="button" onClick={() => { cur.logOpen = !cur.logOpen; redraw(); }} className="metro-press min-h-11 rounded-full border border-line px-3 text-sm font-semibold">
+                  Logg
+                </button>
+                <button
+                  type="button"
+                  onClick={resetPlan}
+                  className="metro-press min-h-11 rounded-full border border-line px-3 text-sm font-semibold"
+                >
+                  Nullstill
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            <input
-              value={cur.presetName}
-              maxLength={32}
-              placeholder="Presetnavn"
-              onChange={(event) => {
-                cur.presetName = event.target.value;
-                redraw();
-              }}
-              className="metro-field min-h-11 min-w-36 flex-1 rounded-xl border border-line bg-header px-3 text-fg"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                const name = cur.presetName.trim();
-                const blocks = liveItems(cur.store.items).map((item) => ({ id: item.id, mins: item.mins }));
-                if (!name || !blocks.length) return;
-                const preset: PlanPreset = { id: `u${Date.now()}`, name, blocks };
-                cur.store.presets = [preset, ...cur.store.presets.filter((item) => item.name !== name)].slice(0, 8);
-                cur.presetName = "";
-                persist();
-                redraw();
-              }}
-              className="metro-press min-h-11 rounded-full border border-line px-3 text-sm font-semibold"
-            >
-              Lagre
-            </button>
-            <button type="button" onClick={() => { cur.logOpen = !cur.logOpen; redraw(); }} className="metro-press min-h-11 rounded-full border border-line px-3 text-sm font-semibold">
-              Logg
-            </button>
-            <button
-              type="button"
-              onClick={resetPlan}
-              className="metro-press min-h-11 rounded-full border border-line px-3 text-sm font-semibold"
-            >
-              Nullstill
-            </button>
-          </div>
-          <p className="mb-3 text-sm text-muted">
-            <b className="rounded-full bg-header px-2.5 py-1 font-semibold text-fg">{sum}</b> min
-          </p>
-          <ol className="grid list-none gap-2 p-0">
+          <ol className="grid list-none gap-2 p-0 md:order-1">
             {cur.store.items.map((item) => {
               const dim = !item.on || item.skipped || cur.store.done.includes(item.id);
               return (
@@ -270,22 +296,24 @@ export function Oveplan() {
                   key={item.id}
                   className={
                     cur.activeId === item.id
-                      ? "grid grid-cols-[28px_1fr_auto_auto] items-center gap-2.5 rounded-card border border-accent bg-accent/10 py-3 pr-3 pl-3.5"
-                      : "grid grid-cols-[28px_1fr_auto_auto] items-center gap-2.5 rounded-card border border-line bg-surface py-3 pr-3 pl-3.5"
+                      ? "grid grid-cols-[44px_1fr_auto_auto] items-center gap-2 rounded-card border border-accent bg-accent/10 py-2.5 pr-3 pl-2"
+                      : "grid grid-cols-[44px_1fr_auto_auto] items-center gap-2 rounded-card border border-line bg-surface py-2.5 pr-3 pl-2"
                   }
                   style={{ boxShadow: `inset 3px 0 0 ${BLOCK_COLOR[item.id]}`, opacity: dim && cur.activeId !== item.id ? 0.4 : 1 }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={item.on && !item.skipped}
-                    aria-label={blockName(item.id)}
-                    onChange={(event) => {
-                      replaceItem({ ...item, on: event.target.checked, skipped: event.target.checked ? false : item.skipped });
-                      persist();
-                      redraw();
-                    }}
-                    className="size-6 accent-accent"
-                  />
+                  <label className="flex size-11 cursor-pointer items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={item.on && !item.skipped}
+                      aria-label={blockName(item.id)}
+                      onChange={(event) => {
+                        replaceItem({ ...item, on: event.target.checked, skipped: event.target.checked ? false : item.skipped });
+                        persist();
+                        redraw();
+                      }}
+                      className="size-6 accent-accent"
+                    />
+                  </label>
                   <span className={item.skipped || cur.store.done.includes(item.id) ? "font-semibold line-through" : "font-semibold"}>
                     {blockName(item.id)}
                   </span>
@@ -363,7 +391,7 @@ export function Oveplan() {
               );
             })}
           </ol>
-        </>
+        </div>
       )}
 
       {cur.logOpen ? (

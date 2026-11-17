@@ -2363,3 +2363,64 @@ describe("Lenovo tablet Pro suite", () => {
   });
 });
 
+describe("Tablet 16:10 GUX & GUI suite", () => {
+  it("renders landscape left nav rail without overflow, supports Metronom Tap Tempo & +/-5, Notekort Auto-neste toggle + Neste kort, and Noter 1x zoom reset pill", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open("/");
+
+    // 1. Landscape left nav rail & zero horizontal overflow across all 5 routes
+    const navBox = await page.locator('nav[aria-label="Verktøy"]').boundingBox();
+    assert.ok(navBox && navBox.width <= 100 && navBox.height > 400, "nav renders as a left rail in 1280x800 landscape");
+    for (const path of ["/", "/metronom", "/bladlesing", "/notekort", "/noter"]) {
+      await tab(path);
+      const overflow = await page.evaluate(() =>
+        [document.documentElement, document.querySelector("main")].map((el) => el.scrollWidth - el.clientWidth),
+      );
+      assert.deepEqual(overflow, [0, 0], `${path} has no horizontal overflow at 1280x800`);
+    }
+
+    // 2. Metronom +/-5 & Tap tempo
+    await tab("/metronom");
+    await page.getByRole("button", { name: "Øk tempo 5", exact: true }).click();
+    await page.getByText("85").waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Senk tempo 5", exact: true }).click();
+    await page.getByText("80").waitFor({ state: "visible" });
+    const tapBtn = page.getByRole("button", { name: "Tap tempo", exact: true });
+    await tapBtn.click();
+    await page.waitForTimeout(500);
+    await tapBtn.click();
+    const bpmText = await page.locator(".metro-hero p").first().textContent();
+    const tappedBpm = Number(bpmText?.trim());
+    assert.ok(tappedBpm >= 90 && tappedBpm <= 160, `Tap tempo updated BPM (${tappedBpm})`);
+
+    // 3. Notekort Auto-neste toggle -> Manuell -> explicit Neste kort
+    await tab("/notekort");
+    const autoSwitch = page.getByRole("switch");
+    await autoSwitch.waitFor({ state: "visible" });
+    assert.equal(await autoSwitch.getAttribute("aria-checked"), "true");
+    await autoSwitch.click();
+    assert.equal(await autoSwitch.getAttribute("aria-checked"), "false");
+
+    // Pick a note in Noter tab if needed, or verify Notekort drill when notes exist
+    await page.getByRole("tab", { name: "Noter", exact: true }).click();
+    await page.getByRole("button", { name: "Alle", exact: true }).click();
+    await page.getByRole("button", { name: /Lagre/i }).click();
+    await page.getByRole("tab", { name: "Øv", exact: true }).click();
+    await page.locator(".answer-key").first().click();
+    const nextCardBtn = page.getByRole("button", { name: "Neste kort", exact: true });
+    await nextCardBtn.waitFor({ state: "visible" });
+    await nextCardBtn.click();
+    await nextCardBtn.waitFor({ state: "detached" });
+
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+

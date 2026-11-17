@@ -150,7 +150,7 @@ function InstrumentModal({
             type="button"
             onClick={onClose}
             aria-label="Lukk"
-            className="metro-press -mr-2 -mt-2 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted hover:text-fg"
+            className="metro-press -mr-2 -mt-2 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted hover:text-fg"
           >
             ✕
           </button>
@@ -317,14 +317,32 @@ export function Shell() {
                 {sync.connected ? `${sync.roomCode} · ${sync.role === "controller" ? "Kontroll" : "Skjerm"}` : "Synk"}
               </span>
             </button>
-            {install.standalone ? null : (
-              <button
-                type="button"
-                onClick={() => void install.install()}
-                className="metro-press min-h-10 shrink-0 rounded-lg border border-line px-3 text-sm font-semibold"
-              >
-                Installer
-              </button>
+            {install.standalone || installDismissed ? null : (
+              <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-line">
+                <button
+                  type="button"
+                  onClick={() => void install.install()}
+                  className="metro-press min-h-10 px-3 text-sm font-semibold hover:bg-surface"
+                >
+                  Installer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInstallDismissed(true);
+                    try {
+                      window.localStorage.setItem("musikkapp.installDismissed", "1");
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  aria-label="Skjul installer-knapp"
+                  title="Skjul installer-knapp"
+                  className="metro-press flex min-h-10 min-w-9 items-center justify-center border-l border-line text-xs text-muted hover:bg-surface hover:text-fg"
+                >
+                  ✕
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -340,52 +358,54 @@ export function Shell() {
         }}
       />
       <SyncModal open={syncModalOpen} onClose={() => setSyncModalOpen(false)} />
-      <main
-        className={
-          sheet
-            ? "min-h-0 flex-1 overflow-hidden"
-            : "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pt-4"
-        }
-      >
-        <div className={sheet ? "h-full min-h-0" : "mx-auto w-full max-w-xl"}>
-          <Outlet />
-        </div>
-      </main>
-      <nav
-        aria-label="Verktøy"
-        className="shrink-0 border-t border-line bg-header pb-[env(safe-area-inset-bottom)]"
-      >
-        <ul className="grid grid-cols-5">
-          {TOOLS.map((item) => {
-            const Icon = ICONS[item.id];
-            const active = item.to === pathname;
-            return (
-              <li key={item.id}>
-                <Link
-                  to={item.to}
-                  aria-current={active ? "page" : undefined}
-                  className="flex min-h-16 flex-col items-center justify-center gap-1 px-1"
-                >
-                  <Icon
-                    className={active ? "size-6 text-accent" : "size-6 text-muted"}
-                    strokeWidth={1.75}
-                    aria-hidden="true"
-                  />
-                  <span
-                    className={
-                      active
-                        ? "max-w-full truncate text-xs font-semibold text-accent"
-                        : "max-w-full truncate text-xs font-medium text-muted"
-                    }
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <nav
+          aria-label="Verktøy"
+          className="order-last shrink-0 border-t border-line bg-header pb-[env(safe-area-inset-bottom)] md:order-first md:w-20 md:border-t-0 md:border-r md:py-3 md:pb-3"
+        >
+          <ul className="grid grid-cols-5 md:flex md:flex-col md:gap-1.5 md:px-1.5">
+            {TOOLS.map((item) => {
+              const Icon = ICONS[item.id];
+              const active = item.to === pathname;
+              return (
+                <li key={item.id}>
+                  <Link
+                    to={item.to}
+                    aria-current={active ? "page" : undefined}
+                    className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl px-1 md:min-h-16 md:py-2"
                   >
-                    {item.label}
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+                    <Icon
+                      className={active ? "size-6 text-accent" : "size-6 text-muted"}
+                      strokeWidth={1.75}
+                      aria-hidden="true"
+                    />
+                    <span
+                      className={
+                        active
+                          ? "max-w-full truncate text-xs font-semibold text-accent"
+                          : "max-w-full truncate text-xs font-medium text-muted"
+                      }
+                    >
+                      {item.label}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+        <main
+          className={
+            sheet
+              ? "min-h-0 flex-1 overflow-hidden"
+              : "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pt-4 md:px-6 md:pt-5"
+          }
+        >
+          <div className={sheet ? "h-full min-h-0" : "mx-auto w-full max-w-xl md:max-w-4xl lg:max-w-5xl"}>
+            <Outlet />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

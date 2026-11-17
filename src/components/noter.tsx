@@ -668,7 +668,7 @@ export function Noter({
 
   return (
     <div className="h-full min-h-0 overflow-y-auto">
-      <div className="mx-auto w-full max-w-xl space-y-4 px-4 py-4">
+      <div className="mx-auto w-full max-w-xl space-y-4 px-4 py-4 md:max-w-4xl md:px-6 md:py-5 lg:max-w-5xl">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-xl font-bold tracking-tight text-fg">Noter</h1>
@@ -1349,7 +1349,7 @@ export function Noter({
                 </p>
               </div>
             ) : (
-              <ul className="space-y-3">
+              <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
                 {setlists.map((setlist) => {
                   const selectedSheetId = addSheetSelection[setlist.id] ?? sheets[0]?.id ?? "";
                   const isConfirming = confirmDeleteSetlistId === setlist.id;
