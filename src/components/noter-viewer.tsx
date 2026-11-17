@@ -125,10 +125,20 @@ export type NoterViewerProps = {
   sheet: SheetRecord;
   initialPage?: number;
   setlistContext?: ViewerSetlistContext | null;
+  nextSheetRecord?: SheetRecord | null;
+  prevSheetRecord?: SheetRecord | null;
   onClose: () => void;
   onUpdateMeta: (patch: UpdateSheetMetaPatch) => Promise<void> | void;
   onSheetReplaced?: (updated: SheetRecord) => void;
   onSheetCopied?: (created: SheetRecord) => void;
+};
+
+type PrewarmedPdfEntry = {
+  sheetId: string;
+  pdfData: ArrayBuffer;
+  promise: Promise<LoadedPdfDocument>;
+  doc: LoadedPdfDocument | null;
+  cancelled: boolean;
 };
 
 function createItemId(prefix: string): string {
