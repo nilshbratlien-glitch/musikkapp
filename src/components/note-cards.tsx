@@ -189,18 +189,18 @@ export function NoteCards() {
       cur.session.feedback = okFeedback;
       cur.session.kind = "ok";
       persist();
-      cur.timer = window.setTimeout(nextCard, 420);
+      if (autoAdvanceRef.current) {
+        cur.timer = window.setTimeout(nextCard, 800);
+      }
     } else {
       cur.session.wrong += 1;
       cur.session.streak = 0;
       cur.session.feedback = wrongFeedback;
       cur.session.kind = "no";
       persist();
-      cur.timer = window.setTimeout(() => {
-        const go = () => nextCard();
-        cur.cont = go;
-        document.addEventListener("click", go, { once: true });
-      }, 120);
+      if (autoAdvanceRef.current) {
+        cur.timer = window.setTimeout(nextCard, 800);
+      }
     }
     redraw();
   }
@@ -265,9 +265,17 @@ export function NoteCards() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const live = model.current;
-      if (live.tab !== "drill" || live.session.locked || !live.session.card) return;
+      if (live.tab !== "drill" || !live.session.card) return;
       const target = event.target;
       if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "SELECT")) return;
+      if (live.session.locked) {
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          clearContinue();
+          nextCard();
+        }
+        return;
+      }
       const key = event.key.toUpperCase();
       const index = key === "H" ? 6 : LETTERS.indexOf(key as (typeof LETTERS)[number]);
       if (index >= 0) {
@@ -333,8 +341,8 @@ export function NoteCards() {
 
       {cur.tab === "drill" ? (
         pool.length && card ? (
-          <div className="md:grid md:grid-cols-[1.1fr_0.9fr] md:items-center md:gap-6">
-            <div>
+          <div className="md:grid md:grid-cols-[1.05fr_0.95fr] md:items-center md:gap-6">
+            <div className="mx-auto w-full max-w-md md:max-w-lg">
               <div className="mb-2.5 flex items-center justify-between text-sm text-muted">
                 <p>
                   <b className="font-semibold text-fg">{cur.session.right}</b> riktig · {cur.session.wrong} feil
@@ -445,18 +453,20 @@ export function NoteCards() {
                 </div>
               )}
 
-              {cur.session.locked ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearContinue();
-                    nextCard();
-                  }}
-                  className="metro-press min-h-12 w-full rounded-xl bg-accent text-base font-bold text-[#1a1408]"
-                >
-                  Neste kort
-                </button>
-              ) : null}
+              <div className="min-h-12">
+                {cur.session.locked ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearContinue();
+                      nextCard();
+                    }}
+                    className="metro-press min-h-12 w-full rounded-xl bg-accent text-base font-bold text-[#1a1408]"
+                  >
+                    Neste kort
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         ) : (
@@ -466,29 +476,97 @@ export function NoteCards() {
           </div>
         )
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 md:items-start">
-          <div className="rounded-card border border-line bg-surface p-4">
-            <h2 className="text-sm font-semibold">{isTrumpet ? "Trompet-register" : "Instrument"}</h2>
-            <p className="mt-1 mb-2.5 text-sm text-muted">
-              {isTrumpet
-                ? "Velg hvor høyt og lavt du vil øve på B-trompeten (skrevet G-nøkkel)."
-                : "Setter utvalget til instrumentets noterte register. Noter under G-nøkkelens område legges i F-nøkkel."}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {presetList.map(([label, lo, hi]) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => {
-                    const sel = selectionFor(lo, hi);
-                    model.current.draft = { treble: new Set(sel.treble), bass: new Set(sel.bass) };
-                    redraw();
-                  }}
-                  className="min-h-9 rounded-full border border-line px-3 text-sm"
-                >
-                  {label}
-                </button>
-              ))}
+        <div className="grid gap-3 md:grid-cols-2 md:items-start md:gap-4">
+          <div className="space-y-3">
+            <div className="rounded-card border border-line bg-surface p-4">
+              <h2 className="text-sm font-semibold">{isTrumpet ? "Trompet-register" : "Instrument"}</h2>
+              <p className="mt-1 mb-2.5 text-sm text-muted">
+                {isTrumpet
+                  ? "Velg hvor høyt og lavt du vil øve på B-trompeten (skrevet G-nøkkel)."
+                  : "Setter utvalget til instrumentets noterte register. Noter under G-nøkkelens område legges i F-nøkkel."}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {presetList.map(([label, lo, hi]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => {
+                      const sel = selectionFor(lo, hi);
+                      model.current.draft = { treble: new Set(sel.treble), bass: new Set(sel.bass) };
+                      redraw();
+                    }}
+                    className="min-h-9 rounded-full border border-line px-3 text-sm"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-card border border-line">
+              <h2 className="px-3 pt-3 text-sm font-semibold">Treff per note</h2>
+              {rows.length ? (
+                rows.map((row) => {
+                  const [clef, raw] = row.key.split(":");
+                  const name = `${clef === "treble" ? "G " : "F "}${fullName(Number(raw), cur.stored.lang)}`;
+                  return (
+                    <div key={row.key} className="flex items-center gap-2.5 border-t border-line px-3 py-2 text-sm">
+                      <span className="w-14 font-semibold">{name}</span>
+                      <span className="h-1.5 flex-1 overflow-hidden rounded bg-header">
+                        <span className="block h-full bg-accent" style={{ width: `${Math.round(row.pct * 100)}%` }} />
+                      </span>
+                      <span className="w-16 text-right text-xs text-muted">
+                        {Math.round(row.pct * 100)}% · {row.n}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="border-t border-line px-3 py-2.5 text-sm text-muted">Ingen svar registrert ennå</p>
+              )}
+            </div>
+
+            <div className="rounded-card border border-line bg-surface p-4">
+              <h2 className="text-sm font-semibold">Notenavn</h2>
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    ["no", "Norsk (H)"],
+                    ["en", "Engelsk (B)"],
+                  ] as const
+                ).map(([lang, label]) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    aria-pressed={cur.stored.lang === lang}
+                    onClick={() => setLang(lang)}
+                    className={
+                      cur.stored.lang === lang
+                        ? "min-h-11 rounded-lg bg-accent text-sm font-semibold text-bg"
+                        : "min-h-11 rounded-lg border border-line text-sm text-muted"
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!confirm("Nullstiller treffstatistikken. Utvalget beholdes. Fortsette?")) return;
+                  const live = model.current;
+                  live.stored = { ...live.stored, stats: {}, sel: selectionOf(live.draft) };
+                  const saved = saveNoteState(live.stored);
+                  flashToast(
+                    saved ? "Statistikken er nullstilt." : "Fikk ikke lagret. Er lagring blokkert i nettleseren?",
+                    !saved,
+                  );
+                  redraw();
+                }}
+                className="metro-press mt-3 min-h-11 w-full rounded-lg border border-line text-sm text-muted"
+              >
+                Nullstill statistikk
+              </button>
             </div>
           </div>
 
@@ -598,72 +676,6 @@ export function NoteCards() {
             <p className={cur.toastBad ? "mt-2 min-h-5 text-center text-sm text-no" : "mt-2 min-h-5 text-center text-sm text-ok"}>
               {cur.toast}
             </p>
-          </div>
-
-          <div className="overflow-hidden rounded-card border border-line">
-            <h2 className="px-3 pt-3 text-sm font-semibold">Treff per note</h2>
-            {rows.length ? (
-              rows.map((row) => {
-                const [clef, raw] = row.key.split(":");
-                const name = `${clef === "treble" ? "G " : "F "}${fullName(Number(raw), cur.stored.lang)}`;
-                return (
-                  <div key={row.key} className="flex items-center gap-2.5 border-t border-line px-3 py-2 text-sm">
-                    <span className="w-14 font-semibold">{name}</span>
-                    <span className="h-1.5 flex-1 overflow-hidden rounded bg-header">
-                      <span className="block h-full bg-accent" style={{ width: `${Math.round(row.pct * 100)}%` }} />
-                    </span>
-                    <span className="w-16 text-right text-xs text-muted">
-                      {Math.round(row.pct * 100)}% · {row.n}
-                    </span>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="border-t border-line px-3 py-2.5 text-sm text-muted">Ingen svar registrert ennå</p>
-            )}
-          </div>
-
-          <div className="rounded-card border border-line bg-surface p-4">
-            <h2 className="text-sm font-semibold">Notenavn</h2>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {(
-                [
-                  ["no", "Norsk (H)"],
-                  ["en", "Engelsk (B)"],
-                ] as const
-              ).map(([lang, label]) => (
-                <button
-                  key={lang}
-                  type="button"
-                  aria-pressed={cur.stored.lang === lang}
-                  onClick={() => setLang(lang)}
-                  className={
-                    cur.stored.lang === lang
-                      ? "min-h-11 rounded-lg bg-accent text-sm font-semibold text-bg"
-                      : "min-h-11 rounded-lg border border-line text-sm text-muted"
-                  }
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (!confirm("Nullstiller treffstatistikken. Utvalget beholdes. Fortsette?")) return;
-                const live = model.current;
-                live.stored = { ...live.stored, stats: {}, sel: selectionOf(live.draft) };
-                const saved = saveNoteState(live.stored);
-                flashToast(
-                  saved ? "Statistikken er nullstilt." : "Fikk ikke lagret. Er lagring blokkert i nettleseren?",
-                  !saved,
-                );
-                redraw();
-              }}
-              className="metro-press mt-3 min-h-11 w-full rounded-lg border border-line text-sm text-muted"
-            >
-              Nullstill statistikk
-            </button>
           </div>
         </div>
       )}

@@ -1651,7 +1651,7 @@ export function NoterViewer({
       {hudVisible ? (
         <header
           style={{ backgroundColor: "rgba(22, 26, 34, 0.95)" }}
-          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-xs"
+          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-xs md:landscape:py-1.5"
         >
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -2344,7 +2344,7 @@ export function NoterViewer({
       {hudVisible ? (
         <footer
           style={{ backgroundColor: "rgba(22, 26, 34, 0.95)" }}
-          className="z-20 flex shrink-0 items-center justify-between gap-2 border-t border-line px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur-xs"
+          className="z-20 flex shrink-0 items-center justify-between gap-2 border-t border-line px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur-xs md:landscape:py-1.5"
         >
           <div className="flex items-center gap-1.5">
             <button

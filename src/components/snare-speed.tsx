@@ -189,37 +189,91 @@ export function SnareSpeed() {
           </select>
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
-          Start-BPM
-          <input
-            type="number"
-            min={40}
-            max={300}
-            value={startBpm}
-            onChange={(event) => setStartBpm(Number(event.target.value))}
-            className="metro-field min-h-11 w-24 rounded-md border border-line bg-header px-2 text-fg"
-          />
+          <span>Start-BPM</span>
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Reduser Start-BPM"
+              onClick={() => setStartBpm((v) => Math.max(40, v - 5))}
+              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              min={40}
+              max={300}
+              value={startBpm}
+              onChange={(event) => setStartBpm(Number(event.target.value))}
+              className="metro-field min-h-11 w-20 rounded-md border border-line bg-header px-2 text-center font-semibold text-fg tabular-nums"
+            />
+            <button
+              type="button"
+              aria-label="Øk Start-BPM"
+              onClick={() => setStartBpm((v) => Math.min(300, v + 5))}
+              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+            >
+              +
+            </button>
+          </span>
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
-          Økning
-          <input
-            type="number"
-            min={1}
-            max={10}
-            value={inc}
-            onChange={(event) => setInc(Number(event.target.value))}
-            className="metro-field min-h-11 w-24 rounded-md border border-line bg-header px-2 text-fg"
-          />
+          <span>Økning</span>
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Reduser økning"
+              onClick={() => setInc((v) => Math.max(1, v - 1))}
+              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={inc}
+              onChange={(event) => setInc(Number(event.target.value))}
+              className="metro-field min-h-11 w-20 rounded-md border border-line bg-header px-2 text-center font-semibold text-fg tabular-nums"
+            />
+            <button
+              type="button"
+              aria-label="Øk økning"
+              onClick={() => setInc((v) => Math.min(10, v + 1))}
+              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+            >
+              +
+            </button>
+          </span>
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
-          Takker per steg
-          <input
-            type="number"
-            min={1}
-            max={32}
-            value={bars}
-            onChange={(event) => setBars(Number(event.target.value))}
-            className="metro-field min-h-11 w-24 rounded-md border border-line bg-header px-2 text-fg"
-          />
+          <span>Takter per steg</span>
+          <span className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Færre takter per steg"
+              onClick={() => setBars((v) => Math.max(1, v - 1))}
+              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              min={1}
+              max={32}
+              value={bars}
+              onChange={(event) => setBars(Number(event.target.value))}
+              className="metro-field min-h-11 w-20 rounded-md border border-line bg-header px-2 text-center font-semibold text-fg tabular-nums"
+            />
+            <button
+              type="button"
+              aria-label="Flere takter per steg"
+              onClick={() => setBars((v) => Math.min(32, v + 1))}
+              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+            >
+              +
+            </button>
+          </span>
         </label>
         <label className="flex items-center justify-between gap-3 text-sm">
           Underdeling

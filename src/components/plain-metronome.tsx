@@ -220,6 +220,7 @@ export function PlainMetronome() {
 
       <div className="mt-4 space-y-4 md:mt-0">
         <div className="grid gap-3 rounded-card border border-line bg-surface p-4">
+          <p className="text-sm text-muted">Taktart</p>
           <div className="grid grid-cols-4 gap-1.5">
             {METERS.map((item) => (
               <button
@@ -229,8 +230,8 @@ export function PlainMetronome() {
                 aria-pressed={item === shownMeter}
                 className={
                   item === shownMeter
-                    ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold"
-                    : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted"
+                    ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold md:landscape:min-h-12"
+                    : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted md:landscape:min-h-12"
                 }
               >
                 {item}
@@ -247,8 +248,8 @@ export function PlainMetronome() {
                 aria-pressed={item === shownSub}
                 className={
                   item === shownSub
-                    ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold"
-                    : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted"
+                    ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold md:landscape:min-h-12"
+                    : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted md:landscape:min-h-12"
                 }
               >
                 {SUB_LABELS[item]}
@@ -272,15 +273,23 @@ export function PlainMetronome() {
               +5
             </button>
           </div>
-          <input
-            type="range"
-            min={40}
-            max={240}
-            value={shownBpm}
-            aria-label="Tempo BPM"
-            onChange={(e) => changeBpm(Number(e.target.value))}
-            className="mt-1 h-2 w-full cursor-pointer accent-accent"
-          />
+          <div className="pt-1">
+            <input
+              type="range"
+              min={40}
+              max={240}
+              value={shownBpm}
+              aria-label="Tempo BPM"
+              onChange={(e) => changeBpm(Number(e.target.value))}
+              className="h-7 w-full cursor-pointer accent-accent"
+            />
+            <div className="mt-0.5 flex justify-between px-1 text-[11px] font-medium text-muted tabular-nums" aria-hidden="true">
+              <span>40</span>
+              <span>100</span>
+              <span>160</span>
+              <span>240</span>
+            </div>
+          </div>
         </div>
         {plan && clock.activeId && profile === "trumpet" && TRUMPET_EXERCISES[block] && (
           <aside

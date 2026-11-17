@@ -96,7 +96,7 @@ export function NoterNavDrawer({
     >
       <div
         style={{ backgroundColor: "rgba(22, 26, 34, 0.98)" }}
-        className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-t-2xl border border-line shadow-2xl sm:rounded-2xl"
+        className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-t-2xl border border-line shadow-2xl sm:rounded-2xl md:max-w-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
@@ -182,7 +182,7 @@ export function NoterNavDrawer({
                   <span>Velg sider å beholde (Trim PDF)</span>
                 </button>
               ) : null}
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
               {Array.from({ length: pageCount }, (_, i) => i + 1).map((p) => {
                 const isCurrent = p === currentPage;
                 const hasBookmark = bookmarkedPages.has(p);

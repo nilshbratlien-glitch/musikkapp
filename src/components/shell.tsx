@@ -300,9 +300,9 @@ export function Shell() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
-      <header className="shrink-0 border-b border-line bg-header px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+      <header className="shrink-0 border-b border-line bg-header px-4 py-2.5 md:landscape:py-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 md:landscape:flex md:landscape:items-baseline md:landscape:gap-3">
             <p className="truncate text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
             <p className="truncate text-sm text-muted">
               {tool.label} · {profileMeta.label}
@@ -386,9 +386,9 @@ export function Shell() {
       <div className="flex min-h-0 flex-1 flex-col md:landscape:flex-row">
         <nav
           aria-label="Verktøy"
-          className="order-last shrink-0 border-t border-line bg-header pb-[env(safe-area-inset-bottom)] md:landscape:order-first md:landscape:w-20 md:landscape:border-t-0 md:landscape:border-r md:landscape:py-3 md:landscape:pb-3"
+          className="order-last shrink-0 border-t border-line bg-header pb-[env(safe-area-inset-bottom)] md:landscape:order-first md:landscape:w-22 md:landscape:border-t-0 md:landscape:border-r md:landscape:py-3 md:landscape:pb-3"
         >
-          <ul className="grid grid-cols-5 md:landscape:flex md:landscape:flex-col md:landscape:gap-1.5 md:landscape:px-1.5">
+          <ul className="grid grid-cols-5 md:landscape:flex md:landscape:h-full md:landscape:flex-col md:landscape:justify-start md:landscape:gap-2 md:landscape:px-2">
             {TOOLS.map((item) => {
               const Icon = ICONS[item.id];
               const active = item.to === pathname;
@@ -397,7 +397,11 @@ export function Shell() {
                   <Link
                     to={item.to}
                     aria-current={active ? "page" : undefined}
-                    className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl px-1 md:landscape:min-h-16 md:landscape:py-2"
+                    className={
+                      active
+                        ? "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border border-accent/50 bg-accent/15 px-1 text-accent shadow-xs md:landscape:min-h-16 md:landscape:py-2"
+                        : "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border border-transparent px-1 text-muted hover:bg-surface/60 hover:text-fg md:landscape:min-h-16 md:landscape:py-2"
+                    }
                   >
                     <Icon
                       className={active ? "size-6 text-accent" : "size-6 text-muted"}
@@ -426,7 +430,7 @@ export function Shell() {
               : "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pt-4 md:px-6 md:pt-5"
           }
         >
-          <div className={sheet ? "h-full min-h-0" : "mx-auto w-full max-w-xl md:max-w-4xl lg:max-w-5xl"}>
+          <div className={sheet ? "h-full min-h-0" : "mx-auto w-full max-w-xl md:max-w-4xl lg:max-w-6xl"}>
             <Outlet />
           </div>
         </main>
