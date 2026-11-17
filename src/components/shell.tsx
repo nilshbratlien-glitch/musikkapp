@@ -84,11 +84,25 @@ function useInstall() {
   return { standalone, message, install };
 }
 
-function PlanHeaderTimer() {
+export function PlanHeaderTimer({ showStart = false }: { showStart?: boolean }) {
   useSyncExternalStore(subscribePlanClock, getPlanClockVersion, getPlanClockVersion);
   useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
   const clock = getPlanClock();
-  if (!clock.activeId) return null;
+  if (!clock.activeId) {
+    if (!showStart) return null;
+    return (
+      <button
+        type="button"
+        onClick={togglePlanClock}
+        aria-label="Start øveplan"
+        title="Start øveplan"
+        className="metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-muted hover:text-fg"
+      >
+        <Play className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden="true" />
+        <span className="hidden sm:inline">Øveplan</span>
+      </button>
+    );
+  }
   const paused = clock.blockPaused || clock.timer == null;
   const name = blockName(clock.activeId);
   const Icon = paused ? Play : Pause;
@@ -295,7 +309,7 @@ export function Shell() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <PlanHeaderTimer />
+            <PlanHeaderTimer showStart={tool.id === "noter"} />
             <button
               type="button"
               onClick={() => {

@@ -32,6 +32,7 @@ import { NoterCropModal } from "@/components/noter-crop-modal";
 import { NoterNavDrawer, type NavDrawerTab } from "@/components/noter-nav-drawer";
 import { NoterPageTrimModal } from "@/components/noter-page-trim-modal";
 import { NoterToolbar } from "@/components/noter-toolbar";
+import { PlanHeaderTimer } from "@/components/shell";
 import {
   MAX_BPM,
   MIN_BPM,
@@ -1688,6 +1689,7 @@ export function NoterViewer({
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+            <PlanHeaderTimer showStart />
             <button
               type="button"
               onClick={() => openNavDrawer("pages")}

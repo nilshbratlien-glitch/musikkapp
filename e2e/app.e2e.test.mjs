@@ -2419,6 +2419,14 @@ describe("Tablet 16:10 GUX & GUI suite", () => {
     await nextCardBtn.click();
     await nextCardBtn.waitFor({ state: "detached" });
 
+    // 4. Start & pause Øveplan directly from Noter tab
+    await tab("/noter");
+    await page.getByRole("button", { name: "Start øveplan", exact: true }).click();
+    const timerBtn = page.locator("header button").filter({ hasText: /\d+:\d\d/ });
+    await timerBtn.waitFor({ state: "visible" });
+    await timerBtn.click();
+    assert.equal(await timerBtn.getAttribute("aria-pressed"), "true");
+
     assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
     assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
   });
