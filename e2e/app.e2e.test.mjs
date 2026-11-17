@@ -2402,17 +2402,17 @@ describe("Tablet 16:10 GUX & GUI suite", () => {
 
     // 3. Notekort Auto-neste toggle -> Manuell -> explicit Neste kort
     await tab("/notekort");
+    await page.getByRole("tab", { name: "Noter", exact: true }).click();
+    await page.getByRole("button", { name: "Alle", exact: true }).click();
+    await page.getByRole("button", { name: /Lagre/i }).click();
+    await page.getByRole("tab", { name: "Øv", exact: true }).click();
+
     const autoSwitch = page.getByRole("switch");
     await autoSwitch.waitFor({ state: "visible" });
     assert.equal(await autoSwitch.getAttribute("aria-checked"), "true");
     await autoSwitch.click();
     assert.equal(await autoSwitch.getAttribute("aria-checked"), "false");
 
-    // Pick a note in Noter tab if needed, or verify Notekort drill when notes exist
-    await page.getByRole("tab", { name: "Noter", exact: true }).click();
-    await page.getByRole("button", { name: "Alle", exact: true }).click();
-    await page.getByRole("button", { name: /Lagre/i }).click();
-    await page.getByRole("tab", { name: "Øv", exact: true }).click();
     await page.locator(".answer-key").first().click();
     const nextCardBtn = page.getByRole("button", { name: "Neste kort", exact: true });
     await nextCardBtn.waitFor({ state: "visible" });
