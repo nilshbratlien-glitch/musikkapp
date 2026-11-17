@@ -47,6 +47,8 @@ export type NoterAnnotationLayerProps = {
   whiteoutWidth?: number;
   nightFilter?: string;
   activeStampId: StampId;
+  stampScale?: number;
+  textFontSize?: number;
   stylusOnly: boolean;
   onCommitItems: (pageNumber: number, nextItems: AnnotationItem[]) => void;
   jumpLinks?: readonly JumpLink[];
@@ -58,9 +60,11 @@ export type NoterAnnotationLayerProps = {
 };
 
 type TextDraft = {
+  editingId?: string;
   x: number;
   y: number;
   value: string;
+  fontSize?: number;
 };
 
 type LinkDraft = {
@@ -485,6 +489,8 @@ export function NoterAnnotationLayer({
   whiteoutWidth = WHITEOUT_WIDTH_MEDIUM,
   nightFilter,
   activeStampId,
+  stampScale = 1,
+  textFontSize = 18,
   stylusOnly,
   onCommitItems,
   jumpLinks = [],
@@ -529,6 +535,13 @@ export function NoterAnnotationLayer({
   const draftStrokeRef = useRef<StrokeAnnotation | null>(null);
   const erasedIdsRef = useRef<Set<string>>(new Set());
   const beforeEraseSnapshotRef = useRef<readonly AnnotationItem[] | null>(null);
+  const editingTextTargetRef = useRef<{
+    id: string;
+    x: number;
+    y: number;
+    text: string;
+    fontSize?: number;
+  } | null>(null);
   const viewLayerRef = useRef<HTMLDivElement | null>(null);
   const viewDragRef = useRef<typeof viewDrag>(null);
   viewDragRef.current = viewDrag;
@@ -931,6 +944,24 @@ export function NoterAnnotationLayer({
       return;
     }
 
+    if (tool === "text" && textDraft === null) {
+      const hitRadius = e.pointerType === "touch" ? 0.032 : 0.022;
+      const textItems = items.filter((item) => item.kind === "text");
+      const hitText = findTopmostAnnotationAtPoint(textItems, pt, hitRadius);
+      if (hitText && hitText.kind === "text") {
+        editingTextTargetRef.current = {
+          id: hitText.id,
+          x: hitText.x,
+          y: hitText.y,
+          text: hitText.text,
+          fontSize: hitText.fontSize,
+        };
+      } else {
+        editingTextTargetRef.current = null;
+      }
+      return;
+    }
+
     if (tool === "stamp" || (tool === "link" && linkDraft === null)) {
       const placementPt = clientPointToNormalizedPage(
         e.clientX,
@@ -1053,13 +1084,26 @@ export function NoterAnnotationLayer({
           x: placementPt.x,
           y: placementPt.y,
           color: pencilColor,
+          scale: stampScale,
         },
       ]);
       return;
     }
 
     if (tool === "text" && textDraft === null) {
-      setTextDraft({ x: pt.x, y: pt.y, value: "" });
+      const target = editingTextTargetRef.current;
+      editingTextTargetRef.current = null;
+      if (target) {
+        setTextDraft({
+          editingId: target.id,
+          x: target.x,
+          y: target.y,
+          value: target.text,
+          fontSize: target.fontSize ?? textFontSize,
+        });
+      } else {
+        setTextDraft({ x: pt.x, y: pt.y, value: "", fontSize: textFontSize });
+      }
       return;
     }
 
@@ -1079,6 +1123,7 @@ export function NoterAnnotationLayer({
     if (activePointerIdRef.current !== e.pointerId) return;
     e.stopPropagation();
     releaseCaptureSafely(e.currentTarget, e.pointerId);
+    editingTextTargetRef.current = null;
     resetActiveGesture();
   };
 
@@ -1086,6 +1131,30 @@ export function NoterAnnotationLayer({
     e.preventDefault();
     if (!textDraft) return;
     const trimmed = textDraft.value.trim();
+    if (textDraft.editingId) {
+      if (!trimmed) {
+        onCommitItems(
+          pageNumber,
+          items.filter((item) => item.id !== textDraft.editingId),
+        );
+      } else {
+        onCommitItems(
+          pageNumber,
+          items.map((item) =>
+            item.id === textDraft.editingId && item.kind === "text"
+              ? {
+                  ...item,
+                  text: trimmed,
+                  color: pencilColor,
+                  fontSize: textFontSize,
+                }
+              : item,
+          ),
+        );
+      }
+      setTextDraft(null);
+      return;
+    }
     if (!trimmed) {
       setTextDraft(null);
       return;
@@ -1101,7 +1170,7 @@ export function NoterAnnotationLayer({
         y: clampedY,
         text: trimmed,
         color: pencilColor,
-        fontSize: 18,
+        fontSize: textDraft.fontSize ?? textFontSize,
       },
     ]);
     setTextDraft(null);
@@ -1139,6 +1208,7 @@ export function NoterAnnotationLayer({
           x: draftPlacement.x,
           y: draftPlacement.y,
           color: pencilColor,
+          scale: stampScale,
         }
       : null;
   const draftStampBounds = draftStampItem ? getAnnotationBounds(draftStampItem) : null;
@@ -1265,6 +1335,21 @@ export function NoterAnnotationLayer({
             className="w-full rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm text-fg placeholder:text-muted focus:border-accent focus:outline-none"
           />
           <div className="flex items-center justify-end gap-1.5">
+            {textDraft.editingId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onCommitItems(
+                    pageNumber,
+                    items.filter((item) => item.id !== textDraft.editingId),
+                  );
+                  setTextDraft(null);
+                }}
+                className="metro-press mr-auto min-h-9 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-no hover:border-no"
+              >
+                Slett
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => setTextDraft(null)}

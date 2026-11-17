@@ -38,6 +38,8 @@ import {
   PENCIL_WIDTH_THICK,
   PENCIL_WIDTH_THIN,
   STAMP_DEFINITIONS,
+  STAMP_SCALE_MAP,
+  TEXT_FONT_SIZE_MAP,
   clientPointToNormalizedPage,
   createAnnotationHistory,
   eraseAnnotationsAtPoint,
@@ -66,12 +68,15 @@ import {
   resolveEffectiveCropRect,
 } from "./noter-crop.ts";
 import {
+  classifyStageTapZone,
   detectSwipeDirection,
   isEditableTarget,
   mapKeyToViewerAction,
   normalizeHalfPagePosition,
   stepPageBackward,
   stepPageForward,
+  stepSpreadBackward,
+  stepSpreadForward,
   type HalfPagePosition,
 } from "./noter-input.ts";
 import {
@@ -109,10 +114,14 @@ import {
   trimPdfBytes,
 } from "./noter-trim.ts";
 import {
+  NOTER_BACKUP_VERSION,
+  arrayBufferToBase64,
+  base64ToArrayBuffer,
   buildNoterBackupPayload,
   parseNoterBackupJson,
   restoreNoterBackup,
 } from "./noter-backup.ts";
+import { parseHexColorToRgb, sanitizeWinAnsiText } from "./noter-export.ts";
 import { buildRenderKey, computeSliceMetrics } from "./noter-pdf.ts";
 import {
   getJumpLinksForPage,
@@ -1644,6 +1653,123 @@ describe("noter-categories tags, filtering, counts, and bulk rename/remove", () 
     assert.deepEqual(payload.sheets[0]?.categories, ["Korps", "17. mai"]);
   });
 });
+
+describe("lenovo tablet suite helpers", () => {
+  it("classifies stage edge-tap zones (left 18%, right 18%, center 64%)", () => {
+    assert.equal(classifyStageTapZone(50, 0, 1000), "prev");
+    assert.equal(classifyStageTapZone(179, 0, 1000), "prev");
+    assert.equal(classifyStageTapZone(180, 0, 1000), "toggle-hud");
+    assert.equal(classifyStageTapZone(500, 0, 1000), "toggle-hud");
+    assert.equal(classifyStageTapZone(820, 0, 1000), "toggle-hud");
+    assert.equal(classifyStageTapZone(821, 0, 1000), "next");
+    assert.equal(classifyStageTapZone(999, 0, 1000), "next");
+    assert.equal(classifyStageTapZone(10, 0, 0), "toggle-hud");
+  });
+
+  it("steps two-page spreads cleanly forward and backward", () => {
+    assert.equal(stepSpreadForward(1, 5), 3);
+    assert.equal(stepSpreadForward(3, 5), 5);
+    assert.equal(stepSpreadForward(4, 5), 5);
+    assert.equal(stepSpreadForward(5, 5), 5);
+    assert.equal(stepSpreadForward(1, 1), 1);
+
+    assert.equal(stepSpreadBackward(5), 3);
+    assert.equal(stepSpreadBackward(3), 1);
+    assert.equal(stepSpreadBackward(2), 1);
+    assert.equal(stepSpreadBackward(1), 1);
+  });
+
+  it("defines S/M/L stamp scale and text font size presets", () => {
+    assert.deepEqual(STAMP_SCALE_MAP, { small: 0.75, medium: 1, large: 1.4 });
+    assert.deepEqual(TEXT_FONT_SIZE_MAP, { small: 14, medium: 18, large: 26 });
+  });
+
+  it("parses hex colors and sanitizes WinAnsi text for PDF export", () => {
+    const red = parseHexColorToRgb("#dc2626");
+    assert.ok(Math.abs(red.r - 220 / 255) < 1e-4);
+    assert.ok(Math.abs(red.g - 38 / 255) < 1e-4);
+    assert.ok(Math.abs(red.b - 38 / 255) < 1e-4);
+    assert.deepEqual(parseHexColorToRgb("invalid"), { r: 0.07, g: 0.09, b: 0.15 });
+
+    assert.equal(sanitizeWinAnsiText("Spill på — forte!"), "Spill på ? forte!");
+    assert.equal(sanitizeWinAnsiText("Tempo → 120"), "Tempo ? 120");
+    assert.equal(sanitizeWinAnsiText("Hold 𝄐 her"), "Hold ? her");
+  });
+
+  it("round-trips base64 and restores missing sheets from v2 full backup with embedded PDFs", async () => {
+    const harness = createFakeIndexedDb();
+    Object.defineProperty(globalThis, "indexedDB", {
+      value: harness.fakeIndexedDb,
+      configurable: true,
+      writable: true,
+    });
+    Object.defineProperty(globalThis, "IDBKeyRange", {
+      value: {
+        only: (v: unknown) => ({ lower: v, upper: v }),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const rawBytes = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 52]).buffer;
+    const b64 = arrayBufferToBase64(rawBytes);
+    const decoded = new Uint8Array(base64ToArrayBuffer(b64));
+    assert.deepEqual(Array.from(decoded), [37, 80, 68, 70, 45, 49, 46, 52]);
+
+    const payload = buildNoterBackupPayload(
+      [
+        {
+          ...makeSheet({ id: "missing-sheet-1", title: "Ny Marsj", fileName: "ny-marsj.pdf" }),
+        },
+      ],
+      [
+        {
+          key: makePageAnnotationsKey("missing-sheet-1", 1),
+          sheetId: "missing-sheet-1",
+          page: 1,
+          items: [
+            {
+              id: "t1",
+              kind: "text",
+              x: 0.3,
+              y: 0.4,
+              text: "Forte",
+              color: "#dc2626",
+              fontSize: 26,
+            },
+          ],
+          updatedAt: 1000,
+        },
+      ],
+      [],
+      2000,
+      [
+        {
+          sheetId: "missing-sheet-1",
+          pageCount: 4,
+          pdfBase64: b64,
+        },
+      ],
+    );
+
+    assert.equal(payload.version, NOTER_BACKUP_VERSION);
+    const parsed = parseNoterBackupJson(JSON.stringify(payload));
+    assert.equal(parsed.pdfs?.length, 1);
+
+    const summary = await restoreNoterBackup(parsed);
+    assert.equal(summary.createdSheets, 1);
+    assert.equal(summary.restoredAnnotationPages, 1);
+
+    const restoredSheets = await listSheets();
+    assert.equal(restoredSheets.length, 1);
+    assert.equal(restoredSheets[0]?.title, "Ny Marsj");
+    const restoredFull = await getSheet(restoredSheets[0]!.id);
+    assert.equal(restoredFull?.pdfData.byteLength, 8);
+    const restoredAnns = await getPageAnnotations(restoredSheets[0]!.id, 1);
+    assert.equal(restoredAnns[0]?.kind, "text");
+  });
+});
+
 
 
 

@@ -3,16 +3,24 @@ import { cloneAnnotationItems, type AnnotationItem } from "./noter-annotations.t
 import { normalizeCategoriesList } from "./noter-categories.ts";
 import { normalizeManualCropsMap, type NormalizedRect } from "./noter-crop.ts";
 import {
+  getSheet,
   listAllAnnotations,
   listSetlists,
   listSheets,
   savePageAnnotations,
   saveSetlist,
+  saveSheet,
   updateSheetMeta,
   type PageAnnotationsRecord,
 } from "./noter-db.ts";
 
-export const NOTER_BACKUP_VERSION = 1;
+export const NOTER_BACKUP_VERSION = 2;
+
+export type BackupPdfEntry = {
+  sheetId: string;
+  pageCount: number;
+  pdfBase64: string;
+};
 
 export type SheetMetadataBackup = {
   id: string;
@@ -41,13 +49,35 @@ export type NoterBackupPayload = {
     items: AnnotationItem[];
   }>;
   setlists: SetlistRecord[];
+  pdfs?: BackupPdfEntry[];
 };
+
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  const chunks: string[] = [];
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const slice = bytes.subarray(i, i + chunkSize);
+    chunks.push(String.fromCharCode(...slice));
+  }
+  return btoa(chunks.join(""));
+}
+
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
 
 export function buildNoterBackupPayload(
   sheets: readonly SheetMeta[],
   annotations: readonly PageAnnotationsRecord[],
   setlists: readonly SetlistRecord[],
   exportedAt = Date.now(),
+  pdfs?: BackupPdfEntry[],
 ): NoterBackupPayload {
   return {
     version: NOTER_BACKUP_VERSION,
@@ -79,6 +109,7 @@ export function buildNoterBackupPayload(
       ...sl,
       sheetIds: [...sl.sheetIds],
     })),
+    ...(pdfs && pdfs.length > 0 ? { pdfs } : {}),
   };
 }
 
@@ -105,6 +136,7 @@ export function parseNoterBackupJson(rawText: string): NoterBackupPayload {
     sheets: Array.isArray(obj.sheets) ? obj.sheets : [],
     annotations: Array.isArray(obj.annotations) ? obj.annotations : [],
     setlists: Array.isArray(obj.setlists) ? obj.setlists : [],
+    pdfs: Array.isArray(obj.pdfs) ? obj.pdfs : undefined,
   };
 }
 
@@ -117,8 +149,29 @@ export async function exportNoterBackup(): Promise<NoterBackupPayload> {
   return buildNoterBackupPayload(sheets, annotations, setlists);
 }
 
+export async function exportFullNoterBackup(): Promise<NoterBackupPayload> {
+  const [sheets, annotations, setlists] = await Promise.all([
+    listSheets(),
+    listAllAnnotations(),
+    listSetlists(),
+  ]);
+  const pdfs: BackupPdfEntry[] = [];
+  for (const meta of sheets) {
+    const full = await getSheet(meta.id);
+    if (full?.pdfData) {
+      pdfs.push({
+        sheetId: meta.id,
+        pageCount: full.pageCount,
+        pdfBase64: arrayBufferToBase64(full.pdfData),
+      });
+    }
+  }
+  return buildNoterBackupPayload(sheets, annotations, setlists, Date.now(), pdfs);
+}
+
 export type RestoreBackupSummary = {
   matchedSheets: number;
+  createdSheets: number;
   restoredAnnotationPages: number;
   restoredSetlists: number;
 };
@@ -131,17 +184,37 @@ export async function restoreNoterBackup(
   const byFileKey = new Map(
     existingSheets.map((s) => [`${s.fileName}::${s.fileSize}`, s]),
   );
+  const pdfBySheetId = new Map(
+    (payload.pdfs ?? []).map((p) => [p.sheetId, p]),
+  );
 
   const idMap = new Map<string, string>();
   let matchedSheets = 0;
+  let createdSheets = 0;
 
   for (const bSheet of payload.sheets) {
-    const target =
+    let target =
       byId.get(bSheet.id) ?? byFileKey.get(`${bSheet.fileName}::${bSheet.fileSize}`);
-    if (!target) continue;
+
+    if (!target) {
+      const pdfEntry = pdfBySheetId.get(bSheet.id);
+      if (!pdfEntry || !pdfEntry.pdfBase64) continue;
+      const pdfData = base64ToArrayBuffer(pdfEntry.pdfBase64);
+      const created = await saveSheet({
+        title: bSheet.title,
+        fileName: bSheet.fileName,
+        fileSize: bSheet.fileSize,
+        pageCount: pdfEntry.pageCount,
+        categories: Array.isArray(bSheet.categories) ? normalizeCategoriesList(bSheet.categories) : [],
+        pdfData,
+      });
+      target = created;
+      createdSheets += 1;
+    } else {
+      matchedSheets += 1;
+    }
 
     idMap.set(bSheet.id, target.id);
-    matchedSheets += 1;
 
     await updateSheetMeta(target.id, {
       title: bSheet.title,
@@ -180,6 +253,7 @@ export async function restoreNoterBackup(
 
   return {
     matchedSheets,
+    createdSheets,
     restoredAnnotationPages,
     restoredSetlists,
   };

@@ -2159,3 +2159,207 @@ describe("Øveplan Repertoar linked to Noter and expanded stamps", () => {
     assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
   });
 });
+
+describe("Lenovo tablet Pro suite", () => {
+  it("persists Kun penn, supports To sider spread, S/M/L sizes + tap-to-edit text, edge-tap turns, PDF export, and v2 full backup", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    await page.route("https://cdn.jsdelivr.net/**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        headers: { "access-control-allow-origin": "*" },
+        body: "",
+      }),
+    );
+    await page.addInitScript(() => {
+      // Mock pdfjsLib (3 pages)
+      window.pdfjsLib = {
+        GlobalWorkerOptions: { workerSrc: "" },
+        getDocument() {
+          return {
+            promise: Promise.resolve({
+              numPages: 3,
+              getPage() {
+                return Promise.resolve({
+                  getViewport({ scale }) {
+                    return {
+                      width: Math.round(600 * scale),
+                      height: Math.round(800 * scale),
+                    };
+                  },
+                  render({ canvasContext, viewport }) {
+                    canvasContext.fillStyle = "#ffffff";
+                    canvasContext.fillRect(0, 0, viewport.width, viewport.height);
+                    canvasContext.fillStyle = "#111827";
+                    canvasContext.fillRect(
+                      viewport.width * 0.2,
+                      viewport.height * 0.2,
+                      viewport.width * 0.6,
+                      viewport.height * 0.6,
+                    );
+                    return { promise: Promise.resolve(), cancel() {} };
+                  },
+                });
+              },
+              destroy() {
+                return Promise.resolve();
+              },
+            }),
+          };
+        },
+      };
+      // Mock PDFLib for annotated PDF export
+      window.PDFLib = {
+        StandardFonts: {
+          Helvetica: "Helvetica",
+          HelveticaBold: "HelveticaBold",
+          TimesRomanBoldItalic: "TimesRomanBoldItalic",
+        },
+        rgb: (r, g, b) => ({ r, g, b }),
+        PDFDocument: {
+          load: async () => ({
+            getPages: () => [
+              {
+                getSize: () => ({ width: 612, height: 792 }),
+                drawLine: () => {},
+                drawCircle: () => {},
+                drawText: () => {},
+              },
+              {
+                getSize: () => ({ width: 612, height: 792 }),
+                drawLine: () => {},
+                drawCircle: () => {},
+                drawText: () => {},
+              },
+              {
+                getSize: () => ({ width: 612, height: 792 }),
+                drawLine: () => {},
+                drawCircle: () => {},
+                drawText: () => {},
+              },
+            ],
+            embedFont: async () => ({ widthOfTextAtSize: (t, s) => t.length * s * 0.5 }),
+            save: async () => new Uint8Array([37, 80, 68, 70, 45, 49, 46, 52]),
+          }),
+        },
+      };
+    });
+
+    // Simulate Lenovo IdeaPad Pro 13" landscape tablet viewport
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open("/noter");
+
+    const fileInput = page.locator('input[type="file"][accept*="pdf"]');
+    await fileInput.setInputFiles({
+      name: "Lenovo_Konsert.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\n%fake-pdf"),
+    });
+    const sheetBtn = page.getByRole("button", { name: /^Lenovo Konsert/i });
+    await sheetBtn.waitFor({ state: "visible" });
+    await sheetBtn.click();
+
+    const viewer = page.locator('[role="dialog"][aria-label^="Noteviser:"]');
+    await viewer.waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // 1. Kun penn persistence
+    const stylusBtn = viewer.getByRole("button", { name: "Kun penn", exact: true });
+    await stylusBtn.click();
+    assert.equal(await stylusBtn.getAttribute("aria-pressed"), "true");
+
+    // 2. Stempel S/M/L size selector
+    await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
+    await viewer.getByRole("button", { name: "Størrelse L", exact: true }).click();
+    assert.equal(
+      await viewer.getByRole("button", { name: "Størrelse L", exact: true }).getAttribute("aria-pressed"),
+      "true",
+    );
+
+    // 3. Tekst S/M/L size selector + place text + tap-to-edit existing text
+    await viewer.getByRole("button", { name: "Tekst", exact: true }).click();
+    await viewer.getByRole("button", { name: "Størrelse S", exact: true }).click();
+    const annotationSvg = viewer.locator('svg[preserveAspectRatio="none"]').first();
+    const box = await getSettledLayerBox(page, annotationSvg);
+
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+    const textInput = viewer.getByRole("textbox", { name: "Skriv notattekst" });
+    await textInput.waitFor({ state: "visible" });
+    await textInput.fill("Subito p");
+    await viewer.getByRole("button", { name: "OK", exact: true }).click();
+    await viewer.getByText("Subito p").waitFor({ state: "visible" });
+
+    // Tap existing text to edit in place
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
+    await textInput.waitFor({ state: "visible" });
+    assert.equal(await textInput.inputValue(), "Subito p");
+    await textInput.fill("Subito pp");
+    await viewer.getByRole("button", { name: "OK", exact: true }).click();
+    await viewer.getByText("Subito pp").waitFor({ state: "visible" });
+
+    // Switch back to Vis mode
+    await viewer.getByRole("button", { name: "Vis", exact: true }).click();
+
+    // 4. Edge-tap page turn (tap right 18% -> page 2, tap left 18% -> page 1)
+    const stageBox = await viewer.locator("div.relative.flex.min-h-0.flex-1").boundingBox();
+    assert.ok(stageBox, "stage boundingBox exists");
+    await page.mouse.click(stageBox.x + stageBox.width * 0.92, stageBox.y + stageBox.height * 0.5);
+    await viewer.getByText("Side 2 / 3").waitFor({ state: "visible" });
+    await page.mouse.click(stageBox.x + stageBox.width * 0.08, stageBox.y + stageBox.height * 0.5);
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+
+    // 5. To sider (two-page spread) toggle & stepping
+    const spreadBtn = viewer.getByRole("button", { name: /to-siders visning/i });
+    await spreadBtn.click();
+    assert.equal(await spreadBtn.getAttribute("aria-pressed"), "true");
+    await viewer.getByText("Side 1–2 / 3").waitFor({ state: "visible" });
+    assert.equal(await viewer.locator('svg[preserveAspectRatio="none"]').count(), 2);
+
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("Side 3 / 3").waitFor({ state: "visible" });
+
+    // 6. Eksporter PDF button triggers download without error
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      viewer.getByRole("button", { name: "Eksporter annotert PDF", exact: true }).click(),
+    ]);
+    assert.match(download.suggestedFilename(), /-annotert\.pdf$/);
+
+    // Close viewer and reload to verify Kun penn + To sider persisted
+    await viewer.getByRole("button", { name: "Lukk noteviser", exact: true }).click();
+    await viewer.waitFor({ state: "detached" });
+
+    await page.reload();
+    await page.getByRole("button", { name: /^Lenovo Konsert/i }).click();
+    await viewer.waitFor({ state: "visible" });
+    assert.equal(
+      await viewer.getByRole("button", { name: "Kun penn", exact: true }).getAttribute("aria-pressed"),
+      "true",
+    );
+    assert.equal(
+      await viewer.getByRole("button", { name: /to-siders visning/i }).getAttribute("aria-pressed"),
+      "true",
+    );
+    await viewer.getByRole("button", { name: "Lukk noteviser", exact: true }).click();
+    await viewer.waitFor({ state: "detached" });
+
+    // 7. Full backup (inkl. PDF-er) export
+    await page.getByRole("button", { name: "Backup", exact: true }).click();
+    const [backupDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Full backup (inkl. PDF-er)", exact: true }).click(),
+    ]);
+    assert.match(backupDownload.suggestedFilename(), /^noter-full-backup-.*\.json$/);
+    await page.getByText(/Eksporterte full backup med 1 PDF-er/i).waitFor({ state: "visible" });
+
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+

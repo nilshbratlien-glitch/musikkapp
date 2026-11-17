@@ -19,6 +19,7 @@ import {
   ANNOTATION_COLORS,
   HIGHLIGHTER_COLORS,
   STAMP_DEFINITIONS,
+  type AnnotationSizeOption,
   type StampDefinition,
   type StampId,
 } from "@/lib/noter-annotations";
@@ -43,6 +44,10 @@ export type NoterToolbarProps = {
   whiteoutColor: string;
   activeStampId: StampId;
   onSelectStampId: (stampId: StampId) => void;
+  stampSize?: AnnotationSizeOption;
+  onSelectStampSize?: (size: AnnotationSizeOption) => void;
+  textSize?: AnnotationSizeOption;
+  onSelectTextSize?: (size: AnnotationSizeOption) => void;
   stylusOnly: boolean;
   onToggleStylusOnly: () => void;
   annotationsVisible: boolean;
@@ -107,6 +112,10 @@ export function NoterToolbar({
   whiteoutColor,
   activeStampId,
   onSelectStampId,
+  stampSize = "medium",
+  onSelectStampSize,
+  textSize = "medium",
+  onSelectTextSize,
   stylusOnly,
   onToggleStylusOnly,
   annotationsVisible,
@@ -377,6 +386,46 @@ export function NoterToolbar({
               })}
             </div>
           )}
+
+          {tool === "stamp" || tool === "text" ? (
+            <div
+              className="flex items-center gap-1 rounded-lg border border-line bg-header p-0.5"
+              role="group"
+              aria-label={tool === "stamp" ? "Stempelstørrelse" : "Tekststørrelse"}
+            >
+              {(
+                [
+                  { id: "small", label: "S" },
+                  { id: "medium", label: "M" },
+                  { id: "large", label: "L" },
+                ] as const
+              ).map((opt) => {
+                const current = tool === "stamp" ? stampSize : textSize;
+                const selected = current === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() =>
+                      tool === "stamp"
+                        ? onSelectStampSize?.(opt.id)
+                        : onSelectTextSize?.(opt.id)
+                    }
+                    aria-pressed={selected}
+                    aria-label={`${tool === "stamp" ? "Stempelstørrelse" : "Tekststørrelse"} ${opt.label}`}
+                    style={selected ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+                    className={
+                      selected
+                        ? "metro-press min-h-9 min-w-9 rounded-md px-2 text-xs font-bold text-accent"
+                        : "metro-press min-h-9 min-w-9 rounded-md px-2 text-xs font-medium text-muted hover:text-fg"
+                    }
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
 
           {tool === "stamp" ? (
             <div className="relative">

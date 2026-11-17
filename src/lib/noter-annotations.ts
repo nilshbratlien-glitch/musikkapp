@@ -100,6 +100,17 @@ export const HIGHLIGHTER_OPACITY = 0.35;
 export const WHITEOUT_WIDTH_SMALL = 12;
 export const WHITEOUT_WIDTH_MEDIUM = 22;
 export const WHITEOUT_WIDTH_LARGE = 36;
+export type AnnotationSizeOption = "small" | "medium" | "large";
+export const STAMP_SCALE_MAP: Record<AnnotationSizeOption, number> = {
+  small: 0.75,
+  medium: 1,
+  large: 1.4,
+};
+export const TEXT_FONT_SIZE_MAP: Record<AnnotationSizeOption, number> = {
+  small: 14,
+  medium: 18,
+  large: 26,
+};
 export const MAX_UNDO_HISTORY = 50;
 
 export type StampDefinition = {
