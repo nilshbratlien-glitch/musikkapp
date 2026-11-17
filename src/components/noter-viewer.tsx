@@ -1024,15 +1024,16 @@ export function NoterViewer({
         pdfData: record.pdfData,
         doc: null,
         cancelled: false,
-        promise: loadPdfDocument(record.pdfData).then((loaded) => {
-          if (entry.cancelled) {
-            void loaded.destroy();
-            throw new Error("Cancelled prewarm");
-          }
-          entry.doc = loaded;
-          return loaded;
-        }),
+        promise: Promise.resolve(null as unknown as LoadedPdfDocument),
       };
+      entry.promise = loadPdfDocument(record.pdfData).then((loaded) => {
+        if (entry.cancelled) {
+          void loaded.destroy();
+          throw new Error("Cancelled prewarm");
+        }
+        entry.doc = loaded;
+        return loaded;
+      });
       prewarmedDocsRef.current.set(record.id, entry);
       return entry;
     };
