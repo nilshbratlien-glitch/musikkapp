@@ -1657,11 +1657,11 @@ describe("noter-categories tags, filtering, counts, and bulk rename/remove", () 
 describe("lenovo tablet suite helpers", () => {
   it("classifies stage edge-tap zones (left 18%, right 18%, center 64%)", () => {
     assert.equal(classifyStageTapZone(50, 0, 1000), "prev");
-    assert.equal(classifyStageTapZone(179, 0, 1000), "prev");
-    assert.equal(classifyStageTapZone(180, 0, 1000), "toggle-hud");
+    assert.equal(classifyStageTapZone(249, 0, 1000), "prev");
+    assert.equal(classifyStageTapZone(250, 0, 1000), "toggle-hud");
     assert.equal(classifyStageTapZone(500, 0, 1000), "toggle-hud");
-    assert.equal(classifyStageTapZone(820, 0, 1000), "toggle-hud");
-    assert.equal(classifyStageTapZone(821, 0, 1000), "next");
+    assert.equal(classifyStageTapZone(750, 0, 1000), "toggle-hud");
+    assert.equal(classifyStageTapZone(751, 0, 1000), "next");
     assert.equal(classifyStageTapZone(999, 0, 1000), "next");
     assert.equal(classifyStageTapZone(10, 0, 0), "toggle-hud");
   });

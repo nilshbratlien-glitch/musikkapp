@@ -176,7 +176,7 @@ export function stepPageBackward(
 
 export type StageTapZone = "prev" | "next" | "toggle-hud";
 
-const EDGE_TAP_FRACTION = 0.18;
+const EDGE_TAP_FRACTION = 0.25;
 
 export function classifyStageTapZone(
   clientX: number,
