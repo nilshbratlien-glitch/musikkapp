@@ -2285,8 +2285,8 @@ describe("Lenovo tablet Pro suite", () => {
     // 3. Tekst S/M/L size selector + place text + tap-to-edit existing text
     await viewer.getByRole("button", { name: "Tekst", exact: true }).click();
     await viewer.getByRole("button", { name: "Tekststørrelse S", exact: true }).click();
-    const annotationSvg = viewer.locator('svg[preserveAspectRatio="none"]').first();
-    const box = await getSettledLayerBox(page, annotationSvg);
+    const layer = viewer.locator('[data-testid="annotation-layer-page-1"]');
+    const box = await getSettledLayerBox(page, layer);
 
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
     const textInput = viewer.getByRole("textbox", { name: "Skriv notattekst" });
