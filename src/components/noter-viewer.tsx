@@ -88,6 +88,7 @@ import {
   isEditableTarget,
   mapKeyToViewerAction,
   normalizeHalfPagePosition,
+  normalizeSpreadPage,
   stepPageBackward,
   stepPageForward,
   stepSpreadBackward,
@@ -255,23 +256,29 @@ export function NoterViewer({
   const [loadedDoc, setLoadedDoc] = useState<LoadedPdfDocument | null>(null);
   const [pageCount, setPageCount] = useState(() => Math.max(1, sheet.pageCount || 1));
   const [halfPageTurn, setHalfPageTurn] = useState(() => Boolean(sheet.halfPageTurn));
+  const halfPageTurnRef = useRef(halfPageTurn);
+  halfPageTurnRef.current = halfPageTurn;
   const [twoPageSpread, setTwoPageSpread] = useState(() =>
     sheet.halfPageTurn ? false : readStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY),
   );
+  const twoPageSpreadRef = useRef(twoPageSpread);
+  twoPageSpreadRef.current = twoPageSpread;
   const [autoCrop, setAutoCrop] = useState(() => Boolean(sheet.autoCrop));
   const [annotationsVisible, setAnnotationsVisible] = useState(
     () => sheet.annotationsVisible ?? true,
   );
-  const [position, setPosition] = useState<HalfPagePosition>(() =>
-    normalizeHalfPagePosition(
+  const [position, setPosition] = useState<HalfPagePosition>(() => {
+    const initialTotal = Math.max(1, sheet.pageCount || 1);
+    const initialSpread = !sheet.halfPageTurn && readStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY);
+    return normalizeHalfPagePosition(
       {
-        page: clampPage(startPage, Math.max(1, sheet.pageCount || 1)),
+        page: normalizeSpreadPage(startPage, initialTotal, initialSpread),
         halfOffset: 0,
       },
-      Math.max(1, sheet.pageCount || 1),
+      initialTotal,
       Boolean(sheet.halfPageTurn),
-    ),
-  );
+    );
+  });
   const positionRef = useRef(position);
   positionRef.current = position;
 
@@ -468,9 +475,10 @@ export function NoterViewer({
     setNavDrawerOpen(false);
     const total = Math.max(1, s.pageCount || 1);
     setPageCount(total);
+    const effectiveSpread = !s.halfPageTurn && twoPageSpreadRef.current;
     const targetStartPage = initialPage ?? (s.lastPage || 1);
     const initialPos = normalizeHalfPagePosition(
-      { page: clampPage(targetStartPage, total), halfOffset: 0 },
+      { page: normalizeSpreadPage(targetStartPage, total, effectiveSpread), halfOffset: 0 },
       total,
       Boolean(s.halfPageTurn),
     );
@@ -544,7 +552,12 @@ export function NoterViewer({
         const initialMeta = initialSheetMetaRef.current;
         const total = Math.max(1, loaded.numPages);
         setPageCount(total);
-        const clampedInitial = clampPage(initialMeta.lastPage || 1, total);
+        const effectiveSpread = twoPageSpreadRef.current && !halfPageTurnRef.current;
+        const clampedInitial = normalizeSpreadPage(
+          initialMeta.lastPage || 1,
+          total,
+          effectiveSpread,
+        );
         setPosition((prev) => ({
           page: clampedInitial,
           halfOffset: clampedInitial >= total ? 0 : prev.halfOffset,
@@ -1024,10 +1037,13 @@ export function NoterViewer({
       return;
     }
     if (setlistContext) {
+      const prevSheet = setlistContext.sheets[setlistContext.activeIndex - 1];
+      const prevUsesSpread = twoPageSpread && !prevSheet?.halfPageTurn;
       const step = getSetlistBoundaryStep(
         setlistContext.sheets.map((s) => s.pageCount || 1),
         setlistContext.activeIndex,
         "prev",
+        prevUsesSpread,
       );
       if (step) {
         setlistContext.onSelectSheetIndex(step.sheetIndex, step.page);
@@ -1076,10 +1092,10 @@ export function NoterViewer({
         }
         setPosition((current) => {
           const normalized = normalizeHalfPagePosition(current, pageCount, false);
-          if (pageCount >= 2 && normalized.page === pageCount && pageCount % 2 === 0) {
-            return { page: pageCount - 1, halfOffset: 0 };
-          }
-          return normalized;
+          return {
+            page: normalizeSpreadPage(normalized.page, pageCount, true),
+            halfOffset: 0,
+          };
         });
       }
       return next;

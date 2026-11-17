@@ -203,3 +203,17 @@ export function stepSpreadBackward(page: number): number {
   const current = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
   return Math.max(1, current - 2);
 }
+
+export function normalizeSpreadPage(
+  page: number,
+  pageCount: number,
+  twoPageSpread: boolean,
+): number {
+  const maxPage = Number.isFinite(pageCount) && pageCount >= 1 ? Math.floor(pageCount) : 1;
+  const clamped = clampPage(page, maxPage);
+  if (twoPageSpread && maxPage >= 2 && clamped === maxPage) {
+    return maxPage - 1;
+  }
+  return clamped;
+}
+

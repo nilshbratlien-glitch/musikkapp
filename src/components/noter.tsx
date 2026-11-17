@@ -190,14 +190,12 @@ export function Noter({
           }
           const pdfData = await file.arrayBuffer();
           let probedPageCount = 0;
-          if (files.length === 1) {
-            try {
-              const doc = await loadPdfDocument(pdfData);
-              probedPageCount = doc.numPages;
-              await doc.destroy();
-            } catch {
-              /* fall back to 0 if PDF.js is unavailable */
-            }
+          try {
+            const doc = await loadPdfDocument(pdfData);
+            probedPageCount = doc.numPages;
+            await doc.destroy();
+          } catch {
+            /* fall back to 0 if PDF.js is unavailable */
           }
           const saved = await saveSheet({
             title: extractTitleFromFilename(file.name),
@@ -265,8 +263,10 @@ export function Noter({
       if (updated) {
         setSheets((prev) => prev.map((s) => (s.id === id ? updated : s)));
       }
+      const mergedRecord = updated ? { ...record, ...updated } : { ...record, lastOpenedAt: now };
+      preloadedSheetsRef.current.set(id, mergedRecord);
       setActiveSetlistSession(setlistSession ?? null);
-      setActiveSheet({ ...record, lastOpenedAt: now });
+      setActiveSheet(mergedRecord);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunne ikke åpne notearket.");
     }
@@ -310,10 +310,18 @@ export function Noter({
     async (patch: UpdateSheetMetaPatch) => {
       if (!activeSheet) return;
       const targetId = activeSheet.id;
+      const cached = preloadedSheetsRef.current.get(targetId);
+      if (cached) {
+        preloadedSheetsRef.current.set(targetId, { ...cached, ...patch });
+      }
       setActiveSheet((prev) => (prev && prev.id === targetId ? { ...prev, ...patch } : prev));
       try {
         const updated = await updateSheetMeta(targetId, patch);
         if (updated) {
+          const latestCached = preloadedSheetsRef.current.get(targetId);
+          if (latestCached) {
+            preloadedSheetsRef.current.set(targetId, { ...latestCached, ...updated });
+          }
           setSheets((prev) => prev.map((s) => (s.id === targetId ? updated : s)));
           setActiveSheet((prev) => (prev && prev.id === targetId ? { ...prev, ...updated } : prev));
         }

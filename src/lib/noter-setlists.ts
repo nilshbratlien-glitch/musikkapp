@@ -45,6 +45,7 @@ export function getSetlistBoundaryStep(
   sheetPageCounts: readonly number[],
   activeIndex: number,
   direction: "next" | "prev",
+  twoPageSpread = false,
 ): SetlistStepResult | null {
   if (sheetPageCounts.length === 0) return null;
   if (activeIndex < 0 || activeIndex >= sheetPageCounts.length) return null;
@@ -58,7 +59,8 @@ export function getSetlistBoundaryStep(
   const prevIndex = activeIndex - 1;
   if (prevIndex < 0) return null;
   const prevPages = Math.max(1, Math.floor(sheetPageCounts[prevIndex] || 1));
-  return { sheetIndex: prevIndex, page: prevPages };
+  const targetPage = twoPageSpread && prevPages >= 2 ? prevPages - 1 : prevPages;
+  return { sheetIndex: prevIndex, page: targetPage };
 }
 
 export function sortBookmarks(bookmarks: readonly SheetBookmark[]): SheetBookmark[] {

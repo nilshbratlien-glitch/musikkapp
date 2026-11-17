@@ -1692,6 +1692,19 @@ describe("Noter setlists, navigation & backup", () => {
     await viewer.getByText("1/2").waitFor({ state: "visible" });
     await viewer.getByText("Side 3 / 3").waitFor({ state: "visible" });
 
+    // With two-page spread active, moving to next song and back displays both pages immediately
+    const spreadBtn = viewer.getByRole("button", { name: /to-siders visning/i });
+    await spreadBtn.click();
+    await viewer.getByText("Side 2–3 / 3").waitFor({ state: "visible" });
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("2/2").waitFor({ state: "visible" });
+    await viewer.getByText("Side 1–2 / 3").waitFor({ state: "visible" });
+    await viewer.getByRole("button", { name: "Forrige side", exact: true }).click();
+    await viewer.getByText("1/2").waitFor({ state: "visible" });
+    await viewer.getByText("Side 2–3 / 3").waitFor({ state: "visible" });
+    await spreadBtn.click();
+    await viewer.getByText("Side 2 / 3").waitFor({ state: "visible" });
+
     // 4. Nav drawer thumbnails & bookmark
     await viewer.getByRole("button", { name: "Sideoversikt og bokmerker", exact: true }).click();
     const drawer = page.getByRole("dialog", { name: "Sider og bokmerker" });
@@ -2398,9 +2411,9 @@ describe("Tablet 16:10 GUX & GUI suite", () => {
     // 2. Metronom +/-5 & Tap tempo
     await tab("/metronom");
     await page.getByRole("button", { name: "Øk tempo 5", exact: true }).click();
-    await page.getByText("85").waitFor({ state: "visible" });
+    assert.equal((await page.locator(".metro-hero p").first().textContent())?.trim(), "85");
     await page.getByRole("button", { name: "Senk tempo 5", exact: true }).click();
-    await page.getByText("80").waitFor({ state: "visible" });
+    assert.equal((await page.locator(".metro-hero p").first().textContent())?.trim(), "80");
     const tapBtn = page.getByRole("button", { name: "Tap tempo", exact: true });
     await tapBtn.click();
     await page.waitForTimeout(500);
@@ -2412,8 +2425,8 @@ describe("Tablet 16:10 GUX & GUI suite", () => {
     // 3. Notekort Auto-neste toggle -> Manuell -> explicit Neste kort
     await tab("/notekort");
     await page.getByRole("tab", { name: "Noter", exact: true }).click();
-    await page.getByRole("button", { name: "Alle", exact: true }).click();
-    await page.getByRole("button", { name: /Lagre/i }).click();
+    await page.getByRole("button", { name: "Klokkespill", exact: true }).click();
+    await page.getByRole("button", { name: "Lagre utvalget", exact: true }).click();
     await page.getByRole("tab", { name: "Øv", exact: true }).click();
 
     const autoSwitch = page.getByRole("switch");
