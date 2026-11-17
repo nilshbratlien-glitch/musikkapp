@@ -47,6 +47,7 @@ export type SaveSheetInput = {
   annotationsVisible?: boolean;
   autoCrop?: boolean;
   halfPageTurn?: boolean;
+  twoPageSpread?: boolean;
   bookmarks?: SheetBookmark[];
   jumpLinks?: JumpLink[];
   manualCrops?: Record<number, NormalizedRect>;
@@ -65,6 +66,7 @@ export type UpdateSheetMetaPatch = Partial<
     | "annotationsVisible"
     | "autoCrop"
     | "halfPageTurn"
+    | "twoPageSpread"
     | "bookmarks"
     | "jumpLinks"
     | "manualCrops"
@@ -91,6 +93,7 @@ function stripPdfData(record: SheetRecord): SheetMeta {
     annotationsVisible: meta.annotationsVisible ?? true,
     autoCrop: meta.autoCrop ?? false,
     halfPageTurn: meta.halfPageTurn ?? false,
+    twoPageSpread: meta.twoPageSpread ?? false,
     bookmarks: meta.bookmarks ?? [],
     jumpLinks: meta.jumpLinks ?? [],
     manualCrops: meta.manualCrops ?? {},
@@ -274,6 +277,7 @@ export async function saveSheet(input: SaveSheetInput): Promise<SheetRecord> {
     annotationsVisible: input.annotationsVisible ?? true,
     autoCrop: Boolean(input.autoCrop),
     halfPageTurn: Boolean(input.halfPageTurn),
+    twoPageSpread: Boolean(input.twoPageSpread),
     bookmarks: input.bookmarks ?? [],
     jumpLinks: input.jumpLinks ?? [],
     manualCrops: input.manualCrops ?? {},
@@ -349,6 +353,10 @@ export async function updateSheetMeta(id: string, patch: UpdateSheetMetaPatch): 
               patch.halfPageTurn !== undefined
                 ? Boolean(patch.halfPageTurn)
                 : (existing.halfPageTurn ?? false),
+            twoPageSpread:
+              patch.twoPageSpread !== undefined
+                ? Boolean(patch.twoPageSpread)
+                : (existing.twoPageSpread ?? false),
             bookmarks: patch.bookmarks !== undefined ? patch.bookmarks : (existing.bookmarks ?? []),
             jumpLinks: patch.jumpLinks !== undefined ? patch.jumpLinks : (existing.jumpLinks ?? []),
             manualCrops:
@@ -844,6 +852,7 @@ export async function saveTrimmedSheetAsCopy(
     annotationsVisible: source?.annotationsVisible,
     autoCrop: source?.autoCrop,
     halfPageTurn: source?.halfPageTurn,
+    twoPageSpread: source?.twoPageSpread,
     bookmarks: remappedBookmarks,
     jumpLinks: remappedJumpLinks,
     manualCrops: remappedManualCrops,

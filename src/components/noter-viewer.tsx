@@ -141,7 +141,6 @@ function createItemId(prefix: string): string {
 const NIGHT_FILTER = "invert(0.92) hue-rotate(180deg) contrast(1.08)";
 const DEFAULT_PAGE_DIMS: PageDimensions = { width: 612, height: 792 };
 const STYLUS_ONLY_STORAGE_KEY = "musikkapp.noter.stylusOnly";
-const TWO_PAGE_SPREAD_STORAGE_KEY = "musikkapp.noter.twoPageSpread";
 
 function readStoredBooleanPref(key: string, fallback = false): boolean {
   if (typeof window === "undefined") return fallback;
@@ -259,7 +258,7 @@ export function NoterViewer({
   const halfPageTurnRef = useRef(halfPageTurn);
   halfPageTurnRef.current = halfPageTurn;
   const [twoPageSpread, setTwoPageSpread] = useState(() =>
-    sheet.halfPageTurn ? false : readStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY),
+    sheet.halfPageTurn ? false : Boolean(sheet.twoPageSpread),
   );
   const twoPageSpreadRef = useRef(twoPageSpread);
   twoPageSpreadRef.current = twoPageSpread;
@@ -269,7 +268,7 @@ export function NoterViewer({
   );
   const [position, setPosition] = useState<HalfPagePosition>(() => {
     const initialTotal = Math.max(1, sheet.pageCount || 1);
-    const initialSpread = !sheet.halfPageTurn && readStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY);
+    const initialSpread = !sheet.halfPageTurn && Boolean(sheet.twoPageSpread);
     return normalizeHalfPagePosition(
       {
         page: normalizeSpreadPage(startPage, initialTotal, initialSpread),
@@ -462,9 +461,10 @@ export function NoterViewer({
     setBottomCanvasSize({ width: 0, height: 0 });
     setAutoCrop(Boolean(s.autoCrop));
     setHalfPageTurn(Boolean(s.halfPageTurn));
-    if (s.halfPageTurn) {
-      setTwoPageSpread(false);
-    }
+    const effectiveSpread = !s.halfPageTurn && Boolean(s.twoPageSpread);
+    setTwoPageSpread(effectiveSpread);
+    twoPageSpreadRef.current = effectiveSpread;
+    halfPageTurnRef.current = Boolean(s.halfPageTurn);
     setAnnotationsVisible(s.annotationsVisible ?? true);
     setNightMode(Boolean(s.nightMode));
     setBpm(clampBpm(s.bpm));
@@ -475,7 +475,6 @@ export function NoterViewer({
     setNavDrawerOpen(false);
     const total = Math.max(1, s.pageCount || 1);
     setPageCount(total);
-    const effectiveSpread = !s.halfPageTurn && twoPageSpreadRef.current;
     const targetStartPage = initialPage ?? (s.lastPage || 1);
     const initialPos = normalizeHalfPagePosition(
       { page: normalizeSpreadPage(targetStartPage, total, effectiveSpread), halfOffset: 0 },
@@ -983,7 +982,7 @@ export function NoterViewer({
   const goToPage = useCallback(
     (nextPage: number) => {
       const prev = positionRef.current;
-      const clamped = clampPage(nextPage, pageCount);
+      const clamped = normalizeSpreadPage(nextPage, pageCount, twoPageSpread && !halfPageTurn);
       const next: HalfPagePosition = { page: clamped, halfOffset: 0 };
       if (next.page !== prev.page || next.halfOffset !== prev.halfOffset) {
         setPosition(next);
@@ -993,7 +992,7 @@ export function NoterViewer({
         }
       }
     },
-    [pageCount],
+    [pageCount, twoPageSpread, halfPageTurn],
   );
 
   const stepForward = useCallback(() => {
@@ -1038,7 +1037,7 @@ export function NoterViewer({
     }
     if (setlistContext) {
       const prevSheet = setlistContext.sheets[setlistContext.activeIndex - 1];
-      const prevUsesSpread = twoPageSpread && !prevSheet?.halfPageTurn;
+      const prevUsesSpread = Boolean(prevSheet?.twoPageSpread && !prevSheet?.halfPageTurn);
       const step = getSetlistBoundaryStep(
         setlistContext.sheets.map((s) => s.pageCount || 1),
         setlistContext.activeIndex,
@@ -1070,11 +1069,12 @@ export function NoterViewer({
   const toggleHalfPageTurn = useCallback(() => {
     setHalfPageTurn((prev) => {
       const next = !prev;
-      void onUpdateMetaRef.current({ halfPageTurn: next });
       if (next) {
         setTwoPageSpread(false);
-        writeStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY, false);
+        twoPageSpreadRef.current = false;
+        void onUpdateMetaRef.current({ halfPageTurn: true, twoPageSpread: false });
       } else {
+        void onUpdateMetaRef.current({ halfPageTurn: false });
         setPosition((current) => normalizeHalfPagePosition(current, pageCount, false));
       }
       return next;
@@ -1084,11 +1084,14 @@ export function NoterViewer({
   const toggleTwoPageSpread = useCallback(() => {
     setTwoPageSpread((prev) => {
       const next = !prev;
-      writeStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY, next);
+      twoPageSpreadRef.current = next;
       if (next) {
         if (halfPageTurn) {
           setHalfPageTurn(false);
-          void onUpdateMetaRef.current({ halfPageTurn: false });
+          halfPageTurnRef.current = false;
+          void onUpdateMetaRef.current({ twoPageSpread: true, halfPageTurn: false });
+        } else {
+          void onUpdateMetaRef.current({ twoPageSpread: true });
         }
         setPosition((current) => {
           const normalized = normalizeHalfPagePosition(current, pageCount, false);
@@ -1097,6 +1100,8 @@ export function NoterViewer({
             halfOffset: 0,
           };
         });
+      } else {
+        void onUpdateMetaRef.current({ twoPageSpread: false });
       }
       return next;
     });

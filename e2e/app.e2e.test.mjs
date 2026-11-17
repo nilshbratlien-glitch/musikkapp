@@ -1692,13 +1692,13 @@ describe("Noter setlists, navigation & backup", () => {
     await viewer.getByText("1/2").waitFor({ state: "visible" });
     await viewer.getByText("Side 3 / 3").waitFor({ state: "visible" });
 
-    // With two-page spread active, moving to next song and back displays both pages immediately
+    // With two-page spread active on piece 1, moving to piece 2 and back preserves two-page spread on piece 1
     const spreadBtn = viewer.getByRole("button", { name: /to-siders visning/i });
     await spreadBtn.click();
     await viewer.getByText("Side 2–3 / 3").waitFor({ state: "visible" });
     await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
     await viewer.getByText("2/2").waitFor({ state: "visible" });
-    await viewer.getByText("Side 1–2 / 3").waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
     await viewer.getByRole("button", { name: "Forrige side", exact: true }).click();
     await viewer.getByText("1/2").waitFor({ state: "visible" });
     await viewer.getByText("Side 2–3 / 3").waitFor({ state: "visible" });
