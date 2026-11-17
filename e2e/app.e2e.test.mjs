@@ -2289,10 +2289,10 @@ describe("Lenovo tablet Pro suite", () => {
     const box = await getSettledLayerBox(page, layer);
 
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
-    const textInput = viewer.getByRole("textbox", { name: "Skriv notattekst" });
+    const textInput = viewer.getByRole("textbox", { name: "Tekstnotat" });
     await textInput.waitFor({ state: "visible" });
     await textInput.fill("Subito p");
-    await viewer.getByRole("button", { name: "OK", exact: true }).click();
+    await viewer.getByRole("button", { name: "Bekreft", exact: true }).click();
     await viewer.getByText("Subito p").waitFor({ state: "visible" });
 
     // Tap existing text to edit in place
@@ -2300,7 +2300,7 @@ describe("Lenovo tablet Pro suite", () => {
     await textInput.waitFor({ state: "visible" });
     assert.equal(await textInput.inputValue(), "Subito p");
     await textInput.fill("Subito pp");
-    await viewer.getByRole("button", { name: "OK", exact: true }).click();
+    await viewer.getByRole("button", { name: "Bekreft", exact: true }).click();
     await viewer.getByText("Subito pp").waitFor({ state: "visible" });
 
     // Switch back to Vis mode
