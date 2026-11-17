@@ -2276,15 +2276,15 @@ describe("Lenovo tablet Pro suite", () => {
 
     // 2. Stempel S/M/L size selector
     await viewer.getByRole("button", { name: "Stempel", exact: true }).click();
-    await viewer.getByRole("button", { name: "Størrelse L", exact: true }).click();
+    await viewer.getByRole("button", { name: "Stempelstørrelse L", exact: true }).click();
     assert.equal(
-      await viewer.getByRole("button", { name: "Størrelse L", exact: true }).getAttribute("aria-pressed"),
+      await viewer.getByRole("button", { name: "Stempelstørrelse L", exact: true }).getAttribute("aria-pressed"),
       "true",
     );
 
     // 3. Tekst S/M/L size selector + place text + tap-to-edit existing text
     await viewer.getByRole("button", { name: "Tekst", exact: true }).click();
-    await viewer.getByRole("button", { name: "Størrelse S", exact: true }).click();
+    await viewer.getByRole("button", { name: "Tekststørrelse S", exact: true }).click();
     const annotationSvg = viewer.locator('svg[preserveAspectRatio="none"]').first();
     const box = await getSettledLayerBox(page, annotationSvg);
 

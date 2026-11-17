@@ -255,7 +255,7 @@ export function NoterViewer({
   const [pageCount, setPageCount] = useState(() => Math.max(1, sheet.pageCount || 1));
   const [halfPageTurn, setHalfPageTurn] = useState(() => Boolean(sheet.halfPageTurn));
   const [twoPageSpread, setTwoPageSpread] = useState(() =>
-    Boolean(sheet.halfPageTurn) ? false : readStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY),
+    sheet.halfPageTurn ? false : readStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY),
   );
   const [autoCrop, setAutoCrop] = useState(() => Boolean(sheet.autoCrop));
   const [annotationsVisible, setAnnotationsVisible] = useState(
