@@ -2372,6 +2372,15 @@ describe("Tablet 16:10 GUX & GUI suite", () => {
       if (msg.type() === "error") consoleErrors.push(msg.text());
     });
 
+    // 0. Portrait 800x1280 keeps nav bar at bottom
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await open("/");
+    const portraitNavBox = await page.locator('nav[aria-label="Verktøy"]').boundingBox();
+    assert.ok(
+      portraitNavBox && portraitNavBox.y > 1000 && portraitNavBox.width >= 700,
+      "nav stays at the bottom in 800x1280 portrait",
+    );
+
     await page.setViewportSize({ width: 1280, height: 800 });
     await open("/");
 

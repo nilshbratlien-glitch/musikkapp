@@ -383,12 +383,12 @@ export function Shell() {
         }}
       />
       <SyncModal open={syncModalOpen} onClose={() => setSyncModalOpen(false)} />
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col md:landscape:flex-row">
         <nav
           aria-label="Verktøy"
-          className="order-last shrink-0 border-t border-line bg-header pb-[env(safe-area-inset-bottom)] md:order-first md:w-20 md:border-t-0 md:border-r md:py-3 md:pb-3"
+          className="order-last shrink-0 border-t border-line bg-header pb-[env(safe-area-inset-bottom)] md:landscape:order-first md:landscape:w-20 md:landscape:border-t-0 md:landscape:border-r md:landscape:py-3 md:landscape:pb-3"
         >
-          <ul className="grid grid-cols-5 md:flex md:flex-col md:gap-1.5 md:px-1.5">
+          <ul className="grid grid-cols-5 md:landscape:flex md:landscape:flex-col md:landscape:gap-1.5 md:landscape:px-1.5">
             {TOOLS.map((item) => {
               const Icon = ICONS[item.id];
               const active = item.to === pathname;
@@ -397,7 +397,7 @@ export function Shell() {
                   <Link
                     to={item.to}
                     aria-current={active ? "page" : undefined}
-                    className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl px-1 md:min-h-16 md:py-2"
+                    className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl px-1 md:landscape:min-h-16 md:landscape:py-2"
                   >
                     <Icon
                       className={active ? "size-6 text-accent" : "size-6 text-muted"}
