@@ -1069,10 +1069,18 @@ export function NoterViewer({
     setTwoPageSpread((prev) => {
       const next = !prev;
       writeStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY, next);
-      if (next && halfPageTurn) {
-        setHalfPageTurn(false);
-        void onUpdateMetaRef.current({ halfPageTurn: false });
-        setPosition((current) => normalizeHalfPagePosition(current, pageCount, false));
+      if (next) {
+        if (halfPageTurn) {
+          setHalfPageTurn(false);
+          void onUpdateMetaRef.current({ halfPageTurn: false });
+        }
+        setPosition((current) => {
+          const normalized = normalizeHalfPagePosition(current, pageCount, false);
+          if (pageCount >= 2 && normalized.page === pageCount && pageCount % 2 === 0) {
+            return { page: pageCount - 1, halfOffset: 0 };
+          }
+          return normalized;
+        });
       }
       return next;
     });
@@ -2370,7 +2378,10 @@ export function NoterViewer({
             <button
               type="button"
               onClick={stepForward}
-              disabled={page >= pageCount && halfOffset === 0 && !hasNextInSetlist}
+              disabled={
+                (isTwoPageSpread ? page + 1 >= pageCount : page >= pageCount && halfOffset === 0) &&
+                !hasNextInSetlist
+              }
               aria-label="Neste side"
               className="metro-press flex min-h-10 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-sm font-semibold text-fg disabled:opacity-40"
             >

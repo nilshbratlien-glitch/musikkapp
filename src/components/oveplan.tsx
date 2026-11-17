@@ -438,8 +438,8 @@ export function Oveplan() {
           </div>
         </div>
       ) : (
-        <div className="space-y-3 md:grid md:grid-cols-[1.18fr_0.82fr] md:items-start md:gap-5 md:space-y-0">
-          <ol className="grid list-none gap-2 p-0 md:order-1">
+        <div className="space-y-3 md:landscape:grid md:landscape:grid-cols-[1.18fr_0.82fr] md:landscape:items-start md:landscape:gap-5 md:landscape:space-y-0">
+          <ol className="grid list-none gap-2 p-0 md:landscape:order-1">
             {cur.store.items.map((item) => {
               const dim = !item.on || item.skipped || cur.store.done.includes(item.id);
               return (
@@ -447,12 +447,12 @@ export function Oveplan() {
                   key={item.id}
                   className={
                     cur.activeId === item.id
-                      ? "grid grid-cols-[44px_1fr_auto_auto] items-center gap-2 rounded-card border border-accent bg-accent/10 py-2.5 pr-3 pl-2"
-                      : "grid grid-cols-[44px_1fr_auto_auto] items-center gap-2 rounded-card border border-line bg-surface py-2.5 pr-3 pl-2"
+                      ? "grid grid-cols-[28px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-card border border-accent bg-accent/10 py-2.5 pr-3 pl-3 sm:grid-cols-[44px_minmax(0,1fr)_auto_auto] sm:pl-2"
+                      : "grid grid-cols-[28px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-card border border-line bg-surface py-2.5 pr-3 pl-3 sm:grid-cols-[44px_minmax(0,1fr)_auto_auto] sm:pl-2"
                   }
                   style={{ boxShadow: `inset 3px 0 0 ${BLOCK_COLOR[item.id]}`, opacity: dim && cur.activeId !== item.id ? 0.4 : 1 }}
                 >
-                  <label className="flex size-11 cursor-pointer items-center justify-center">
+                  <label className="flex size-7 cursor-pointer items-center justify-center sm:size-11">
                     <input
                       type="checkbox"
                       checked={item.on && !item.skipped}
@@ -462,19 +462,19 @@ export function Oveplan() {
                         persist();
                         redraw();
                       }}
-                      className="size-6 accent-accent"
+                      className="size-5 accent-accent sm:size-6"
                     />
                   </label>
-                  <span className={item.skipped || cur.store.done.includes(item.id) ? "font-semibold line-through" : "font-semibold"}>
+                  <span className={item.skipped || cur.store.done.includes(item.id) ? "min-w-0 truncate font-semibold line-through" : "min-w-0 truncate font-semibold"}>
                     {blockName(item.id)}
                   </span>
                   <span className="min-w-8 text-right text-xl font-bold text-accent tabular-nums">
                     {item.skipped || !item.on ? "—" : item.mins}
                   </span>
                   <span className="flex gap-1">
-                    <button type="button" disabled={!item.on || item.skipped || item.mins <= 1} onClick={() => changeMins(item.id, -1)} className="metro-press size-10 rounded-xl border border-line disabled:opacity-30">−</button>
-                    <button type="button" onClick={() => changeMins(item.id, 1)} className="metro-press size-10 rounded-xl border border-line">+</button>
-                    <button type="button" disabled={!item.on || item.skipped} onClick={() => skip(item.id)} className="metro-press min-h-10 rounded-xl border border-line px-2 text-sm disabled:opacity-30">Hopp</button>
+                    <button type="button" disabled={!item.on || item.skipped || item.mins <= 1} onClick={() => changeMins(item.id, -1)} className="metro-press size-9 rounded-xl border border-line disabled:opacity-30 sm:size-10">−</button>
+                    <button type="button" onClick={() => changeMins(item.id, 1)} className="metro-press size-9 rounded-xl border border-line sm:size-10">+</button>
+                    <button type="button" disabled={!item.on || item.skipped} onClick={() => skip(item.id)} className="metro-press min-h-9 rounded-xl border border-line px-2 text-sm disabled:opacity-30 sm:min-h-10">Hopp</button>
                   </span>
                   {item.id === "rep" && (noterSheets.length > 0 || noterSetlists.length > 0 || cur.store.repTarget) ? (
                     <div className="col-span-4 mt-1 flex items-center gap-2 border-t border-line/60 pt-2">

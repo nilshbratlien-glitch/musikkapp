@@ -493,7 +493,7 @@
     width: min(500px, 100%);
   }
   #malletsight-root .settings-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
   #malletsight-root .duet-toolbar .chip,
   #malletsight-root .duet-toolbar-select {

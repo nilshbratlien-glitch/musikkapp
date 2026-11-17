@@ -1669,8 +1669,10 @@ describe("lenovo tablet suite helpers", () => {
   it("steps two-page spreads cleanly forward and backward", () => {
     assert.equal(stepSpreadForward(1, 5), 3);
     assert.equal(stepSpreadForward(3, 5), 5);
-    assert.equal(stepSpreadForward(4, 5), 5);
+    assert.equal(stepSpreadForward(4, 5), 4);
     assert.equal(stepSpreadForward(5, 5), 5);
+    assert.equal(stepSpreadForward(1, 2), 1);
+    assert.equal(stepSpreadForward(3, 4), 3);
     assert.equal(stepSpreadForward(1, 1), 1);
 
     assert.equal(stepSpreadBackward(5), 3);

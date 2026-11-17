@@ -195,6 +195,7 @@ export function classifyStageTapZone(
 export function stepSpreadForward(page: number, pageCount: number): number {
   const maxPage = Number.isFinite(pageCount) && pageCount >= 1 ? Math.floor(pageCount) : 1;
   const current = clampPage(page, maxPage);
+  if (current + 1 >= maxPage) return current;
   return Math.min(maxPage, current + 2);
 }
 

@@ -308,7 +308,7 @@ export function Shell() {
               {tool.label} · {profileMeta.label}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <PlanHeaderTimer showStart={tool.id === "noter"} />
             <button
               type="button"
@@ -363,7 +363,7 @@ export function Shell() {
                   }}
                   aria-label="Skjul installer-knapp"
                   title="Skjul installer-knapp"
-                  className="metro-press flex min-h-10 min-w-9 items-center justify-center border-l border-line text-xs text-muted hover:bg-surface hover:text-fg"
+                  className="metro-press hidden min-h-10 min-w-9 items-center justify-center border-l border-line text-xs text-muted hover:bg-surface hover:text-fg sm:flex"
                 >
                   ✕
                 </button>
