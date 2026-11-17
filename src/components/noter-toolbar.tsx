@@ -148,10 +148,10 @@ export function NoterToolbar({
       role="toolbar"
       aria-label="Annoteringsverktøy"
       style={{ backgroundColor: "rgba(22, 26, 34, 0.95)" }}
-      className="relative z-20 flex shrink-0 flex-col gap-2 border-b border-line px-3 py-2"
+      className="relative z-20 flex shrink-0 flex-col gap-2 border-b border-line px-3 py-2 md:landscape:py-1.5 xl:flex-row xl:items-center xl:justify-between"
     >
       {/* Primary row: tools + undo/redo + visibility + stylus-only */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 xl:flex-1">
         <div className="flex flex-wrap items-center gap-1">
           {TOOL_OPTIONS.map((opt) => {
             const Icon = opt.icon;
@@ -247,7 +247,7 @@ export function NoterToolbar({
 
       {/* Contextual sub-controls */}
       {showColorSubBar ? (
-        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2">
+        <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2 xl:border-t-0 xl:border-l xl:pt-0 xl:pl-3">
           {tool === "pencil" ? (
             <div className="flex items-center gap-1 rounded-lg border border-line bg-header p-0.5">
               <button

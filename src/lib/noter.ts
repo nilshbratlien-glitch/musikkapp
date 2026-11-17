@@ -36,6 +36,7 @@ export type SheetMeta = {
   annotationsVisible?: boolean;
   autoCrop?: boolean;
   halfPageTurn?: boolean;
+  twoPageSpread?: boolean;
   bookmarks?: SheetBookmark[];
   jumpLinks?: JumpLink[];
   manualCrops?: Record<number, NormalizedRect>;

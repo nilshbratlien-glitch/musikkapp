@@ -1692,6 +1692,19 @@ describe("Noter setlists, navigation & backup", () => {
     await viewer.getByText("1/2").waitFor({ state: "visible" });
     await viewer.getByText("Side 3 / 3").waitFor({ state: "visible" });
 
+    // With two-page spread active on piece 1, moving to piece 2 and back preserves two-page spread on piece 1
+    const spreadBtn = viewer.getByRole("button", { name: /to-siders visning/i });
+    await spreadBtn.click();
+    await viewer.getByText("Side 2–3 / 3").waitFor({ state: "visible" });
+    await viewer.getByRole("button", { name: "Neste side", exact: true }).click();
+    await viewer.getByText("2/2").waitFor({ state: "visible" });
+    await viewer.getByText("Side 1 / 3").waitFor({ state: "visible" });
+    await viewer.getByRole("button", { name: "Forrige side", exact: true }).click();
+    await viewer.getByText("1/2").waitFor({ state: "visible" });
+    await viewer.getByText("Side 2–3 / 3").waitFor({ state: "visible" });
+    await spreadBtn.click();
+    await viewer.getByText("Side 2 / 3").waitFor({ state: "visible" });
+
     // 4. Nav drawer thumbnails & bookmark
     await viewer.getByRole("button", { name: "Sideoversikt og bokmerker", exact: true }).click();
     const drawer = page.getByRole("dialog", { name: "Sider og bokmerker" });
@@ -2357,6 +2370,84 @@ describe("Lenovo tablet Pro suite", () => {
     ]);
     assert.match(backupDownload.suggestedFilename(), /^noter-full-backup-.*\.json$/);
     await page.getByText(/Eksporterte full backup med 1 PDF-er/i).waitFor({ state: "visible" });
+
+    assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
+    assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);
+  });
+});
+
+describe("Tablet 16:10 GUX & GUI suite", () => {
+  it("renders landscape left nav rail without overflow, supports Metronom Tap Tempo & +/-5, Notekort Auto-neste toggle + Neste kort, and Noter 1x zoom reset pill", async () => {
+    const pageErrors = [];
+    const consoleErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+
+    // 0. Portrait 800x1280 keeps nav bar at bottom
+    await page.setViewportSize({ width: 800, height: 1280 });
+    await open("/");
+    const portraitNavBox = await page.locator('nav[aria-label="Verktøy"]').boundingBox();
+    assert.ok(
+      portraitNavBox && portraitNavBox.y > 1000 && portraitNavBox.width >= 700,
+      "nav stays at the bottom in 800x1280 portrait",
+    );
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open("/");
+
+    // 1. Landscape left nav rail & zero horizontal overflow across all 5 routes
+    const navBox = await page.locator('nav[aria-label="Verktøy"]').boundingBox();
+    assert.ok(navBox && navBox.width <= 100 && navBox.height > 400, "nav renders as a left rail in 1280x800 landscape");
+    for (const path of ["/", "/metronom", "/bladlesing", "/notekort", "/noter"]) {
+      await tab(path);
+      const overflow = await page.evaluate(() =>
+        [document.documentElement, document.querySelector("main")].map((el) => el.scrollWidth - el.clientWidth),
+      );
+      assert.deepEqual(overflow, [0, 0], `${path} has no horizontal overflow at 1280x800`);
+    }
+
+    // 2. Metronom +/-5 & Tap tempo
+    await tab("/metronom");
+    await page.getByRole("button", { name: "Øk tempo 5", exact: true }).click();
+    assert.equal((await page.locator(".metro-hero p").first().textContent())?.trim(), "85");
+    await page.getByRole("button", { name: "Senk tempo 5", exact: true }).click();
+    assert.equal((await page.locator(".metro-hero p").first().textContent())?.trim(), "80");
+    const tapBtn = page.getByRole("button", { name: "Tap tempo", exact: true });
+    await tapBtn.click();
+    await page.waitForTimeout(500);
+    await tapBtn.click();
+    const bpmText = await page.locator(".metro-hero p").first().textContent();
+    const tappedBpm = Number(bpmText?.trim());
+    assert.ok(tappedBpm >= 90 && tappedBpm <= 160, `Tap tempo updated BPM (${tappedBpm})`);
+
+    // 3. Notekort Auto-neste toggle -> Manuell -> explicit Neste kort
+    await tab("/notekort");
+    await page.getByRole("tab", { name: "Noter", exact: true }).click();
+    await page.getByRole("button", { name: "Klokkespill", exact: true }).click();
+    await page.getByRole("button", { name: "Lagre utvalget", exact: true }).click();
+    await page.getByRole("tab", { name: "Øv", exact: true }).click();
+
+    const autoSwitch = page.getByRole("switch");
+    await autoSwitch.waitFor({ state: "visible" });
+    assert.equal(await autoSwitch.getAttribute("aria-checked"), "true");
+    await autoSwitch.click();
+    assert.equal(await autoSwitch.getAttribute("aria-checked"), "false");
+
+    await page.locator(".answer-key").first().click();
+    const nextCardBtn = page.getByRole("button", { name: "Neste kort", exact: true });
+    await nextCardBtn.waitFor({ state: "visible" });
+    await nextCardBtn.click();
+    await nextCardBtn.waitFor({ state: "detached" });
+
+    // 4. Start & pause Øveplan directly from Noter tab
+    await tab("/noter");
+    await page.getByRole("button", { name: "Start øveplan", exact: true }).click();
+    const timerBtn = page.locator("header button").filter({ hasText: /\d+:\d\d/ });
+    await timerBtn.waitFor({ state: "visible" });
+    await timerBtn.click();
+    assert.equal(await timerBtn.getAttribute("aria-pressed"), "true");
 
     assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join("; ")}`);
     assert.deepEqual(consoleErrors, [], `unexpected console errors: ${consoleErrors.join("; ")}`);

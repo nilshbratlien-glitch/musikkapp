@@ -458,5 +458,47 @@
   cursor: pointer;
 }
 
+#malletsight-root .level-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #1a1e24;
+}
+#malletsight-root #levelRead {
+  min-width: 26px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
 
-
+@media (min-width: 768px) {
+  #malletsight-root .topbar,
+  #malletsight-root .bottombar {
+    padding: 0.5rem 1.25rem;
+  }
+  #malletsight-root .stage {
+    padding: 20px 20px 16px;
+  }
+  #malletsight-root .paper {
+    padding: 16px 20px 32px;
+  }
+  #malletsight-root .score-meta {
+    font-size: 13px;
+  }
+  #malletsight-root .drawer {
+    width: min(500px, 100%);
+  }
+  #malletsight-root .settings-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  #malletsight-root .duet-toolbar .chip,
+  #malletsight-root .duet-toolbar-select {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 14px;
+  }
+}

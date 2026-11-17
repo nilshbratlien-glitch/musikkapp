@@ -190,14 +190,12 @@ export function Noter({
           }
           const pdfData = await file.arrayBuffer();
           let probedPageCount = 0;
-          if (files.length === 1) {
-            try {
-              const doc = await loadPdfDocument(pdfData);
-              probedPageCount = doc.numPages;
-              await doc.destroy();
-            } catch {
-              /* fall back to 0 if PDF.js is unavailable */
-            }
+          try {
+            const doc = await loadPdfDocument(pdfData);
+            probedPageCount = doc.numPages;
+            await doc.destroy();
+          } catch {
+            /* fall back to 0 if PDF.js is unavailable */
           }
           const saved = await saveSheet({
             title: extractTitleFromFilename(file.name),
@@ -265,8 +263,10 @@ export function Noter({
       if (updated) {
         setSheets((prev) => prev.map((s) => (s.id === id ? updated : s)));
       }
+      const mergedRecord = updated ? { ...record, ...updated } : { ...record, lastOpenedAt: now };
+      preloadedSheetsRef.current.set(id, mergedRecord);
       setActiveSetlistSession(setlistSession ?? null);
-      setActiveSheet({ ...record, lastOpenedAt: now });
+      setActiveSheet(mergedRecord);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunne ikke åpne notearket.");
     }
@@ -310,10 +310,18 @@ export function Noter({
     async (patch: UpdateSheetMetaPatch) => {
       if (!activeSheet) return;
       const targetId = activeSheet.id;
+      const cached = preloadedSheetsRef.current.get(targetId);
+      if (cached) {
+        preloadedSheetsRef.current.set(targetId, { ...cached, ...patch });
+      }
       setActiveSheet((prev) => (prev && prev.id === targetId ? { ...prev, ...patch } : prev));
       try {
         const updated = await updateSheetMeta(targetId, patch);
         if (updated) {
+          const latestCached = preloadedSheetsRef.current.get(targetId);
+          if (latestCached) {
+            preloadedSheetsRef.current.set(targetId, { ...latestCached, ...updated });
+          }
           setSheets((prev) => prev.map((s) => (s.id === targetId ? updated : s)));
           setActiveSheet((prev) => (prev && prev.id === targetId ? { ...prev, ...updated } : prev));
         }
@@ -668,7 +676,7 @@ export function Noter({
 
   return (
     <div className="h-full min-h-0 overflow-y-auto">
-      <div className="mx-auto w-full max-w-xl space-y-4 px-4 py-4">
+      <div className="mx-auto w-full max-w-xl space-y-4 px-4 py-4 md:max-w-4xl md:px-6 md:py-5 lg:max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-xl font-bold tracking-tight text-fg">Noter</h1>
@@ -810,21 +818,23 @@ export function Noter({
           }}
           className={
             dragActive
-              ? "flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-accent px-4 py-5 text-center transition"
-              : "flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line px-4 py-5 text-center transition"
+              ? "flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-accent px-4 py-4 text-center transition md:flex-row md:justify-between md:px-5 md:py-3"
+              : "flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line px-4 py-4 text-center transition md:flex-row md:justify-between md:px-5 md:py-3"
           }
         >
-          <FileUp className={dragActive ? "size-6 text-accent" : "size-6 text-muted"} aria-hidden="true" />
-          <p className="text-sm font-medium text-fg">
-            Slipp PDF-filer her, eller{" "}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="font-semibold text-accent underline underline-offset-2"
-            >
-              velg fra enheten
-            </button>
-          </p>
+          <div className="flex items-center gap-2.5">
+            <FileUp className={dragActive ? "size-5 text-accent" : "size-5 text-muted"} aria-hidden="true" />
+            <p className="text-sm font-medium text-fg">
+              Slipp PDF-filer her, eller{" "}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="font-semibold text-accent underline underline-offset-2"
+              >
+                velg fra enheten
+              </button>
+            </p>
+          </div>
           <p className="text-xs text-muted">Støtter flere PDF-er samtidig (maks 100 MB per fil)</p>
         </div>
 
@@ -1157,7 +1167,7 @@ export function Noter({
                   : "Ingen noter i denne kategorien ennå."}
               </div>
             ) : (
-              <ul className="space-y-2.5">
+              <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
                 {filteredSheets.map((sheet) => {
                   const isEditing = editingId === sheet.id;
                   const isConfirmingDelete = confirmDeleteId === sheet.id;
@@ -1349,7 +1359,7 @@ export function Noter({
                 </p>
               </div>
             ) : (
-              <ul className="space-y-3">
+              <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
                 {setlists.map((setlist) => {
                   const selectedSheetId = addSheetSelection[setlist.id] ?? sheets[0]?.id ?? "";
                   const isConfirming = confirmDeleteSetlistId === setlist.id;

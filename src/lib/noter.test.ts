@@ -73,6 +73,7 @@ import {
   isEditableTarget,
   mapKeyToViewerAction,
   normalizeHalfPagePosition,
+  normalizeSpreadPage,
   stepPageBackward,
   stepPageForward,
   stepSpreadBackward,
@@ -1669,14 +1670,28 @@ describe("lenovo tablet suite helpers", () => {
   it("steps two-page spreads cleanly forward and backward", () => {
     assert.equal(stepSpreadForward(1, 5), 3);
     assert.equal(stepSpreadForward(3, 5), 5);
-    assert.equal(stepSpreadForward(4, 5), 5);
+    assert.equal(stepSpreadForward(4, 5), 4);
     assert.equal(stepSpreadForward(5, 5), 5);
+    assert.equal(stepSpreadForward(1, 2), 1);
+    assert.equal(stepSpreadForward(3, 4), 3);
     assert.equal(stepSpreadForward(1, 1), 1);
 
     assert.equal(stepSpreadBackward(5), 3);
     assert.equal(stepSpreadBackward(3), 1);
     assert.equal(stepSpreadBackward(2), 1);
     assert.equal(stepSpreadBackward(1), 1);
+
+    assert.equal(normalizeSpreadPage(2, 2, true), 1);
+    assert.equal(normalizeSpreadPage(3, 3, true), 2);
+    assert.equal(normalizeSpreadPage(4, 4, true), 3);
+    assert.equal(normalizeSpreadPage(1, 1, true), 1);
+    assert.equal(normalizeSpreadPage(2, 2, false), 2);
+
+    assert.deepEqual(getSetlistBoundaryStep([2, 2], 1, "prev", true), { sheetIndex: 0, page: 1 });
+    assert.deepEqual(getSetlistBoundaryStep([3, 2], 1, "prev", true), { sheetIndex: 0, page: 2 });
+    assert.deepEqual(getSetlistBoundaryStep([4, 2], 1, "prev", true), { sheetIndex: 0, page: 3 });
+    assert.deepEqual(getSetlistBoundaryStep([1, 2], 1, "prev", true), { sheetIndex: 0, page: 1 });
+    assert.deepEqual(getSetlistBoundaryStep([2, 2], 1, "prev", false), { sheetIndex: 0, page: 2 });
   });
 
   it("defines S/M/L stamp scale and text font size presets", () => {

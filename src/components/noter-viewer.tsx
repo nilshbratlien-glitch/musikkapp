@@ -32,6 +32,7 @@ import { NoterCropModal } from "@/components/noter-crop-modal";
 import { NoterNavDrawer, type NavDrawerTab } from "@/components/noter-nav-drawer";
 import { NoterPageTrimModal } from "@/components/noter-page-trim-modal";
 import { NoterToolbar } from "@/components/noter-toolbar";
+import { PlanHeaderTimer } from "@/components/shell";
 import {
   MAX_BPM,
   MIN_BPM,
@@ -87,6 +88,7 @@ import {
   isEditableTarget,
   mapKeyToViewerAction,
   normalizeHalfPagePosition,
+  normalizeSpreadPage,
   stepPageBackward,
   stepPageForward,
   stepSpreadBackward,
@@ -139,7 +141,6 @@ function createItemId(prefix: string): string {
 const NIGHT_FILTER = "invert(0.92) hue-rotate(180deg) contrast(1.08)";
 const DEFAULT_PAGE_DIMS: PageDimensions = { width: 612, height: 792 };
 const STYLUS_ONLY_STORAGE_KEY = "musikkapp.noter.stylusOnly";
-const TWO_PAGE_SPREAD_STORAGE_KEY = "musikkapp.noter.twoPageSpread";
 
 function readStoredBooleanPref(key: string, fallback = false): boolean {
   if (typeof window === "undefined") return fallback;
@@ -254,23 +255,29 @@ export function NoterViewer({
   const [loadedDoc, setLoadedDoc] = useState<LoadedPdfDocument | null>(null);
   const [pageCount, setPageCount] = useState(() => Math.max(1, sheet.pageCount || 1));
   const [halfPageTurn, setHalfPageTurn] = useState(() => Boolean(sheet.halfPageTurn));
+  const halfPageTurnRef = useRef(halfPageTurn);
+  halfPageTurnRef.current = halfPageTurn;
   const [twoPageSpread, setTwoPageSpread] = useState(() =>
-    sheet.halfPageTurn ? false : readStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY),
+    sheet.halfPageTurn ? false : Boolean(sheet.twoPageSpread),
   );
+  const twoPageSpreadRef = useRef(twoPageSpread);
+  twoPageSpreadRef.current = twoPageSpread;
   const [autoCrop, setAutoCrop] = useState(() => Boolean(sheet.autoCrop));
   const [annotationsVisible, setAnnotationsVisible] = useState(
     () => sheet.annotationsVisible ?? true,
   );
-  const [position, setPosition] = useState<HalfPagePosition>(() =>
-    normalizeHalfPagePosition(
+  const [position, setPosition] = useState<HalfPagePosition>(() => {
+    const initialTotal = Math.max(1, sheet.pageCount || 1);
+    const initialSpread = !sheet.halfPageTurn && Boolean(sheet.twoPageSpread);
+    return normalizeHalfPagePosition(
       {
-        page: clampPage(startPage, Math.max(1, sheet.pageCount || 1)),
+        page: normalizeSpreadPage(startPage, initialTotal, initialSpread),
         halfOffset: 0,
       },
-      Math.max(1, sheet.pageCount || 1),
+      initialTotal,
       Boolean(sheet.halfPageTurn),
-    ),
-  );
+    );
+  });
   const positionRef = useRef(position);
   positionRef.current = position;
 
@@ -454,9 +461,10 @@ export function NoterViewer({
     setBottomCanvasSize({ width: 0, height: 0 });
     setAutoCrop(Boolean(s.autoCrop));
     setHalfPageTurn(Boolean(s.halfPageTurn));
-    if (s.halfPageTurn) {
-      setTwoPageSpread(false);
-    }
+    const effectiveSpread = !s.halfPageTurn && Boolean(s.twoPageSpread);
+    setTwoPageSpread(effectiveSpread);
+    twoPageSpreadRef.current = effectiveSpread;
+    halfPageTurnRef.current = Boolean(s.halfPageTurn);
     setAnnotationsVisible(s.annotationsVisible ?? true);
     setNightMode(Boolean(s.nightMode));
     setBpm(clampBpm(s.bpm));
@@ -469,7 +477,7 @@ export function NoterViewer({
     setPageCount(total);
     const targetStartPage = initialPage ?? (s.lastPage || 1);
     const initialPos = normalizeHalfPagePosition(
-      { page: clampPage(targetStartPage, total), halfOffset: 0 },
+      { page: normalizeSpreadPage(targetStartPage, total, effectiveSpread), halfOffset: 0 },
       total,
       Boolean(s.halfPageTurn),
     );
@@ -543,7 +551,12 @@ export function NoterViewer({
         const initialMeta = initialSheetMetaRef.current;
         const total = Math.max(1, loaded.numPages);
         setPageCount(total);
-        const clampedInitial = clampPage(initialMeta.lastPage || 1, total);
+        const effectiveSpread = twoPageSpreadRef.current && !halfPageTurnRef.current;
+        const clampedInitial = normalizeSpreadPage(
+          initialMeta.lastPage || 1,
+          total,
+          effectiveSpread,
+        );
         setPosition((prev) => ({
           page: clampedInitial,
           halfOffset: clampedInitial >= total ? 0 : prev.halfOffset,
@@ -969,7 +982,7 @@ export function NoterViewer({
   const goToPage = useCallback(
     (nextPage: number) => {
       const prev = positionRef.current;
-      const clamped = clampPage(nextPage, pageCount);
+      const clamped = normalizeSpreadPage(nextPage, pageCount, twoPageSpread && !halfPageTurn);
       const next: HalfPagePosition = { page: clamped, halfOffset: 0 };
       if (next.page !== prev.page || next.halfOffset !== prev.halfOffset) {
         setPosition(next);
@@ -979,7 +992,7 @@ export function NoterViewer({
         }
       }
     },
-    [pageCount],
+    [pageCount, twoPageSpread, halfPageTurn],
   );
 
   const stepForward = useCallback(() => {
@@ -1023,10 +1036,13 @@ export function NoterViewer({
       return;
     }
     if (setlistContext) {
+      const prevSheet = setlistContext.sheets[setlistContext.activeIndex - 1];
+      const prevUsesSpread = Boolean(prevSheet?.twoPageSpread && !prevSheet?.halfPageTurn);
       const step = getSetlistBoundaryStep(
         setlistContext.sheets.map((s) => s.pageCount || 1),
         setlistContext.activeIndex,
         "prev",
+        prevUsesSpread,
       );
       if (step) {
         setlistContext.onSelectSheetIndex(step.sheetIndex, step.page);
@@ -1053,11 +1069,12 @@ export function NoterViewer({
   const toggleHalfPageTurn = useCallback(() => {
     setHalfPageTurn((prev) => {
       const next = !prev;
-      void onUpdateMetaRef.current({ halfPageTurn: next });
       if (next) {
         setTwoPageSpread(false);
-        writeStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY, false);
+        twoPageSpreadRef.current = false;
+        void onUpdateMetaRef.current({ halfPageTurn: true, twoPageSpread: false });
       } else {
+        void onUpdateMetaRef.current({ halfPageTurn: false });
         setPosition((current) => normalizeHalfPagePosition(current, pageCount, false));
       }
       return next;
@@ -1067,11 +1084,24 @@ export function NoterViewer({
   const toggleTwoPageSpread = useCallback(() => {
     setTwoPageSpread((prev) => {
       const next = !prev;
-      writeStoredBooleanPref(TWO_PAGE_SPREAD_STORAGE_KEY, next);
-      if (next && halfPageTurn) {
-        setHalfPageTurn(false);
-        void onUpdateMetaRef.current({ halfPageTurn: false });
-        setPosition((current) => normalizeHalfPagePosition(current, pageCount, false));
+      twoPageSpreadRef.current = next;
+      if (next) {
+        if (halfPageTurn) {
+          setHalfPageTurn(false);
+          halfPageTurnRef.current = false;
+          void onUpdateMetaRef.current({ twoPageSpread: true, halfPageTurn: false });
+        } else {
+          void onUpdateMetaRef.current({ twoPageSpread: true });
+        }
+        setPosition((current) => {
+          const normalized = normalizeHalfPagePosition(current, pageCount, false);
+          return {
+            page: normalizeSpreadPage(normalized.page, pageCount, true),
+            halfOffset: 0,
+          };
+        });
+      } else {
+        void onUpdateMetaRef.current({ twoPageSpread: false });
       }
       return next;
     });
@@ -1650,7 +1680,7 @@ export function NoterViewer({
       {hudVisible ? (
         <header
           style={{ backgroundColor: "rgba(22, 26, 34, 0.95)" }}
-          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-xs"
+          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-xs md:landscape:py-1.5"
         >
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -1687,7 +1717,8 @@ export function NoterViewer({
             ) : null}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+            <PlanHeaderTimer showStart />
             <button
               type="button"
               onClick={() => openNavDrawer("pages")}
@@ -2311,6 +2342,23 @@ export function NoterViewer({
           </div>
         ) : null}
 
+        {tool === "view" && zoom > 1.05 ? (
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              setZoom(1);
+              setPan({ x: 0, y: 0 });
+            }}
+            aria-label="Tilbakestill zoom til 1x"
+            style={{ backgroundColor: "rgba(22, 26, 34, 0.9)" }}
+            className="metro-press absolute bottom-4 left-1/2 z-20 flex min-h-10 -translate-x-1/2 items-center gap-1.5 rounded-full border border-accent/60 px-3.5 text-xs font-semibold text-accent shadow-lg backdrop-blur-xs"
+          >
+            <RotateCcw className="size-3.5" aria-hidden="true" />
+            <span>Tilbakestill zoom (1x)</span>
+          </button>
+        ) : null}
+
         {rendering && !loading && !error ? (
           <div
             style={{ backgroundColor: "rgba(22, 26, 34, 0.9)" }}
@@ -2325,7 +2373,7 @@ export function NoterViewer({
       {hudVisible ? (
         <footer
           style={{ backgroundColor: "rgba(22, 26, 34, 0.95)" }}
-          className="z-20 flex shrink-0 items-center justify-between gap-2 border-t border-line px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur-xs"
+          className="z-20 flex shrink-0 items-center justify-between gap-2 border-t border-line px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur-xs md:landscape:py-1.5"
         >
           <div className="flex items-center gap-1.5">
             <button
@@ -2351,7 +2399,10 @@ export function NoterViewer({
             <button
               type="button"
               onClick={stepForward}
-              disabled={page >= pageCount && halfOffset === 0 && !hasNextInSetlist}
+              disabled={
+                (isTwoPageSpread ? page + 1 >= pageCount : page >= pageCount && halfOffset === 0) &&
+                !hasNextInSetlist
+              }
               aria-label="Neste side"
               className="metro-press flex min-h-10 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-sm font-semibold text-fg disabled:opacity-40"
             >
