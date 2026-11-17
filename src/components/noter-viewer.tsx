@@ -222,6 +222,8 @@ export function NoterViewer({
   sheet,
   initialPage,
   setlistContext = null,
+  nextSheetRecord = null,
+  prevSheetRecord = null,
   onClose,
   onUpdateMeta,
   onSheetReplaced,
@@ -234,6 +236,7 @@ export function NoterViewer({
   const topCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const bottomCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const docRef = useRef<LoadedPdfDocument | null>(null);
+  const prewarmedDocsRef = useRef<Map<string, PrewarmedPdfEntry>>(new Map());
   const renderSeqRef = useRef(0);
   const onUpdateMetaRef = useRef(onUpdateMeta);
   onUpdateMetaRef.current = onUpdateMeta;
@@ -978,6 +981,144 @@ export function NoterViewer({
     cropRects,
     pageDims,
   ]);
+
+  // Pre-parse and pre-render landing pages for next and previous setlist pieces
+  useEffect(() => {
+    if (!docReady || rendering) return;
+
+    const targets: Array<{ record: SheetRecord; direction: "next" | "prev" }> = [];
+    if (nextSheetRecord && nextSheetRecord.id !== sheet.id) {
+      targets.push({ record: nextSheetRecord, direction: "next" });
+    }
+    if (
+      prevSheetRecord &&
+      prevSheetRecord.id !== sheet.id &&
+      prevSheetRecord.id !== nextSheetRecord?.id
+    ) {
+      targets.push({ record: prevSheetRecord, direction: "prev" });
+    }
+
+    const desiredById = new Map(targets.map((t) => [t.record.id, t.record]));
+    for (const [id, entry] of prewarmedDocsRef.current.entries()) {
+      const desired = desiredById.get(id);
+      if (!desired || desired.pdfData !== entry.pdfData) {
+        entry.cancelled = true;
+        prewarmedDocsRef.current.delete(id);
+        if (entry.doc) {
+          void entry.doc.destroy();
+          entry.doc = null;
+        }
+      }
+    }
+
+    if (targets.length === 0) return;
+    let cancelled = false;
+
+    const ensureEntry = (record: SheetRecord): PrewarmedPdfEntry => {
+      const existing = prewarmedDocsRef.current.get(record.id);
+      if (existing && existing.pdfData === record.pdfData && !existing.cancelled) {
+        return existing;
+      }
+      const entry: PrewarmedPdfEntry = {
+        sheetId: record.id,
+        pdfData: record.pdfData,
+        doc: null,
+        cancelled: false,
+        promise: loadPdfDocument(record.pdfData).then((loaded) => {
+          if (entry.cancelled) {
+            void loaded.destroy();
+            throw new Error("Cancelled prewarm");
+          }
+          entry.doc = loaded;
+          return loaded;
+        }),
+      };
+      prewarmedDocsRef.current.set(record.id, entry);
+      return entry;
+    };
+
+    void (async () => {
+      for (const target of targets) {
+        if (cancelled) return;
+        const entry = ensureEntry(target.record);
+        let loaded: LoadedPdfDocument;
+        try {
+          loaded = await entry.promise;
+        } catch {
+          if (!entry.cancelled && prewarmedDocsRef.current.get(target.record.id) === entry) {
+            prewarmedDocsRef.current.delete(target.record.id);
+          }
+          continue;
+        }
+        if (cancelled || entry.cancelled) return;
+
+        const total = Math.max(1, loaded.numPages);
+        const usesSpread = Boolean(target.record.twoPageSpread && !target.record.halfPageTurn);
+        const landingPages =
+          target.direction === "next"
+            ? usesSpread && total >= 2
+              ? [1, 2]
+              : [1]
+            : usesSpread && total >= 2
+              ? [total - 1, total]
+              : [total];
+
+        const manual = normalizeManualCropsMap(target.record.manualCrops);
+        const useAutoCrop = Boolean(target.record.autoCrop);
+        const detectedCrops: Record<number, NormalizedRect> = {};
+        const dims: Record<number, PageDimensions> = {};
+
+        for (const p of landingPages) {
+          if (cancelled || entry.cancelled) return;
+          if (useAutoCrop) {
+            try {
+              detectedCrops[p] = await loaded.detectPageCropRect(p);
+            } catch {
+              /* ignore crop detection failure */
+            }
+          }
+          try {
+            dims[p] = await loaded.getPageDimensions(p, 1);
+          } catch {
+            dims[p] = DEFAULT_PAGE_DIMS;
+          }
+        }
+        if (cancelled || entry.cancelled) return;
+
+        let targetScale: number;
+        if (usesSpread && landingPages.length === 2) {
+          const leftP = landingPages[0]!;
+          const rightP = landingPages[1]!;
+          const leftReg = resolveEffectiveCropRect(leftP, useAutoCrop, manual, detectedCrops);
+          const rightReg = resolveEffectiveCropRect(rightP, useAutoCrop, manual, detectedCrops);
+          targetScale = computeTwoPageSpreadBaseScale(
+            viewportSize,
+            dims[leftP] ?? DEFAULT_PAGE_DIMS,
+            leftReg,
+            dims[rightP] ?? DEFAULT_PAGE_DIMS,
+            rightReg,
+          );
+        } else {
+          const p = landingPages[0]!;
+          const reg = resolveEffectiveCropRect(p, useAutoCrop, manual, detectedCrops);
+          targetScale = computeSinglePageBaseScale(
+            viewportSize,
+            dims[p] ?? DEFAULT_PAGE_DIMS,
+            reg,
+          );
+        }
+
+        for (const p of landingPages) {
+          if (cancelled || entry.cancelled) return;
+          await loaded.prefetchPage(p, targetScale);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [docReady, rendering, sheet.id, nextSheetRecord, prevSheetRecord, viewportSize]);
 
   const goToPage = useCallback(
     (nextPage: number) => {

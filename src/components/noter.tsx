@@ -1523,9 +1523,13 @@ export function Noter({
           sheet={activeSheet}
           initialPage={activeSetlistSession?.initialPage}
           setlistContext={viewerSetlistContext}
+          nextSheetRecord={nextPreloadedSheet}
+          prevSheetRecord={prevPreloadedSheet}
           onClose={() => {
             setActiveSheet(null);
             setActiveSetlistSession(null);
+            setNextPreloadedSheet(null);
+            setPrevPreloadedSheet(null);
           }}
           onUpdateMeta={handleUpdateActiveMeta}
           onSheetReplaced={(updated) => {
