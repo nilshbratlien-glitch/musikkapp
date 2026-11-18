@@ -1,6 +1,6 @@
 # Musikkapp
 
-**Musikkapp** er en Progressive Web App (PWA) for øving på **melodisk slagverk** (marimba, vibrafon, xylofon, klokkespill, skarptromme/rudimenter) og **B-trompet**, inkludert **duett-samspill** mellom trompet og slagverk. Appen samler fire øveverktøy i et mørkt, kontrastrikt grensesnitt tilpasset notestativet — med felles lydkjerne, global øveplanklokke og sanntids skjerm-synkronisering mellom enheter.
+**Musikkapp** er en Progressive Web App (PWA) for øving på **melodisk slagverk** (marimba, vibrafon, xylofon, klokkespill, skarptromme/rudimenter) og **B-trompet**, inkludert **duett-samspill** mellom trompet og slagverk. Appen samler fem øveverktøy i et mørkt, kontrastrikt grensesnitt tilpasset notestativet og 13" nettbrett — med felles lydkjerne, global øveplanklokke, PDF-notearkiv med annotering og sanntids skjerm-synkronisering mellom enheter.
 
 ---
 
@@ -12,6 +12,7 @@
   - [2. Metronom (`/metronom`)](#2-metronom-metronom)
   - [3. Øveplan (`/oveplan`)](#3-øveplan-oveplan)
   - [4. Notekort (`/notekort`)](#4-notekort-notekort)
+  - [5. Noter (`/noter`) — PDF-noteviser og settlister](#5-noter-noter--pdf-noteviser-og-settlister)
 - [Skjerm-synkronisering (Multi-device Sync)](#skjerm-synkronisering-multi-device-sync)
 - [Arkitektur og tekniske detaljer](#arkitektur-og-tekniske-detaljer)
   - [Felles lyd- og metronomkjerne (`MusikkPulse`)](#felles-lyd--og-metronomkjerne-musikkpulse)
@@ -82,7 +83,7 @@ Strukturert øveøkt med fire fargekodede blokker (navn og standardtid tilpasses
 | `twomallet` | **2-mallet** (12 min) | **Oppvarming** (3 min) | Turkis (`#7ee0d6`) | Åpner `/metronom` og starter metronomen |
 | `fourmallet` | **4-mallet** (8 min) | **Teknikk & skala** (4 min) | Blå (`#8aa4ff`) | Åpner `/metronom` og starter metronomen |
 | `srf` | **Bladlesing** (12 min) | **Bladlesing** (4 min) | Gull (`#e0b15a`) | Åpner `/` (Bladlesing) |
-| `rep` | **Repertoar** (15 min) | **Korpslekse** (5 min) | Oransje (`#e89b6d`) | Ingen automatisk verktøynavigasjon |
+| `rep` | **Repertoar** (15 min) | **Korpslekse** (5 min) | Oransje (`#e89b6d`) | Åpner valgt stykke eller settliste i `/noter` (`repTarget`) |
 
 - **Global planklokke (`src/lib/plan-clock.ts`)**:
   - Nedtelling og metronom fortsetter når du navigerer mellom faner. Gjenværende tid beregnes fra tidsstempel (`blockEndsAt`), slik at nedtellingen holder seg nøyaktig selv om fanen har vært i bakgrunnen.
@@ -106,6 +107,16 @@ Flashcard-trening for notelesing i **G-nøkkel** og **F-nøkkel**:
   - **Nøkkel-presets**: Velg *I systemet*, *Under systemet*, *Over systemet*, *Alle*, *Tøm* eller enkeltnoter gruppert per oktav.
   - **Treff per note**: Viser de 14 notene med lavest treffprosent sortert etter feilrate og antall forsøk.
   - **Notenavn**: Bytt mellom **Norsk (`H`)** og **Engelsk (`B`)**, og nullstill statistikk uten å miste noteutvalget. Toast-meldinger forsvinner automatisk etter `2,6 s`.
+
+### 5. Noter (`/noter`) — PDF-noteviser og settlister
+
+Fullverdig PDF-notearkiv lagret lokalt i nettleserens **IndexedDB** (`src/lib/noter-db.ts`):
+
+- **Bibliotek og kategorier**: Last opp PDF-er (med valgfri sidebeskjæring ved opplasting), sorter etter sist åpnet/nyest/tittel og filtrer på egendefinerte kategorier.
+- **Konsertmodus og settlister**: Sett sammen settlister og bla sømløst fra siste side i ett stykke til første side i neste, med bakgrunns-forhåndslasting og pre-rendering av tilstøtende stykker og sider.
+- **Visningsmoduser**: Enkeltside, **To sider** (lagres per stykke på `SheetMeta`), **Halvside-vending**, nattmodus, auto-beskjæring og manuell beskjæring per side.
+- **Annoteringer og navigasjon**: Penn, markør, whiteout, 36 musikalske stempler, tekstnotater, hopp-lenker (*D.S.* / *Coda*), bokmerker, 50-stegs angre/gjenta per side og eksport til annotert PDF (`pdf-lib`).
+- **Sceneverktøy**: Hurtig-metronom og referansetone (`440`/`442 Hz`), sveip/kanttrykk-bladning, Bluetooth-pedalstøtte, øveplanklokke i toppfeltet og full JSON-backup (inkl. PDF-data).
 
 ---
 

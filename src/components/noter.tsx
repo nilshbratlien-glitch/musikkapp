@@ -4,7 +4,6 @@ import {
   BookOpen,
   Check,
   Download,
-  FileUp,
   ListMusic,
   Pencil,
   Play,
@@ -97,7 +96,6 @@ export function Noter({
 
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SheetSortBy>("recent");
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +135,20 @@ export function Noter({
     }
   }, []);
 
+  const MAX_PRELOADED_SHEETS = 5;
   const preloadedSheetsRef = useRef<Map<string, SheetRecord>>(new Map());
+  const cachePreloadedSheet = useCallback((id: string, rec: SheetRecord) => {
+    const map = preloadedSheetsRef.current;
+    if (map.has(id)) {
+      map.delete(id);
+    } else if (map.size >= MAX_PRELOADED_SHEETS) {
+      const oldestKey = map.keys().next().value;
+      if (oldestKey !== undefined) {
+        map.delete(oldestKey);
+      }
+    }
+    map.set(id, rec);
+  }, []);
   const [nextPreloadedSheet, setNextPreloadedSheet] = useState<SheetRecord | null>(null);
   const [prevPreloadedSheet, setPrevPreloadedSheet] = useState<SheetRecord | null>(null);
 
@@ -183,7 +194,7 @@ export function Noter({
       try {
         const rec = await getSheet(id);
         if (rec) {
-          preloadedSheetsRef.current.set(id, rec);
+          cachePreloadedSheet(id, rec);
         }
         if (!cancelled) setter(rec ?? null);
       } catch {
@@ -200,7 +211,7 @@ export function Noter({
     return () => {
       cancelled = true;
     };
-  }, [activeSetlistSession, activeSheet, setlists]);
+  }, [activeSetlistSession, activeSheet, setlists, cachePreloadedSheet]);
 
   const handleFiles = useCallback(
     async (fileList: FileList | File[]) => {
@@ -295,18 +306,23 @@ export function Noter({
         return;
       }
       const now = Date.now();
-      const updated = await updateSheetMeta(id, { lastOpenedAt: now });
-      if (updated) {
-        setSheets((prev) => prev.map((s) => (s.id === id ? updated : s)));
-      }
-      const mergedRecord = updated ? { ...record, ...updated } : { ...record, lastOpenedAt: now };
-      preloadedSheetsRef.current.set(id, mergedRecord);
+      const optimisticRecord = { ...record, lastOpenedAt: now };
+      cachePreloadedSheet(id, optimisticRecord);
       setActiveSetlistSession(setlistSession ?? null);
-      setActiveSheet(mergedRecord);
+      setActiveSheet(optimisticRecord);
+      void updateSheetMeta(id, { lastOpenedAt: now })
+        .then((updated) => {
+          if (updated) {
+            setSheets((prev) => prev.map((s) => (s.id === id ? updated : s)));
+          }
+        })
+        .catch(() => {
+          /* ignore metadata timestamp update failure */
+        });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunne ikke åpne notearket.");
     }
-  }, []);
+  }, [cachePreloadedSheet]);
 
   const handledDeepLinkRef = useRef<string | null>(null);
 
@@ -834,45 +850,6 @@ export function Noter({
             ) : null}
           </section>
         ) : null}
-
-        {/* Drag-and-drop upload zone */}
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragActive(true);
-          }}
-          onDragLeave={() => setDragActive(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragActive(false);
-            if (e.dataTransfer.files) {
-              void handleFiles(e.dataTransfer.files);
-            }
-          }}
-          style={{
-            backgroundColor: dragActive ? "rgba(224, 177, 90, 0.1)" : "rgba(28, 34, 44, 0.6)",
-          }}
-          className={
-            dragActive
-              ? "flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-accent px-4 py-4 text-center transition md:flex-row md:justify-between md:px-5 md:py-3"
-              : "flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line px-4 py-4 text-center transition md:flex-row md:justify-between md:px-5 md:py-3"
-          }
-        >
-          <div className="flex items-center gap-2.5">
-            <FileUp className={dragActive ? "size-5 text-accent" : "size-5 text-muted"} aria-hidden="true" />
-            <p className="text-sm font-medium text-fg">
-              Slipp PDF-filer her, eller{" "}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="font-semibold text-accent underline underline-offset-2"
-              >
-                velg fra enheten
-              </button>
-            </p>
-          </div>
-          <p className="text-xs text-muted">Støtter flere PDF-er samtidig (maks 100 MB per fil)</p>
-        </div>
 
         {error ? (
           <div
@@ -1566,6 +1543,7 @@ export function Noter({
             setActiveSetlistSession(null);
             setNextPreloadedSheet(null);
             setPrevPreloadedSheet(null);
+            preloadedSheetsRef.current.clear();
           }}
           onUpdateMeta={handleUpdateActiveMeta}
           onSheetReplaced={(updated) => {

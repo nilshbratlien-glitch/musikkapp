@@ -11,14 +11,11 @@ import {
   Minus,
   Moon,
   PanelTop,
-  Pause,
-  Play,
   Plus,
   RotateCcw,
   SlidersHorizontal,
   Sun,
   Undo2,
-  Volume2,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -31,11 +28,13 @@ import {
 import { NoterCropModal } from "@/components/noter-crop-modal";
 import { NoterNavDrawer, type NavDrawerTab } from "@/components/noter-nav-drawer";
 import { NoterPageTrimModal } from "@/components/noter-page-trim-modal";
+import {
+  NoterMetronomeButton,
+  NoterQuickMetronomeBar,
+} from "@/components/noter-quick-metronome";
 import { NoterToolbar } from "@/components/noter-toolbar";
 import { PlanHeaderTimer } from "@/components/shell";
 import {
-  MAX_BPM,
-  MIN_BPM,
   clampBpm,
   clampPage,
   clampZoom,
@@ -106,13 +105,11 @@ import {
   pushJumpHistory,
 } from "@/lib/noter-setlists";
 import {
-  REFERENCE_A4_OPTIONS,
-  REFERENCE_NOTES,
   startReferenceTone,
   stopReferenceTone,
   type ReferenceNoteId,
 } from "@/lib/noter-tuner";
-import { getState, setBpm as setPulseBpm, start, stop, subscribe } from "@/lib/pulse";
+import { getState, setBpm as setPulseBpm, start, stop } from "@/lib/pulse";
 
 export type ViewerSetlistContext = {
   setlist: SetlistRecord;
@@ -139,6 +136,8 @@ type PrewarmedPdfEntry = {
   promise: Promise<LoadedPdfDocument>;
   doc: LoadedPdfDocument | null;
   cancelled: boolean;
+  dims?: Record<number, PageDimensions>;
+  detectedCrops?: Record<number, NormalizedRect>;
 };
 
 function createItemId(prefix: string): string {
@@ -313,7 +312,6 @@ export function NoterViewer({
   const [hudVisible, setHudVisible] = useState(true);
   const [metronomeOpen, setMetronomeOpen] = useState(false);
   const [bpm, setBpm] = useState(() => clampBpm(sheet.bpm));
-  const [pulseState, setPulseState] = useState(() => getState());
   const [loading, setLoading] = useState(true);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -392,8 +390,6 @@ export function NoterViewer({
   } | null>(null);
   const didPinchRef = useRef(false);
 
-  const metroRunning = pulseState.running && pulseState.owner === "noter";
-
   const latestSheetRef = useRef(sheet);
   latestSheetRef.current = sheet;
   const activeSheetIdRef = useRef(sheet.id);
@@ -461,17 +457,22 @@ export function NoterViewer({
     if (prevSheetIdRef.current === sheet.id) return;
     prevSheetIdRef.current = sheet.id;
     const s = latestSheetRef.current;
+    const prewarmed = prewarmedDocsRef.current.get(sheet.id);
+    const hasPrewarmed =
+      Boolean(prewarmed) && prewarmed?.pdfData === s.pdfData && !prewarmed?.cancelled;
     loadedPagesRef.current.clear();
     setAnnotationsByPage({});
     setHistoryByPage({});
-    setCropRects({});
+    setCropRects(hasPrewarmed && prewarmed?.detectedCrops ? { ...prewarmed.detectedCrops } : {});
     setManualCrops(normalizeManualCropsMap(s.manualCrops));
     setCropModalOpen(false);
-    setPageDims({});
-    setSingleCanvasSize({ width: 0, height: 0 });
-    setRightCanvasSize({ width: 0, height: 0 });
-    setTopCanvasSize({ width: 0, height: 0 });
-    setBottomCanvasSize({ width: 0, height: 0 });
+    setPageDims(hasPrewarmed && prewarmed?.dims ? { ...prewarmed.dims } : {});
+    if (!hasPrewarmed) {
+      setSingleCanvasSize({ width: 0, height: 0 });
+      setRightCanvasSize({ width: 0, height: 0 });
+      setTopCanvasSize({ width: 0, height: 0 });
+      setBottomCanvasSize({ width: 0, height: 0 });
+    }
     setAutoCrop(Boolean(s.autoCrop));
     setHalfPageTurn(Boolean(s.halfPageTurn));
     const effectiveSpread = !s.halfPageTurn && Boolean(s.twoPageSpread);
@@ -525,15 +526,9 @@ export function NoterViewer({
     };
   }, []);
 
-  // Subscribe to shared pulse state
+  // Stop noter metronome, flush pending BPM save, and destroy pre-warmed PDFs on unmount/close
   useEffect(() => {
-    return subscribe(() => {
-      setPulseState(getState());
-    });
-  }, []);
-
-  // Stop noter metronome and flush pending BPM save on unmount/close
-  useEffect(() => {
+    const prewarmedMap = prewarmedDocsRef.current;
     return () => {
       if (bpmSaveTimerRef.current !== null) {
         clearTimeout(bpmSaveTimerRef.current);
@@ -543,49 +538,88 @@ export function NoterViewer({
         void onUpdateMetaRef.current({ bpm: pendingBpmRef.current });
         pendingBpmRef.current = null;
       }
+      for (const entry of prewarmedMap.values()) {
+        entry.cancelled = true;
+        if (entry.doc) {
+          void entry.doc.destroy();
+          entry.doc = null;
+        }
+      }
+      prewarmedMap.clear();
       stop("noter");
     };
   }, []);
 
-  // Load PDF document
+  // Load PDF document (adopting pre-warmed adjacent documents synchronously when ready)
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setDocReady(false);
+    const prewarmed = prewarmedDocsRef.current.get(sheet.id);
+    const matchesPrewarmed =
+      Boolean(prewarmed) && prewarmed?.pdfData === sheet.pdfData && !prewarmed?.cancelled;
+    if (matchesPrewarmed) {
+      prewarmedDocsRef.current.delete(sheet.id);
+    }
 
-    loadPdfDocument(sheet.pdfData)
-      .then((loaded) => {
-        if (cancelled) {
-          void loaded.destroy();
-          return;
-        }
-        docRef.current = loaded;
-        const initialMeta = initialSheetMetaRef.current;
-        const total = Math.max(1, loaded.numPages);
-        setPageCount(total);
-        const effectiveSpread = twoPageSpreadRef.current && !halfPageTurnRef.current;
-        const clampedInitial = normalizeSpreadPage(
-          initialMeta.lastPage || 1,
-          total,
-          effectiveSpread,
-        );
-        setPosition((prev) => ({
-          page: clampedInitial,
-          halfOffset: clampedInitial >= total ? 0 : prev.halfOffset,
-        }));
-        setLoadedDoc(loaded);
-        setDocReady(true);
-        setLoading(false);
-        if (total !== initialMeta.pageCount || clampedInitial !== initialMeta.lastPage) {
-          void onUpdateMetaRef.current({ pageCount: total, lastPage: clampedInitial });
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setLoading(false);
-        setError(err instanceof Error ? err.message : "Kunne ikke åpne PDF-filen.");
-      });
+    const applyLoadedDocument = (loaded: LoadedPdfDocument) => {
+      docRef.current = loaded;
+      const initialMeta = initialSheetMetaRef.current;
+      const total = Math.max(1, loaded.numPages);
+      setPageCount(total);
+      const effectiveSpread = twoPageSpreadRef.current && !halfPageTurnRef.current;
+      const clampedInitial = normalizeSpreadPage(
+        initialMeta.lastPage || 1,
+        total,
+        effectiveSpread,
+      );
+      setPosition((prev) => ({
+        page: clampedInitial,
+        halfOffset: clampedInitial >= total ? 0 : prev.halfOffset,
+      }));
+      setLoadedDoc(loaded);
+      setDocReady(true);
+      setLoading(false);
+      if (total !== initialMeta.pageCount || clampedInitial !== initialMeta.lastPage) {
+        void onUpdateMetaRef.current({ pageCount: total, lastPage: clampedInitial });
+      }
+    };
+
+    if (matchesPrewarmed && prewarmed?.doc) {
+      setError(null);
+      applyLoadedDocument(prewarmed.doc);
+    } else {
+      setLoading(true);
+      setError(null);
+      setDocReady(false);
+
+      const docPromise =
+        matchesPrewarmed && prewarmed
+          ? prewarmed.promise.catch(() => loadPdfDocument(sheet.pdfData))
+          : loadPdfDocument(sheet.pdfData);
+
+      docPromise
+        .then((loaded) => {
+          if (cancelled) {
+            void loaded.destroy();
+            return;
+          }
+          if (matchesPrewarmed && prewarmed) {
+            if (prewarmed.dims) {
+              const preDims = prewarmed.dims;
+              setPageDims((prev) => ({ ...preDims, ...prev }));
+            }
+            if (prewarmed.detectedCrops) {
+              const preCrops = prewarmed.detectedCrops;
+              setCropRects((prev) => ({ ...preCrops, ...prev }));
+            }
+          }
+          applyLoadedDocument(loaded);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setLoading(false);
+          setError(err instanceof Error ? err.message : "Kunne ikke åpne PDF-filen.");
+        });
+    }
 
     return () => {
       cancelled = true;
@@ -764,8 +798,8 @@ export function NoterViewer({
 
   // Render active page(s) whenever doc, position, regions, zoom, or baseScale changes
   useEffect(() => {
-    if (!docReady || !docRef.current) return;
-    const doc = docRef.current;
+    if (!docReady || !loadedDoc) return;
+    const doc = loadedDoc;
     const scale = baseScale * zoom;
     const controller = new AbortController();
     const seq = ++renderSeqRef.current;
@@ -775,7 +809,8 @@ export function NoterViewer({
       const bottomCanvas = bottomCanvasRef.current;
       if (!topCanvas || !bottomCanvas) return;
 
-      setRendering(true);
+      const allCached = doc.hasCachedPage(page + 1, scale) && doc.hasCachedPage(page, scale);
+      if (!allCached) setRendering(true);
       setError(null);
 
       Promise.all([
@@ -805,7 +840,8 @@ export function NoterViewer({
       const rightCanvas = rightCanvasRef.current;
       if (!leftCanvas || !rightCanvas) return;
 
-      setRendering(true);
+      const allCached = doc.hasCachedPage(page, scale) && doc.hasCachedPage(page + 1, scale);
+      if (!allCached) setRendering(true);
       setError(null);
 
       Promise.all([
@@ -834,7 +870,8 @@ export function NoterViewer({
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      setRendering(true);
+      const isCached = doc.hasCachedPage(page, scale);
+      if (!isCached) setRendering(true);
       setError(null);
 
       doc
@@ -860,6 +897,7 @@ export function NoterViewer({
     };
   }, [
     docReady,
+    loadedDoc,
     isSplitView,
     isTwoPageSpread,
     page,
@@ -1079,22 +1117,22 @@ export function NoterViewer({
         const detectedCrops: Record<number, NormalizedRect> = {};
         const dims: Record<number, PageDimensions> = {};
 
-        for (const p of landingPages) {
-          if (cancelled || entry.cancelled) return;
-          if (useAutoCrop) {
-            try {
-              detectedCrops[p] = await loaded.detectPageCropRect(p);
-            } catch {
-              /* ignore crop detection failure */
-            }
-          }
-          try {
-            dims[p] = await loaded.getPageDimensions(p, 1);
-          } catch {
-            dims[p] = DEFAULT_PAGE_DIMS;
-          }
-        }
+        await Promise.all(
+          landingPages.map(async (p) => {
+            if (cancelled || entry.cancelled) return;
+            const [cropRes, dimsRes] = await Promise.all([
+              useAutoCrop
+                ? loaded.detectPageCropRect(p).catch(() => undefined)
+                : Promise.resolve(undefined),
+              loaded.getPageDimensions(p, 1).catch(() => DEFAULT_PAGE_DIMS),
+            ]);
+            if (cropRes) detectedCrops[p] = cropRes;
+            dims[p] = dimsRes;
+          }),
+        );
         if (cancelled || entry.cancelled) return;
+        entry.dims = dims;
+        entry.detectedCrops = detectedCrops;
 
         let targetScale: number;
         if (usesSpread && landingPages.length === 2) {
@@ -1119,10 +1157,12 @@ export function NoterViewer({
           );
         }
 
-        for (const p of landingPages) {
-          if (cancelled || entry.cancelled) return;
-          await loaded.prefetchPage(p, targetScale);
-        }
+        await Promise.all(
+          landingPages.map((p) => {
+            if (cancelled || entry.cancelled) return Promise.resolve();
+            return loaded.prefetchPage(p, targetScale);
+          }),
+        );
       }
     })();
 
@@ -2014,39 +2054,12 @@ export function NoterViewer({
               </button>
             ) : null}
 
-            <button
-              type="button"
-              onClick={() => setMetronomeOpen((o) => !o)}
-              aria-expanded={metronomeOpen}
-              aria-label="Hurtig-metronom og stemmegaffel"
-              style={
-                metroRunning || tunerNote !== null
-                  ? { backgroundColor: "rgba(224, 177, 90, 0.15)" }
-                  : undefined
-              }
-              className={
-                metroRunning || tunerNote !== null
-                  ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent sm:px-2.5"
-                  : "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-line bg-surface px-2 text-xs font-semibold text-fg sm:px-2.5"
-              }
-            >
-              <span
-                aria-hidden="true"
-                className={
-                  metroRunning
-                    ? "size-2.5 rounded-full bg-accent transition-transform duration-75"
-                    : "size-2.5 rounded-full"
-                }
-                style={
-                  metroRunning
-                    ? pulseState.beat >= 0
-                      ? { transform: pulseState.beat === 0 ? "scale(1.4)" : "scale(1.1)" }
-                      : undefined
-                    : { backgroundColor: "rgba(154, 163, 176, 0.6)" }
-                }
-              />
-              <span className="tabular-nums">{bpm} BPM</span>
-            </button>
+            <NoterMetronomeButton
+              bpm={bpm}
+              metronomeOpen={metronomeOpen}
+              tunerActive={tunerNote !== null}
+              onToggleOpen={() => setMetronomeOpen((o) => !o)}
+            />
           </div>
         </header>
       ) : null}
@@ -2084,155 +2097,17 @@ export function NoterViewer({
 
       {/* Compact Metronome & Reference Tone Popover Bar */}
       {hudVisible && metronomeOpen ? (
-        <div
-          aria-label="Hurtig-metronom kontroller"
-          className="z-20 flex shrink-0 flex-col gap-2 border-b border-line bg-surface px-3 py-2.5"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleMetronomePlayback}
-                style={metroRunning ? undefined : { backgroundColor: "rgba(224, 177, 90, 0.15)" }}
-                className={
-                  metroRunning
-                    ? "metro-press flex min-h-11 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-sm font-bold text-[#1a1408]"
-                    : "metro-press flex min-h-11 items-center gap-1.5 rounded-lg border border-accent px-3.5 text-sm font-semibold text-accent"
-                }
-              >
-                {metroRunning ? (
-                  <>
-                    <Pause className="size-4" aria-hidden="true" />
-                    <span>Stopp</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="size-4" aria-hidden="true" />
-                    <span>Start</span>
-                  </>
-                )}
-              </button>
-
-              <div className="flex items-center gap-1 rounded-lg border border-line bg-header px-1 py-0.5">
-                <button
-                  type="button"
-                  onClick={() => updateBpmValue(bpm - 1)}
-                  aria-label="Reduser BPM"
-                  className="metro-press flex min-h-11 min-w-11 items-center justify-center rounded-md text-fg hover:bg-surface"
-                >
-                  <Minus className="size-4" aria-hidden="true" />
-                </button>
-                <input
-                  type="number"
-                  min={MIN_BPM}
-                  max={MAX_BPM}
-                  value={bpm}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    if (!Number.isNaN(val)) updateBpmValue(val);
-                  }}
-                  aria-label="BPM-verdi"
-                  className="w-14 bg-transparent text-center text-sm font-bold text-fg tabular-nums focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => updateBpmValue(bpm + 1)}
-                  aria-label="Øk BPM"
-                  className="metro-press flex min-h-11 min-w-11 items-center justify-center rounded-md text-fg hover:bg-surface"
-                >
-                  <Plus className="size-4" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-1 items-center gap-2 sm:max-w-xs">
-              <input
-                type="range"
-                min={MIN_BPM}
-                max={MAX_BPM}
-                value={bpm}
-                onChange={(e) => updateBpmValue(Number(e.target.value))}
-                aria-label="BPM-skyveknapp"
-                className="h-2 w-full accent-[#e0b15a]"
-              />
-              <button
-                type="button"
-                onClick={handleTapTempo}
-                className="metro-press min-h-11 min-w-11 shrink-0 rounded-lg border border-line bg-header px-3 text-xs font-semibold text-fg hover:border-accent"
-              >
-                Tap
-              </button>
-            </div>
-          </div>
-
-          {/* Referansetone (stemmegaffel) */}
-          <div
-            aria-label="Referansetone"
-            className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2"
-          >
-            <div className="flex items-center gap-1.5">
-              <Volume2 className="size-4 text-accent" aria-hidden="true" />
-              <span className="text-xs font-semibold text-muted">Referansetone</span>
-              <div className="flex items-center rounded-lg border border-line bg-header p-0.5">
-                {REFERENCE_A4_OPTIONS.map((hz) => (
-                  <button
-                    key={hz}
-                    type="button"
-                    onClick={() => changeTunerA4(hz)}
-                    aria-pressed={tunerA4 === hz}
-                    style={
-                      tunerA4 === hz
-                        ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
-                        : undefined
-                    }
-                    className={
-                      tunerA4 === hz
-                        ? "metro-press min-h-8 rounded-md px-2 text-xs font-bold text-accent tabular-nums"
-                        : "metro-press min-h-8 rounded-md px-2 text-xs font-medium text-muted hover:text-fg tabular-nums"
-                    }
-                  >
-                    {hz} Hz
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              {REFERENCE_NOTES.map((note) => {
-                const active = tunerNote === note.id;
-                return (
-                  <button
-                    key={note.id}
-                    type="button"
-                    onClick={() => toggleTunerNote(note.id)}
-                    aria-pressed={active}
-                    aria-label={`Referansetone ${note.label}`}
-                    style={
-                      active ? { backgroundColor: "rgba(224, 177, 90, 0.2)" } : undefined
-                    }
-                    className={
-                      active
-                        ? "metro-press min-h-10 min-w-10 rounded-lg border border-accent px-3 text-sm font-bold text-accent"
-                        : "metro-press min-h-10 min-w-10 rounded-lg border border-line bg-header px-3 text-sm font-semibold text-fg hover:border-accent"
-                    }
-                  >
-                    {note.label}
-                  </button>
-                );
-              })}
-
-              {tunerNote ? (
-                <button
-                  type="button"
-                  onClick={handleStopTuner}
-                  className="metro-press min-h-10 rounded-lg border border-line bg-header px-2.5 text-xs font-semibold text-muted hover:text-fg"
-                >
-                  Stopp tone
-                </button>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        <NoterQuickMetronomeBar
+          bpm={bpm}
+          tunerA4={tunerA4}
+          tunerNote={tunerNote}
+          onTogglePlayback={toggleMetronomePlayback}
+          onUpdateBpm={updateBpmValue}
+          onTapTempo={handleTapTempo}
+          onChangeTunerA4={changeTunerA4}
+          onToggleTunerNote={toggleTunerNote}
+          onStopTuner={handleStopTuner}
+        />
       ) : null}
 
       {/* Main PDF Canvas Viewport */}
