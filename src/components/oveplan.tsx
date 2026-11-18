@@ -124,6 +124,7 @@ export function Oveplan() {
   };
   useSyncExternalStore(subscribePlanClock, getPlanClockVersion, getPlanClockVersion);
   useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
+  const pulse = useSyncExternalStore(subscribePulse, getPulseState, getPulseState);
   const duetViewPaired = useSyncExternalStore(subscribeDuetViewPaired, isDuetViewPaired, () => false);
   const [pairedPart, setPairedPart] = useState<DuetViewPart>("score");
   const [noterSheets, setNoterSheets] = useState<SheetMeta[]>([]);
@@ -299,10 +300,10 @@ export function Oveplan() {
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold tracking-wider text-muted uppercase">Øktplan</span>
-          <span className="rounded-full border border-line bg-header px-3 py-1 text-xs font-semibold text-fg">
+          <span className="rounded-lg border border-line bg-header px-3 py-1 text-xs font-semibold text-fg">
             Totalt: <b className="font-bold text-accent tabular-nums">{sum}</b> min
           </span>
-          <span className="rounded-full border border-line bg-header px-3 py-1 text-xs font-semibold text-muted">
+          <span className="rounded-lg border border-line bg-header px-3 py-1 text-xs font-semibold text-muted">
             {doneCount} av {liveList.length} ferdig
           </span>
         </div>
@@ -316,8 +317,8 @@ export function Oveplan() {
             }}
             className={
               cur.logOpen
-                ? "metro-press min-h-10 rounded-full border border-accent bg-accent/15 px-3.5 text-xs font-semibold text-accent"
-                : "metro-press min-h-10 rounded-full border border-line bg-header px-3.5 text-xs font-semibold text-fg"
+                ? "metro-press min-h-10 rounded-xl border border-accent bg-accent/15 px-3.5 text-xs font-semibold text-accent"
+                : "metro-press min-h-10 rounded-xl border border-line bg-header px-3.5 text-xs font-semibold text-fg"
             }
           >
             Logg
@@ -325,7 +326,7 @@ export function Oveplan() {
           <button
             type="button"
             onClick={resetPlan}
-            className="metro-press min-h-10 rounded-full border border-line bg-header px-3.5 text-xs font-semibold text-fg hover:border-accent/50"
+            className="metro-press min-h-10 rounded-xl border border-line bg-header px-3.5 text-xs font-semibold text-fg hover:border-accent/50"
           >
             Nullstill
           </button>
@@ -333,7 +334,7 @@ export function Oveplan() {
       </div>
 
       {/* Interactive proportional visual session timeline bar */}
-      <div className="mt-3 flex h-7 w-full gap-1 overflow-hidden rounded-full bg-header p-1">
+      <div className="mt-3 flex h-7 w-full gap-1 overflow-hidden rounded-xl bg-header p-1">
         {liveList.length > 0 ? (
           liveList.map((item) => {
             const isDone = cur.store.done.includes(item.id) && cur.activeId !== item.id;
@@ -349,8 +350,8 @@ export function Oveplan() {
                 }}
                 className={
                   isCurrent
-                    ? "flex h-full min-w-0 items-center justify-center truncate rounded-full px-2 text-[11px] font-extrabold text-[#12151b] ring-2 ring-fg transition-all"
-                    : "flex h-full min-w-0 items-center justify-center truncate rounded-full px-2 text-[11px] font-bold text-[#12151b] transition-all"
+                    ? "flex h-full min-w-0 items-center justify-center truncate rounded-lg px-2 text-[11px] font-extrabold text-[#12151b] ring-2 ring-fg transition-all"
+                    : "flex h-full min-w-0 items-center justify-center truncate rounded-lg px-2 text-[11px] font-bold text-[#12151b] transition-all"
                 }
                 title={`${blockName(item.id)}: ${item.mins} min`}
               >
@@ -361,7 +362,7 @@ export function Oveplan() {
             );
           })
         ) : (
-          <div className="flex h-full w-full items-center justify-center rounded-full bg-line/40 text-[11px] font-medium text-muted">
+          <div className="flex h-full w-full items-center justify-center rounded-lg bg-line/40 text-[11px] font-medium text-muted">
             Ingen aktive blokker
           </div>
         )}
@@ -372,7 +373,7 @@ export function Oveplan() {
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-xs font-semibold text-muted">Hurtigmaler:</span>
           {cur.store.presets.map((preset) => (
-            <span key={preset.id} className="inline-flex items-center overflow-hidden rounded-full border border-line bg-header">
+            <span key={preset.id} className="inline-flex items-center overflow-hidden rounded-lg border border-line bg-header">
               <button
                 type="button"
                 onClick={() => applyQuickPreset(preset)}
@@ -398,7 +399,7 @@ export function Oveplan() {
             <button
               type="button"
               onClick={() => applyQuickPreset(SAMSPILL_DUET_PRESET)}
-              className="metro-press min-h-9 rounded-full border border-accent/50 bg-accent/10 px-3 text-xs font-semibold text-accent"
+              className="metro-press min-h-9 rounded-lg border border-accent/50 bg-accent/10 px-3 text-xs font-semibold text-accent"
             >
               {SAMSPILL_DUET_PRESET.name}
             </button>
@@ -408,7 +409,7 @@ export function Oveplan() {
               key={tpl.id}
               type="button"
               onClick={() => applyQuickPreset(tpl)}
-              className="metro-press min-h-9 rounded-full border border-line bg-header px-3 text-xs font-semibold text-muted hover:border-accent/40 hover:text-fg"
+              className="metro-press min-h-9 rounded-lg border border-line bg-header px-3 text-xs font-semibold text-muted hover:border-accent/40 hover:text-fg"
             >
               {tpl.name}
             </button>
@@ -424,7 +425,7 @@ export function Oveplan() {
               cur.presetName = event.target.value;
               redraw();
             }}
-            className="metro-field min-h-9 w-36 rounded-full border border-line bg-header px-3 text-xs text-fg sm:w-44"
+            className="metro-field min-h-9 w-36 rounded-lg border border-line bg-header px-3 text-xs text-fg sm:w-44"
           />
           <button
             type="button"
@@ -438,7 +439,7 @@ export function Oveplan() {
               persist();
               redraw();
             }}
-            className="metro-press min-h-9 rounded-full border border-line bg-header px-3.5 text-xs font-semibold text-fg hover:border-accent/50"
+            className="metro-press min-h-9 rounded-lg border border-line bg-header px-3.5 text-xs font-semibold text-fg hover:border-accent/50"
           >
             Lagre
           </button>
@@ -508,7 +509,7 @@ export function Oveplan() {
         )}
       </div>
 
-      {/* Block Switcher Pills inside .plan-hero (preserves E2E selector .plan-hero button) */}
+      {/* Block Switcher Buttons inside .plan-hero (preserves E2E selector .plan-hero button) */}
       {liveList.length > 0 ? (
         <div className="mt-3.5 flex flex-wrap justify-center gap-1.5">
           {liveList.map((item) => {
@@ -527,10 +528,10 @@ export function Oveplan() {
                 }}
                 className={
                   on
-                    ? "metro-press min-h-10 rounded-full bg-accent px-3.5 text-xs font-bold tracking-wide text-bg uppercase"
+                    ? "metro-press min-h-10 rounded-xl bg-accent px-3.5 text-xs font-bold tracking-wide text-bg uppercase"
                     : done
-                      ? "metro-press min-h-10 rounded-full border border-line bg-header/70 px-3 text-xs font-semibold tracking-wide text-muted uppercase line-through opacity-45"
-                      : "metro-press min-h-10 rounded-full border border-line bg-header px-3 text-xs font-semibold tracking-wide text-muted uppercase hover:border-accent/50 hover:text-fg"
+                      ? "metro-press min-h-10 rounded-xl border border-line bg-header/70 px-3 text-xs font-semibold tracking-wide text-muted uppercase line-through opacity-45"
+                      : "metro-press min-h-10 rounded-xl border border-line bg-header px-3 text-xs font-semibold tracking-wide text-muted uppercase hover:border-accent/50 hover:text-fg"
                 }
               >
                 {blockName(item.id)}
@@ -547,14 +548,14 @@ export function Oveplan() {
           <button
             type="button"
             onClick={() => changeMins(cur.activeId!, 1)}
-            className="metro-press min-h-9 rounded-full border border-line bg-header px-3.5 text-xs font-semibold text-fg"
+            className="metro-press min-h-9 rounded-lg border border-line bg-header px-3.5 text-xs font-semibold text-fg"
           >
             +1 min
           </button>
           <button
             type="button"
             onClick={() => changeMins(cur.activeId!, 5)}
-            className="metro-press min-h-9 rounded-full border border-line bg-header px-3.5 text-xs font-semibold text-fg"
+            className="metro-press min-h-9 rounded-lg border border-line bg-header px-3.5 text-xs font-semibold text-fg"
           >
             +5 min
           </button>
@@ -707,7 +708,7 @@ export function Oveplan() {
         </button>
       </div>
 
-      {/* 1-Tap Segmented Pill Controls for Takter & Underdeling */}
+      {/* 1-Tap Segmented Controls for Takter & Underdeling */}
       <div className="grid gap-2.5 border-t border-line/70 pt-2.5 sm:grid-cols-2">
         <div>
           <p className="mb-1.5 text-[11px] font-bold tracking-wider text-muted uppercase">Takter (Slag)</p>
@@ -781,8 +782,8 @@ export function Oveplan() {
               }}
               className={
                 duetViewPaired
-                  ? "metro-press min-h-8 rounded-full bg-accent px-2.5 text-xs font-semibold text-bg"
-                  : "metro-press min-h-8 rounded-full border border-line bg-surface px-2.5 text-xs font-semibold text-muted"
+                  ? "metro-press min-h-8 rounded-lg bg-accent px-2.5 text-xs font-semibold text-bg"
+                  : "metro-press min-h-8 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-muted"
               }
             >
               {duetViewPaired ? "Speil visning: På" : "Speil visning: Av"}
@@ -860,7 +861,7 @@ export function Oveplan() {
     <div className="rounded-card border border-line bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-bold tracking-wide text-fg uppercase">Øvelogg</h2>
-        <span className="rounded-full bg-header px-2.5 py-0.5 text-xs font-semibold text-muted">
+        <span className="rounded-lg bg-header px-2.5 py-0.5 text-xs font-semibold text-muted">
           {cur.store.log.length} økter
         </span>
       </div>
@@ -1000,7 +1001,7 @@ export function Oveplan() {
                         >
                           {blockName(item.id)}
                         </span>
-                        <span className="rounded-full border border-line bg-header px-2.5 py-0.5 text-[11px] font-semibold text-muted">
+                        <span className="rounded-lg border border-line bg-header px-2.5 py-0.5 text-[11px] font-semibold text-muted">
                           {toolBadgeFor(item)}
                         </span>
                         {isActive ? (
@@ -1009,7 +1010,7 @@ export function Oveplan() {
                             <span>{cur.blockPaused ? "Pause" : "Aktiv nå"}</span>
                           </span>
                         ) : isDone ? (
-                          <span className="rounded-full bg-ok/15 px-2 py-0.5 text-[11px] font-bold text-ok">
+                          <span className="rounded-lg bg-ok/15 px-2 py-0.5 text-[11px] font-bold text-ok">
                             Ferdig ✓
                           </span>
                         ) : null}
@@ -1052,7 +1053,7 @@ export function Oveplan() {
                   </div>
                 </div>
 
-                {/* Row 2: Quick Duration Pills + Per-Block BPM Pills + Tips Toggle + Direct Launch */}
+                {/* Row 2: Quick Duration Buttons + Per-Block BPM Buttons + Tips Toggle + Direct Launch */}
                 <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line/50 pt-2.5">
                   <div className="flex flex-wrap items-center gap-1">
                     {QUICK_MINS.map((m) => {
@@ -1064,8 +1065,8 @@ export function Oveplan() {
                           onClick={() => setExactMins(item.id, m)}
                           className={
                             activeMin
-                              ? "metro-press min-h-7 rounded-full border border-accent/60 bg-accent/15 px-2.5 text-[11px] font-bold text-accent"
-                              : "metro-press min-h-7 rounded-full border border-line bg-header px-2.5 text-[11px] font-semibold text-muted hover:text-fg"
+                              ? "metro-press min-h-7 rounded-lg border border-accent/60 bg-accent/15 px-2.5 text-[11px] font-bold text-accent"
+                              : "metro-press min-h-7 rounded-lg border border-line bg-header px-2.5 text-[11px] font-semibold text-muted hover:text-fg"
                           }
                         >
                           {m}m
@@ -1084,8 +1085,8 @@ export function Oveplan() {
                               onClick={() => setBlockBpm(item.id, bpmVal)}
                               className={
                                 activeBpm
-                                  ? "metro-press min-h-7 rounded-full border border-accent/60 bg-accent/15 px-2 text-[11px] font-bold text-accent tabular-nums"
-                                  : "metro-press min-h-7 rounded-full border border-line bg-header px-2 text-[11px] font-semibold text-muted tabular-nums hover:text-fg"
+                                  ? "metro-press min-h-7 rounded-lg border border-accent/60 bg-accent/15 px-2 text-[11px] font-bold text-accent tabular-nums"
+                                  : "metro-press min-h-7 rounded-lg border border-line bg-header px-2 text-[11px] font-semibold text-muted tabular-nums hover:text-fg"
                               }
                             >
                               {bpmVal} BPM
@@ -1107,7 +1108,7 @@ export function Oveplan() {
                             [item.id]: !showTips,
                           }))
                         }
-                        className="metro-press min-h-8 rounded-full border border-line bg-header px-2.5 text-[11px] font-semibold text-muted hover:text-fg"
+                        className="metro-press min-h-8 rounded-lg border border-line bg-header px-2.5 text-[11px] font-semibold text-muted hover:text-fg"
                       >
                         {showTips ? "Skjul tips" : "Øvelsestips"}
                       </button>
@@ -1122,7 +1123,7 @@ export function Oveplan() {
                           persist();
                           beginBlock(item, true);
                         }}
-                        className="metro-press min-h-8 rounded-full border border-line bg-header px-3 text-xs font-bold text-fg hover:border-accent/60 hover:text-accent"
+                        className="metro-press min-h-8 rounded-lg border border-line bg-header px-3 text-xs font-bold text-fg hover:border-accent/60 hover:text-accent"
                       >
                         Kjør blokk
                       </button>
