@@ -45,6 +45,7 @@ import {
   touchPlanClock,
 } from "@/lib/plan-clock";
 import { getProfile, getProfileVersion, subscribeProfile } from "@/lib/profile";
+import { getState as getPulseState, subscribe as subscribePulse } from "@/lib/pulse";
 import {
   isDuetViewPaired,
   setDuetViewPaired,
@@ -639,6 +640,30 @@ export function Oveplan() {
             {cur.metroRunning ? "Stopp" : "Spill"}
           </button>
         </div>
+      </div>
+
+      {/* Visual Beat Lamps (Slag-indikatorer) */}
+      <div
+        className="flex min-h-11 items-center justify-center gap-2.5 rounded-xl border border-line/60 bg-header/70 px-3 py-2"
+        aria-label="Slag-indikator"
+      >
+        {Array.from({ length: cur.store.beats }, (_, index) => {
+          const isPulseActive = cur.metroRunning && pulse.owner === "oveplan";
+          const isBeat = isPulseActive && pulse.beat === index;
+          const isDownbeat = index === 0;
+          return (
+            <span
+              key={index}
+              className={
+                isBeat
+                  ? `metro-badge is-active flex items-center justify-center rounded-full bg-accent font-extrabold text-bg ${isDownbeat ? "size-8 text-xs ring-2 ring-accent/40" : "size-7 text-[11px]"}`
+                  : `metro-badge flex items-center justify-center rounded-full bg-surface font-bold text-muted ${isDownbeat ? "size-8 border border-accent/50 text-xs text-fg" : "size-7 border border-line text-[11px]"}`
+              }
+            >
+              {index + 1}
+            </span>
+          );
+        })}
       </div>
 
       {/* Tactile BPM Steppers + Range Slider */}
