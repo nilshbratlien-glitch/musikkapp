@@ -467,10 +467,12 @@ export function NoterViewer({
     setManualCrops(normalizeManualCropsMap(s.manualCrops));
     setCropModalOpen(false);
     setPageDims(hasPrewarmed && prewarmed?.dims ? { ...prewarmed.dims } : {});
-    setSingleCanvasSize({ width: 0, height: 0 });
-    setRightCanvasSize({ width: 0, height: 0 });
-    setTopCanvasSize({ width: 0, height: 0 });
-    setBottomCanvasSize({ width: 0, height: 0 });
+    if (!hasPrewarmed) {
+      setSingleCanvasSize({ width: 0, height: 0 });
+      setRightCanvasSize({ width: 0, height: 0 });
+      setTopCanvasSize({ width: 0, height: 0 });
+      setBottomCanvasSize({ width: 0, height: 0 });
+    }
     setAutoCrop(Boolean(s.autoCrop));
     setHalfPageTurn(Boolean(s.halfPageTurn));
     const effectiveSpread = !s.halfPageTurn && Boolean(s.twoPageSpread);
@@ -796,8 +798,8 @@ export function NoterViewer({
 
   // Render active page(s) whenever doc, position, regions, zoom, or baseScale changes
   useEffect(() => {
-    if (!docReady || !docRef.current) return;
-    const doc = docRef.current;
+    if (!docReady || !loadedDoc) return;
+    const doc = loadedDoc;
     const scale = baseScale * zoom;
     const controller = new AbortController();
     const seq = ++renderSeqRef.current;
@@ -807,7 +809,8 @@ export function NoterViewer({
       const bottomCanvas = bottomCanvasRef.current;
       if (!topCanvas || !bottomCanvas) return;
 
-      setRendering(true);
+      const allCached = doc.hasCachedPage(page + 1, scale) && doc.hasCachedPage(page, scale);
+      if (!allCached) setRendering(true);
       setError(null);
 
       Promise.all([
@@ -837,7 +840,8 @@ export function NoterViewer({
       const rightCanvas = rightCanvasRef.current;
       if (!leftCanvas || !rightCanvas) return;
 
-      setRendering(true);
+      const allCached = doc.hasCachedPage(page, scale) && doc.hasCachedPage(page + 1, scale);
+      if (!allCached) setRendering(true);
       setError(null);
 
       Promise.all([
@@ -866,7 +870,8 @@ export function NoterViewer({
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      setRendering(true);
+      const isCached = doc.hasCachedPage(page, scale);
+      if (!isCached) setRendering(true);
       setError(null);
 
       doc
@@ -892,6 +897,7 @@ export function NoterViewer({
     };
   }, [
     docReady,
+    loadedDoc,
     isSplitView,
     isTwoPageSpread,
     page,

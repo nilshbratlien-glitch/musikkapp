@@ -72,6 +72,7 @@ export type LoadedPdfDocument = {
     options?: RenderPageOptions,
   ) => Promise<PageDimensions>;
   prefetchPage: (pageNumber: number, scale: number) => Promise<void>;
+  hasCachedPage: (pageNumber: number, scale: number) => boolean;
   detectPageCropRect: (pageNumber: number) => Promise<NormalizedRect>;
   getPageDimensions: (pageNumber: number, scale: number) => Promise<PageDimensions>;
   renderThumbnail: (pageNumber: number, maxWidth?: number) => Promise<string>;
@@ -505,6 +506,11 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
       } catch {
         /* ignore background prefetch errors */
       }
+    },
+    hasCachedPage(pageNumber: number, scale: number): boolean {
+      if (destroyed || pageNumber < 1 || pageNumber > doc.numPages) return false;
+      const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+      return offscreenCache.has(buildRenderKey(pageNumber, scale, dpr));
     },
     async detectPageCropRect(pageNumber: number): Promise<NormalizedRect> {
       if (destroyed) return FULL_PAGE_RECT;
