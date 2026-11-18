@@ -728,8 +728,8 @@ describe("Bladlesing settings wording", () => {
     for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) text[panel] = await panelText(panel);
     assert.match(text.instrument, /Instrument/);
     assert.match(text.instrument, /Notebilde/);
-    assert.match(text.mer, /Bindebuer/);
-    assert.match(text.mer, /Løse fortegn/);
+    assert.match(text.rytme, /Bindebuer/);
+    assert.match(text.toneart, /Løse fortegn/);
     const a11y = await page.evaluate(() => {
       const name = (el) => el.getAttribute("aria-labelledby").split(" ").map((id) => document.getElementById(id).textContent.trim()).join(" ");
       const groups = [document.querySelector("#keysMajorChips"), document.querySelector("#keysMinorChips"), document.querySelector("#keysAll").parentElement];
@@ -742,7 +742,7 @@ describe("Bladlesing settings wording", () => {
     assert.deepEqual(a11y, {
       slider: "Akkorder i linjen",
       sliderLabelFor: "chordChance",
-      groups: [["group", "Tonearter Dur"], ["group", "Tonearter Moll"], ["group", "Tonearter"]],
+      groups: [["group", "Tonearter Dur"], ["group", "Tonearter Parallellmoll"], ["group", "Tonearter"]],
     });
     for (const [panel, value] of Object.entries(text)) assert.doesNotMatch(value, OLD_WORDS, `${panel}: ${value.match(OLD_WORDS)?.[0]}`);
     const clef = await page.locator("#clef").evaluate((el) => [...el.options].map((o) => [o.value, o.textContent]));
