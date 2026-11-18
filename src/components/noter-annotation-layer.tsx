@@ -480,7 +480,7 @@ const CommittedAnnotationsSvg = memo(function CommittedAnnotationsSvg({
   viewBox,
   nightFilter,
 }: {
-  items: AnnotationItem[];
+  items: readonly AnnotationItem[];
   erasedIds: Set<string>;
   visible: boolean;
   viewBox: string;
