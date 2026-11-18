@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NoterPageTrimModal } from "@/components/noter-page-trim-modal";
+import { NoterSetlistBuilderModal } from "@/components/noter-setlist-builder";
 import { NoterViewer, type ViewerSetlistContext } from "@/components/noter-viewer";
 import {
   extractTitleFromFilename,
@@ -65,7 +66,7 @@ import {
   type UpdateSheetMetaPatch,
 } from "@/lib/noter-db";
 import { loadPdfDocument, preloadPdfJs } from "@/lib/noter-pdf";
-import { moveSetlistItem } from "@/lib/noter-setlists";
+import { appendSheetIdsToSetlist, moveSetlistItem } from "@/lib/noter-setlists";
 
 type LibraryTab = "sheets" | "setlists";
 
@@ -93,6 +94,12 @@ export function Noter({
   const [newSetlistName, setNewSetlistName] = useState("");
   const [addSheetSelection, setAddSheetSelection] = useState<Record<string, string>>({});
   const [confirmDeleteSetlistId, setConfirmDeleteSetlistId] = useState<string | null>(null);
+  const [builderSetlistId, setBuilderSetlistId] = useState<string | null>(null);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedSheetIds, setSelectedSheetIds] = useState<string[]>([]);
+  const [batchTargetSetlistId, setBatchTargetSetlistId] = useState<string>("");
+  const [batchNewSetlistName, setBatchNewSetlistName] = useState("");
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -437,11 +444,81 @@ export function Noter({
       const updated = await saveSetlist({
         id: setlist.id,
         name: setlist.name,
-        sheetIds: [...setlist.sheetIds, selectedId],
+        sheetIds: appendSheetIdsToSetlist(setlist.sheetIds, [selectedId]),
       });
       setSetlists((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunne ikke legge til stykke i settlisten.");
+    }
+  };
+
+  const handleAddSpecificSheetToSetlist = async (setlist: SetlistRecord, sheetId: string) => {
+    try {
+      const updated = await saveSetlist({
+        id: setlist.id,
+        name: setlist.name,
+        sheetIds: appendSheetIdsToSetlist(setlist.sheetIds, [sheetId]),
+      });
+      setSetlists((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke legge til stykke i settlisten.");
+    }
+  };
+
+  const handleAddManySheetsToSetlist = async (
+    setlist: SetlistRecord,
+    sheetIds: readonly string[],
+  ) => {
+    if (sheetIds.length === 0) return;
+    try {
+      const updated = await saveSetlist({
+        id: setlist.id,
+        name: setlist.name,
+        sheetIds: appendSheetIdsToSetlist(setlist.sheetIds, sheetIds),
+      });
+      setSetlists((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke legge til stykker i settlisten.");
+    }
+  };
+
+  const toggleSelectedSheet = useCallback((id: string) => {
+    setSelectedSheetIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  }, []);
+
+  const handleBatchAddToSetlist = async () => {
+    if (selectedSheetIds.length === 0) return;
+    const targetId = batchTargetSetlistId || (setlists[0]?.id ?? "__new__");
+    try {
+      if (targetId === "__new__") {
+        const name = batchNewSetlistName.trim();
+        if (!name) return;
+        const created = await saveSetlist({
+          name,
+          sheetIds: [...selectedSheetIds],
+        });
+        setSetlists((prev) => [created, ...prev]);
+        setBatchNotice(
+          `La til ${selectedSheetIds.length} stykker i ny settliste «${created.name}».`,
+        );
+        setBatchNewSetlistName("");
+      } else {
+        const target = setlists.find((s) => s.id === targetId);
+        if (!target) return;
+        const updated = await saveSetlist({
+          id: target.id,
+          name: target.name,
+          sheetIds: appendSheetIdsToSetlist(target.sheetIds, selectedSheetIds),
+        });
+        setSetlists((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+        setBatchNotice(`La til ${selectedSheetIds.length} stykker i «${updated.name}».`);
+      }
+      setSelectedSheetIds([]);
+      setMultiSelectMode(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunne ikke legge til stykker i settlisten.");
     }
   };
 
@@ -930,18 +1007,60 @@ export function Noter({
                   />
                 </label>
 
-                <label className="flex shrink-0 items-center gap-2">
-                  <span className="sr-only">Sorter noter</span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as SheetSortBy)}
-                    className="metro-field min-h-10 rounded-xl border border-line bg-surface px-3 text-sm font-medium text-fg"
+                <div className="flex shrink-0 items-center gap-2">
+                  <label className="flex flex-1 items-center gap-2 sm:flex-initial">
+                    <span className="sr-only">Sorter noter</span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as SheetSortBy)}
+                      className="metro-field min-h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm font-medium text-fg"
+                    >
+                      <option value="recent">Sist åpnet</option>
+                      <option value="title">Tittel (A–Å)</option>
+                      <option value="newest">Nyest lagt til</option>
+                    </select>
+                  </label>
+
+                  <button
+                    type="button"
+                    aria-pressed={multiSelectMode}
+                    onClick={() => {
+                      setBatchNotice(null);
+                      setMultiSelectMode((prev) => {
+                        if (prev) setSelectedSheetIds([]);
+                        return !prev;
+                      });
+                    }}
+                    style={
+                      multiSelectMode ? { backgroundColor: "rgba(224, 177, 90, 0.18)" } : undefined
+                    }
+                    className={
+                      multiSelectMode
+                        ? "metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border border-accent px-3 text-sm font-bold text-accent"
+                        : "metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-sm font-medium text-fg hover:border-accent"
+                    }
                   >
-                    <option value="recent">Sist åpnet</option>
-                    <option value="title">Tittel (A–Å)</option>
-                    <option value="newest">Nyest lagt til</option>
-                  </select>
-                </label>
+                    <Check className="size-4" aria-hidden="true" />
+                    <span>{multiSelectMode ? "Ferdig" : "Velg flere"}</span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {batchNotice ? (
+              <div
+                style={{ backgroundColor: "rgba(224, 177, 90, 0.14)" }}
+                className="flex items-center justify-between gap-2 rounded-xl border border-accent/50 px-3.5 py-2 text-xs font-medium text-fg"
+              >
+                <span>{batchNotice}</span>
+                <button
+                  type="button"
+                  onClick={() => setBatchNotice(null)}
+                  aria-label="Lukk melding"
+                  className="text-muted hover:text-fg"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
               </div>
             ) : null}
 
@@ -1185,11 +1304,20 @@ export function Noter({
                   const isEditing = editingId === sheet.id;
                   const isConfirmingDelete = confirmDeleteId === sheet.id;
                   const sheetCategories = normalizeCategoriesList(sheet.categories);
+                  const selectedIndex = multiSelectMode ? selectedSheetIds.indexOf(sheet.id) : -1;
+                  const isSelected = selectedIndex >= 0;
 
                   return (
                     <li
                       key={sheet.id}
-                      className="rounded-2xl border border-line bg-surface p-3.5 transition hover:border-accent"
+                      style={
+                        isSelected ? { backgroundColor: "rgba(224, 177, 90, 0.1)" } : undefined
+                      }
+                      className={
+                        isSelected
+                          ? "rounded-2xl border-2 border-accent p-3.5 transition"
+                          : "rounded-2xl border border-line bg-surface p-3.5 transition hover:border-accent"
+                      }
                     >
                       {isEditing ? (
                         <form
@@ -1228,9 +1356,28 @@ export function Noter({
                           <div className="min-w-0 flex-1">
                             <button
                               type="button"
-                              onClick={() => void handleOpenSheet(sheet.id)}
-                              className="w-full text-left"
+                              aria-pressed={multiSelectMode ? isSelected : undefined}
+                              onClick={() => {
+                                if (multiSelectMode) {
+                                  toggleSelectedSheet(sheet.id);
+                                } else {
+                                  void handleOpenSheet(sheet.id);
+                                }
+                              }}
+                              className="flex w-full items-start gap-2.5 text-left"
                             >
+                              {multiSelectMode ? (
+                                <span
+                                  className={
+                                    isSelected
+                                      ? "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-accent text-xs font-bold text-[#1a1408] tabular-nums"
+                                      : "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md border border-line bg-header text-transparent"
+                                  }
+                                >
+                                  {isSelected ? selectedIndex + 1 : <Check className="size-3.5" aria-hidden="true" />}
+                                </span>
+                              ) : null}
+                              <div className="min-w-0 flex-1">
                               <p className="truncate text-base font-semibold text-fg">{sheet.title}</p>
                               <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted">
                                 <span className="rounded-md bg-header px-2 py-0.5 font-semibold text-accent tabular-nums">
@@ -1247,6 +1394,7 @@ export function Noter({
                                     <span>Side {sheet.lastPage}</span>
                                   </>
                                 ) : null}
+                              </div>
                               </div>
                             </button>
 
@@ -1340,6 +1488,87 @@ export function Noter({
                 })}
               </ul>
             )}
+
+            {multiSelectMode ? (
+              <div
+                style={{ backgroundColor: "rgba(22, 26, 34, 0.96)" }}
+                className="sticky bottom-3 z-20 flex flex-col gap-2 rounded-2xl border border-accent/60 p-3 shadow-xl backdrop-blur-xs sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold text-fg tabular-nums">
+                    {selectedSheetIds.length} valgt
+                  </span>
+                  {filteredSheets.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const visibleIds = filteredSheets.map((s) => s.id);
+                        setSelectedSheetIds((prev) => {
+                          const next = [...prev];
+                          for (const id of visibleIds) {
+                            if (!next.includes(id)) next.push(id);
+                          }
+                          return next;
+                        });
+                      }}
+                      className="metro-press min-h-9 rounded-lg border border-line bg-surface px-2.5 text-xs font-medium text-muted hover:text-fg"
+                    >
+                      Velg alle synlige ({filteredSheets.length})
+                    </button>
+                  ) : null}
+                  {selectedSheetIds.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSheetIds([])}
+                      className="metro-press min-h-9 rounded-lg border border-line bg-surface px-2.5 text-xs font-medium text-muted hover:text-fg"
+                    >
+                      Nullstill
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={batchTargetSetlistId || (setlists[0]?.id ?? "__new__")}
+                    onChange={(e) => setBatchTargetSetlistId(e.target.value)}
+                    aria-label="Velg målsettliste"
+                    className="metro-field min-h-10 min-w-0 flex-1 rounded-xl border border-line bg-header px-3 text-sm text-fg sm:flex-initial"
+                  >
+                    {setlists.map((sl) => (
+                      <option key={sl.id} value={sl.id}>
+                        {sl.name} ({sl.sheetIds.length})
+                      </option>
+                    ))}
+                    <option value="__new__">+ Ny settliste …</option>
+                  </select>
+
+                  {(batchTargetSetlistId || (setlists[0]?.id ?? "__new__")) === "__new__" ? (
+                    <input
+                      type="text"
+                      value={batchNewSetlistName}
+                      onChange={(e) => setBatchNewSetlistName(e.target.value)}
+                      placeholder="Navn på ny settliste …"
+                      aria-label="Navn på ny settliste"
+                      className="metro-field min-h-10 min-w-40 flex-1 rounded-xl border border-line bg-header px-3 text-sm text-fg placeholder:text-muted sm:flex-initial"
+                    />
+                  ) : null}
+
+                  <button
+                    type="button"
+                    disabled={
+                      selectedSheetIds.length === 0 ||
+                      ((batchTargetSetlistId || (setlists[0]?.id ?? "__new__")) === "__new__" &&
+                        !batchNewSetlistName.trim())
+                    }
+                    onClick={() => void handleBatchAddToSetlist()}
+                    className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-sm font-bold text-[#1a1408] disabled:opacity-40"
+                  >
+                    <Plus className="size-4" aria-hidden="true" />
+                    <span>Legg til i settliste</span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </>
         ) : (
           /* Settlister tab */
@@ -1392,6 +1621,15 @@ export function Noter({
                         </div>
 
                         <div className="flex shrink-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setBuilderSetlistId(setlist.id)}
+                            className="metro-press flex min-h-10 items-center gap-1.5 rounded-xl border border-accent/70 bg-header px-3 text-xs font-bold text-accent hover:border-accent"
+                          >
+                            <Plus className="size-3.5" aria-hidden="true" />
+                            <span>Rediger stykker</span>
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => handleStartConcertMode(setlist, 0)}
@@ -1695,6 +1933,18 @@ export function Noter({
           </div>
         </div>
       ) : null}
+
+      <NoterSetlistBuilderModal
+        open={Boolean(builderSetlistId)}
+        setlist={setlists.find((s) => s.id === builderSetlistId) ?? null}
+        sheets={sheets}
+        allCategories={allCategories}
+        onClose={() => setBuilderSetlistId(null)}
+        onAddSheet={handleAddSpecificSheetToSetlist}
+        onAddManySheets={handleAddManySheetsToSetlist}
+        onMoveSheet={handleMoveSetlistSheet}
+        onRemoveSheet={handleRemoveSetlistSheet}
+      />
     </div>
   );
 }

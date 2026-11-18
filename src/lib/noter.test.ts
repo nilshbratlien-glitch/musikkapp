@@ -125,6 +125,8 @@ import {
 import { parseHexColorToRgb, sanitizeWinAnsiText } from "./noter-export.ts";
 import { buildRenderKey, computeSliceMetrics } from "./noter-pdf.ts";
 import {
+  appendSheetIdsToSetlist,
+  countSheetOccurrencesInSetlist,
   getJumpLinksForPage,
   getSetlistBoundaryStep,
   moveSetlistItem,
@@ -1177,6 +1179,14 @@ describe("noter-setlists helpers, bookmarks, and jump history", () => {
     assert.deepEqual(moveSetlistItem(["a", "b", "c"], -1, 1), ["a", "b", "c"]);
     assert.deepEqual(moveSetlistItem(["a", "b", "c"], 1, 5), ["a", "b", "c"]);
     assert.deepEqual(moveSetlistItem(["a", "b", "c"], 1, 1), ["a", "b", "c"]);
+  });
+
+  it("appends sheet IDs and counts occurrences without mutating existing array", () => {
+    const base = ["s1", "s2"];
+    const next = appendSheetIdsToSetlist(base, ["s3", "", "s1"]);
+    assert.deepEqual(base, ["s1", "s2"]);
+    assert.deepEqual(next, ["s1", "s2", "s3", "s1"]);
+    assert.deepEqual(countSheetOccurrencesInSetlist(next), { s1: 2, s2: 1, s3: 1 });
   });
 
   it("removes deleted sheet IDs from setlists and preserves order of remaining items", () => {
