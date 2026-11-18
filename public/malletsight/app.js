@@ -775,6 +775,7 @@
       });
     }
     updateMalletHints();
+    syncConditionalCards();
   }
 
   function updateMalletHints() {
@@ -1298,6 +1299,7 @@
         } else {
           syncRangeSliders();
         }
+        syncConditionalCards();
         saveSettings();
         generate();
       });
@@ -1313,6 +1315,14 @@
         } else {
           syncRangeSliders();
         }
+        syncConditionalCards();
+        saveSettings();
+      });
+    }
+    if ($("#allowRests")) {
+      $("#allowRests").addEventListener("change", () => {
+        settings.allowRests = $("#allowRests").checked;
+        syncConditionalCards();
         saveSettings();
       });
     }

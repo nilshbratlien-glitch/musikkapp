@@ -253,15 +253,15 @@
               <div class="chips" id="keysMajorChips" role="group" aria-labelledby="keysLabel keysMajorLabel"></div>
               <p class="hint" id="keysMinorLabel">Moll</p>
               <div class="chips" id="keysMinorChips" role="group" aria-labelledby="keysLabel keysMinorLabel"></div>
-              <p class="hint" id="keyPickHint">Én toneart står fast. To eller flere går rundt kvintsirkelen, med færrest fortegn først, og gjentas.</p>
             </section>
 
             <section class="settings-card">
               <h4 class="card-heading">Tonalitet & fortegn</h4>
               <label class="toggle"><span>Løse fortegn</span><input type="checkbox" id="accidentals" /></label>
-              <p class="hint">Kromatiske nabotoner utenfor tonearten. Neste tone går tilbake til skalaen. Ledetoner i moll skrives alltid.</p>
-              <label class="toggle"><span>Start på grunntonen</span><input type="checkbox" id="startTonic" /></label>
-              <label class="toggle"><span>Slutt på grunntonen</span><input type="checkbox" id="endTonic" /></label>
+              <div class="toggle-grid">
+                <label class="toggle"><span>Start på grunntone</span><input type="checkbox" id="startTonic" /></label>
+                <label class="toggle"><span>Slutt på grunntone</span><input type="checkbox" id="endTonic" /></label>
+              </div>
             </section>
           </div>
         </div>
@@ -271,62 +271,62 @@
           <h3 class="settings-title">Duett & Samspill</h3>
           <div class="settings-cards">
             <section class="settings-card">
-              <h4 class="card-heading">Samspill</h4>
-              <label class="toggle"><span>Aktiver duett</span><input type="checkbox" id="duetEnabled" /></label>
-              <p class="hint">Trompet (i B) og melodisk slagverk (i C) spiller sammen med automatisk transponering.</p>
+              <h4 class="card-heading">Duett & Samspill</h4>
+              <label class="toggle"><span>Aktiver duett (Trompet + Slagverk)</span><input type="checkbox" id="duetEnabled" /></label>
 
-              <div class="row"><label for="duetMalletInstrument">Slagverkinstrument</label>
-                <select id="duetMalletInstrument">
-                  <option value="xylo">Xylofon (klinger 8va)</option>
-                  <option value="mar43">Marimba 4.3 oktaver (A2–C7)</option>
-                  <option value="mar50">Marimba 5.0 oktaver (C2–C7)</option>
-                  <option value="vibes">Vibrafon (F3–F6)</option>
-                  <option value="glock">Klokkespill (klinger 15ma)</option>
-                </select>
-              </div>
-
-              <div class="field-block">
-                <span class="field-label">Køller (slagverk)</span>
-                <select id="duetMallets" class="sr-only-select" aria-label="Køller for slagverk">
-                  <option value="2">2 køller</option>
-                  <option value="3">3 køller</option>
-                  <option value="4">4 køller</option>
-                </select>
-                <div class="seg-group" data-for="duetMallets" role="group" aria-label="Køller for slagverk">
-                  <button type="button" class="seg-btn" data-value="2">2 køller</button>
-                  <button type="button" class="seg-btn" data-value="3">3 køller</button>
-                  <button type="button" class="seg-btn" data-value="4">4 køller</button>
+              <div id="duetDetails" hidden>
+                <div class="row"><label for="duetMalletInstrument">Slagverkinstrument</label>
+                  <select id="duetMalletInstrument">
+                    <option value="xylo">Xylofon (klinger 8va)</option>
+                    <option value="mar43">Marimba 4.3 oktaver (A2–C7)</option>
+                    <option value="mar50">Marimba 5.0 oktaver (C2–C7)</option>
+                    <option value="vibes">Vibrafon (F3–F6)</option>
+                    <option value="glock">Klokkespill (klinger 15ma)</option>
+                  </select>
                 </div>
-              </div>
 
-              <label class="toggle"><span>Tillat akkorder</span><input type="checkbox" id="duetAllowChords" checked /></label>
-              <p class="hint">Spiller akkorder ved fraseslutt og kadenser når denne er på.</p>
+                <div class="field-block">
+                  <span class="field-label">Køller (slagverk)</span>
+                  <select id="duetMallets" class="sr-only-select" aria-label="Køller for slagverk">
+                    <option value="2">2 køller</option>
+                    <option value="3">3 køller</option>
+                    <option value="4">4 køller</option>
+                  </select>
+                  <div class="seg-group" data-for="duetMallets" role="group" aria-label="Køller for slagverk">
+                    <button type="button" class="seg-btn" data-value="2">2 køller</button>
+                    <button type="button" class="seg-btn" data-value="3">3 køller</button>
+                    <button type="button" class="seg-btn" data-value="4">4 køller</button>
+                  </div>
+                </div>
 
-              <div class="row"><label for="duetStyle">Duett-stil</label>
-                <select id="duetStyle">
-                  <option value="harmony">Terser & sekster (klassisk samspill)</option>
-                  <option value="call_response">Ekkolek (spill og svar)</option>
-                  <option value="melody_comp">Melodi & komp (trompet leder)</option>
-                </select>
-              </div>
+                <label class="toggle"><span>Tillat akkorder</span><input type="checkbox" id="duetAllowChords" checked /></label>
 
-              <div class="field-block">
-                <span class="field-label">Visning</span>
-                <select id="duetViewSelect" class="sr-only-select" aria-label="Visning">
-                  <option value="score">Partitur (begge stemmer)</option>
-                  <option value="trumpet">Kun Trompet i B</option>
-                  <option value="mallets">Kun Slagverk i C</option>
-                </select>
-                <div class="seg-group" data-for="duetViewSelect" role="group" aria-label="Visning">
-                  <button type="button" class="seg-btn" data-value="score">Partitur</button>
-                  <button type="button" class="seg-btn" data-value="trumpet">Trompet</button>
-                  <button type="button" class="seg-btn" data-value="mallets">Slagverk</button>
+                <div class="row"><label for="duetStyle">Duett-stil</label>
+                  <select id="duetStyle">
+                    <option value="harmony">Terser & sekster (klassisk samspill)</option>
+                    <option value="call_response">Ekkolek (spill og svar)</option>
+                    <option value="melody_comp">Melodi & komp (trompet leder)</option>
+                  </select>
+                </div>
+
+                <div class="field-block">
+                  <span class="field-label">Visning</span>
+                  <select id="duetViewSelect" class="sr-only-select" aria-label="Visning">
+                    <option value="score">Partitur (begge stemmer)</option>
+                    <option value="trumpet">Kun Trompet i B</option>
+                    <option value="mallets">Kun Slagverk i C</option>
+                  </select>
+                  <div class="seg-group" data-for="duetViewSelect" role="group" aria-label="Visning">
+                    <button type="button" class="seg-btn" data-value="score">Partitur</button>
+                    <button type="button" class="seg-btn" data-value="trumpet">Trompet</button>
+                    <button type="button" class="seg-btn" data-value="mallets">Slagverk</button>
+                  </div>
                 </div>
               </div>
             </section>
 
-            <section class="settings-card">
-              <h4 class="card-heading">Toneomfang & makker-lyd</h4>
+            <section class="settings-card" id="duetRangeCard" hidden>
+              <h4 class="card-heading">Duett · Toneomfang & makker-lyd</h4>
               <div class="row"><label for="duetRangeTptLow">Laveste trompet <span id="duetRangeTptLowLbl">C4</span></label></div>
               <input type="range" id="duetRangeTptLow" min="54" max="84" value="60" />
               <div class="row"><label for="duetRangeTptHigh">Høyeste trompet <span id="duetRangeTptHighLbl">D5</span></label></div>
@@ -337,10 +337,10 @@
               <div class="row"><label for="duetRangeMalletHigh">Høyeste slagverk <span id="duetRangeMalletHighLbl">C6</span></label></div>
               <input type="range" id="duetRangeMalletHigh" min="36" max="108" value="84" />
 
-              <h4 class="settings-subtitle">Makker-lyd (øv alene eller sammen)</h4>
-              <p class="hint">Øver du alene, kan appen spille makkerens stemme. Spiller dere sammen, kan én enhet mutes.</p>
-              <label class="toggle"><span>Spill trompetstemme</span><input type="checkbox" id="duetPlayTrumpet" checked /></label>
-              <label class="toggle"><span>Spill slagverkstemme</span><input type="checkbox" id="duetPlayMallets" checked /></label>
+              <div class="toggle-grid">
+                <label class="toggle"><span>Trompet-lyd</span><input type="checkbox" id="duetPlayTrumpet" checked /></label>
+                <label class="toggle"><span>Slagverk-lyd</span><input type="checkbox" id="duetPlayMallets" checked /></label>
+              </div>
             </section>
           </div>
         </div>
@@ -382,11 +382,13 @@
             </section>
 
             <section class="settings-card">
-              <h4 class="card-heading">Uttrykk & spillestil</h4>
-              <label class="toggle"><span>Aksenter</span><input type="checkbox" id="accents" /></label>
-              <label class="toggle"><span>Staccato</span><input type="checkbox" id="staccato" /></label>
-              <label class="toggle"><span>Legato (buer)</span><input type="checkbox" id="legato" /></label>
-              <label class="toggle"><span>Dynamikk</span><input type="checkbox" id="dynamics" /></label>
+              <h4 class="card-heading">Uttrykk & hjelpemidler</h4>
+              <div class="toggle-grid">
+                <label class="toggle"><span>Aksenter</span><input type="checkbox" id="accents" /></label>
+                <label class="toggle"><span>Staccato</span><input type="checkbox" id="staccato" /></label>
+                <label class="toggle"><span>Legato</span><input type="checkbox" id="legato" /></label>
+                <label class="toggle"><span>Dynamikk</span><input type="checkbox" id="dynamics" /></label>
+              </div>
               <div class="field-block" id="rollsRow">
                 <span class="field-label">Virvler</span>
                 <select id="rolls" class="sr-only-select" aria-label="Virvler">
@@ -400,10 +402,6 @@
                   <button type="button" class="seg-btn" data-value="always">Ofte</button>
                 </div>
               </div>
-            </section>
-
-            <section class="settings-card">
-              <h4 class="card-heading">Visuelle hjelpemidler</h4>
               <div class="field-block">
                 <span class="field-label">Notenavn</span>
                 <select id="annotate" class="sr-only-select" aria-label="Notenavn">
