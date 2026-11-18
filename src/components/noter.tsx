@@ -138,29 +138,65 @@ export function Noter({
   }, []);
 
   const preloadedSheetsRef = useRef<Map<string, SheetRecord>>(new Map());
+  const [nextPreloadedSheet, setNextPreloadedSheet] = useState<SheetRecord | null>(null);
+  const [prevPreloadedSheet, setPrevPreloadedSheet] = useState<SheetRecord | null>(null);
 
   useEffect(() => {
     void refreshLibrary();
     preloadPdfJs();
   }, [refreshLibrary]);
 
-  // Pre-warm next setlist piece so concert-mode switching is near-instant
+  // Pre-warm next and previous setlist pieces so concert-mode switching is instant
   useEffect(() => {
-    if (!activeSetlistSession || !activeSheet) return;
+    if (!activeSetlistSession || !activeSheet) {
+      setNextPreloadedSheet(null);
+      setPrevPreloadedSheet(null);
+      return;
+    }
     const setlist = setlists.find((s) => s.id === activeSetlistSession.setlistId);
-    if (!setlist) return;
-    const nextId = setlist.sheetIds[activeSetlistSession.activeIndex + 1];
-    if (!nextId || preloadedSheetsRef.current.has(nextId)) return;
+    if (!setlist) {
+      setNextPreloadedSheet(null);
+      setPrevPreloadedSheet(null);
+      return;
+    }
+    const nextId = setlist.sheetIds[activeSetlistSession.activeIndex + 1] ?? null;
+    const prevId =
+      activeSetlistSession.activeIndex > 0
+        ? (setlist.sheetIds[activeSetlistSession.activeIndex - 1] ?? null)
+        : null;
+
     let cancelled = false;
-    void getSheet(nextId)
-      .then((rec) => {
-        if (!cancelled && rec) {
-          preloadedSheetsRef.current.set(nextId, rec);
+
+    const loadTarget = async (
+      id: string | null,
+      setter: (rec: SheetRecord | null) => void,
+    ) => {
+      if (!id) {
+        if (!cancelled) setter(null);
+        return;
+      }
+      const cached = preloadedSheetsRef.current.get(id);
+      if (cached) {
+        if (!cancelled) setter(cached);
+        return;
+      }
+      try {
+        const rec = await getSheet(id);
+        if (rec) {
+          preloadedSheetsRef.current.set(id, rec);
         }
-      })
-      .catch(() => {
+        if (!cancelled) setter(rec ?? null);
+      } catch {
         /* ignore background pre-warm error */
-      });
+      }
+    };
+
+    void (async () => {
+      await loadTarget(nextId, setNextPreloadedSheet);
+      if (cancelled) return;
+      await loadTarget(prevId, setPrevPreloadedSheet);
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -1523,9 +1559,13 @@ export function Noter({
           sheet={activeSheet}
           initialPage={activeSetlistSession?.initialPage}
           setlistContext={viewerSetlistContext}
+          nextSheetRecord={nextPreloadedSheet}
+          prevSheetRecord={prevPreloadedSheet}
           onClose={() => {
             setActiveSheet(null);
             setActiveSetlistSession(null);
+            setNextPreloadedSheet(null);
+            setPrevPreloadedSheet(null);
           }}
           onUpdateMeta={handleUpdateActiveMeta}
           onSheetReplaced={(updated) => {
