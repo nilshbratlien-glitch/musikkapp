@@ -497,19 +497,69 @@
   }
 }
 
-/* Full-screen tablet-first settings GUI */
-#malletsight-root .drawer-header-title {
+/* Full-screen tablet-first Command Center GUI */
+#malletsight-root .cmd-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(18, 21, 27, 0.92);
+}
+#malletsight-root .cmd-title-group {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 180px;
 }
-#malletsight-root .drawer-header-sub {
+#malletsight-root .cmd-title-group h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+#malletsight-root .cmd-level-hint {
   font-size: 12px;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
 }
-#malletsight-root .drawer header {
-  padding: 12px 18px;
+#malletsight-root .cmd-level-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
+#malletsight-root .cmd-strip-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+#malletsight-root .cmd-level-strip .level-row {
+  gap: 4px;
+}
+#malletsight-root .cmd-level-strip .level-row .chip {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+#malletsight-root .cmd-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#malletsight-root #btnApplyTop {
+  display: none;
+}
+
 #malletsight-root .drawer-footer {
   display: flex;
   justify-content: center;
@@ -537,20 +587,19 @@
 }
 
 #malletsight-root .settings-cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-  align-items: start;
-}
-#malletsight-root .settings-card {
-  background: rgba(28, 34, 44, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
+  gap: 12px;
+}
+#malletsight-root .settings-card {
+  background: rgba(28, 34, 44, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
 }
 #malletsight-root .settings-card[hidden],
 #malletsight-root #duetDetails[hidden],
@@ -560,29 +609,92 @@
 #malletsight-root #duetDetails {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
 }
 #malletsight-root .toggle-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 7px;
 }
 #malletsight-root .card-heading {
-  margin: 0 0 2px;
-  font-size: 12px;
+  margin: 0;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
 }
+#malletsight-root .card-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#malletsight-root .preset-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#malletsight-root .preset-pill {
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: rgba(18, 21, 27, 0.7);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#malletsight-root .preset-pill.on {
+  border-color: var(--accent);
+  background: #3d3420;
+  color: var(--accent);
+}
+
+#malletsight-root .key-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#malletsight-root .key-grid-12 {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 5px;
+}
+#malletsight-root .key-grid-12 .chip {
+  min-height: 36px;
+  padding: 0 4px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+#malletsight-root .rhythm-chips {
+  gap: 6px;
+}
+#malletsight-root .rhythm-chips .chip {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 12.5px;
+}
+#malletsight-root #stopIntervals .chip {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 12.5px;
+}
 
 #malletsight-root .field-block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 #malletsight-root .field-label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
 }
 #malletsight-root .sr-only-select {
@@ -599,18 +711,18 @@
 #malletsight-root .seg-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 #malletsight-root .seg-btn {
-  flex: 1 1 0;
-  min-width: 64px;
-  min-height: 44px;
-  padding: 0 12px;
-  border-radius: 12px;
+  flex: 1 1 auto;
+  min-width: 48px;
+  min-height: 36px;
+  padding: 0 9px;
+  border-radius: 9px;
   border: 1px solid var(--line);
   background: var(--bg2);
   color: var(--muted);
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   transition: border-color 0.15s, background-color 0.15s, color 0.15s;
@@ -620,29 +732,104 @@
   background: #3d3420;
   color: var(--accent);
 }
+#malletsight-root .seg-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 #malletsight-root .seg-btn:active {
   transform: scale(0.98);
 }
 
+/* Dual-range register slider */
+#malletsight-root .range-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#malletsight-root .range-badge {
+  font-size: 12.5px;
+  color: var(--text);
+  background: rgba(18, 21, 27, 0.75);
+  border: 1px solid var(--line);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+#malletsight-root .range-badge strong {
+  color: var(--accent);
+}
+#malletsight-root .dual-range {
+  position: relative;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+#malletsight-root .dual-range-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  pointer-events: none;
+}
+#malletsight-root .dual-range-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(224, 177, 90, 0.45);
+  border-radius: 999px;
+}
+#malletsight-root .dual-range input[type="range"] {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  pointer-events: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+}
+#malletsight-root .dual-range input[type="range"]::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 8px;
+}
+#malletsight-root .dual-range input[type="range"]::-webkit-slider-thumb {
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
+}
+#malletsight-root .dual-range input[type="range"]::-moz-range-track {
+  background: transparent;
+  height: 8px;
+}
+#malletsight-root .dual-range input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
+}
+
 /* Pill switch toggles */
 #malletsight-root .toggle {
-  min-height: 48px;
-  padding: 8px 12px;
-  border-radius: 12px;
+  min-height: 40px;
+  padding: 5px 10px;
+  border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--bg2);
   cursor: pointer;
 }
 #malletsight-root .toggle span {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
 }
 #malletsight-root .toggle input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
   position: relative;
-  width: 46px;
-  height: 26px;
+  width: 42px;
+  height: 24px;
   border-radius: 999px;
   background: #323b48;
   border: 1px solid var(--line);
@@ -655,8 +842,8 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #eef1f5;
   transition: transform 0.18s;
@@ -666,39 +853,39 @@
   border-color: var(--accent);
 }
 #malletsight-root .toggle input[type="checkbox"]:checked::after {
-  transform: translateX(20px);
+  transform: translateX(18px);
   background: #1b1408;
 }
 
 /* Touch-friendly range sliders */
 #malletsight-root input[type="range"] {
-  height: 32px;
+  height: 28px;
   background: transparent;
   cursor: pointer;
 }
 #malletsight-root input[type="range"]::-webkit-slider-runnable-track {
-  height: 8px;
+  height: 7px;
   border-radius: 999px;
   background: var(--line);
 }
 #malletsight-root input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--accent);
   border: 2px solid #1b1408;
-  margin-top: -9px;
+  margin-top: -8.5px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 #malletsight-root input[type="range"]::-moz-range-track {
-  height: 8px;
+  height: 7px;
   border-radius: 999px;
   background: var(--line);
 }
 #malletsight-root input[type="range"]::-moz-range-thumb {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--accent);
   border: 2px solid #1b1408;
@@ -718,9 +905,15 @@
   #malletsight-root .drawer.open {
     transform: translateY(0);
   }
+  #malletsight-root #btnApplyTop {
+    display: inline-flex;
+  }
+  #malletsight-root .drawer-footer {
+    display: none;
+  }
   #malletsight-root .drawer-body {
     display: block;
-    padding: 16px 20px 24px;
+    padding: 14px 18px 20px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -731,32 +924,29 @@
     display: none;
   }
   #malletsight-root .settings-panels {
-    column-count: 2;
-    column-gap: 14px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
   }
-  #malletsight-root .settings-panel,
-  #malletsight-root .settings-cards {
+  #malletsight-root .settings-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  #malletsight-root .settings-panel {
     display: block;
-  }
-  #malletsight-root .settings-card {
-    break-inside: avoid;
-    margin-bottom: 14px;
-  }
-  #malletsight-root .settings-card[hidden] {
-    display: none;
   }
 }
 
 @media (min-width: 1024px) {
   #malletsight-root .drawer-body {
-    padding: 20px 28px 32px;
+    padding: 16px 22px 24px;
   }
   #malletsight-root .settings-panels {
-    column-count: 3;
-    column-gap: 18px;
-  }
-  #malletsight-root .settings-card {
-    margin-bottom: 18px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
   }
 }
 

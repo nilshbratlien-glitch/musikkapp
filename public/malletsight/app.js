@@ -219,6 +219,23 @@
         midiLabel(maxW) +
         ".";
     }
+    updateDualRangeFill("rangeLow", "rangeHigh", "soloRangeFill");
+  }
+
+  function updateDualRangeFill(lowId, highId, fillId) {
+    const lowEl = $("#" + lowId);
+    const highEl = $("#" + highId);
+    const fillEl = $("#" + fillId);
+    if (!lowEl || !highEl || !fillEl) return;
+    const min = Number(lowEl.min) || 0;
+    const max = Number(lowEl.max) || 100;
+    const span = Math.max(1, max - min);
+    const lo = Math.min(Number(lowEl.value), Number(highEl.value));
+    const hi = Math.max(Number(lowEl.value), Number(highEl.value));
+    const leftPct = Math.max(0, Math.min(100, ((lo - min) / span) * 100));
+    const rightPct = Math.max(0, Math.min(100, ((hi - min) / span) * 100));
+    fillEl.style.left = leftPct + "%";
+    fillEl.style.width = Math.max(2, rightPct - leftPct) + "%";
   }
 
   function readRangeSliders() {
@@ -486,7 +503,9 @@
     buildRhythmToggles($("#rhythms"), "rhythms", settings.rhythms);
     buildRhythmToggles($("#rests"), "rests", settings.rests);
     markLevel();
-    openSettings(false);
+    syncSegmentedPills();
+    syncConditionalCards();
+    updateSettingsSummaries();
     requestAnimationFrame(() => requestAnimationFrame(generate));
   }
 
@@ -1085,10 +1104,12 @@
       const sel = targetId ? $("#" + targetId) : null;
       if (!sel) return;
       const val = String(sel.value);
+      const isDisabled = Boolean(sel.disabled);
       group.querySelectorAll(".seg-btn").forEach((btn) => {
         const active = btn.getAttribute("data-value") === val;
         btn.classList.toggle("active", active);
         btn.setAttribute("aria-pressed", active ? "true" : "false");
+        btn.disabled = isDisabled;
       });
     });
   }
@@ -1258,29 +1279,30 @@
     $all("[data-settings-back]").forEach((btn) => {
       btn.addEventListener("click", () => showSettings(""));
     });
-    $all(".seg-group[data-for] .seg-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const group = btn.closest(".seg-group[data-for]");
-        const targetId = group ? group.getAttribute("data-for") : null;
-        const sel = targetId ? $("#" + targetId) : null;
-        const val = btn.getAttribute("data-value");
-        if (!sel || val === null) return;
-        sel.value = val;
-        sel.dispatchEvent(new Event("change", { bubbles: true }));
-        syncSegmentedPills();
-        updateSettingsSummaries();
-      });
-    });
     const drawerEl = $("#drawer");
     if (drawerEl) {
       const refreshDrawerUI = () => {
         syncSegmentedPills();
         updateSettingsSummaries();
+        markLevel();
       };
       drawerEl.addEventListener("change", refreshDrawerUI);
       drawerEl.addEventListener("input", refreshDrawerUI);
       drawerEl.addEventListener("click", (e) => {
-        if (e.target && e.target.closest && e.target.closest(".chip")) {
+        const segBtn = e.target && e.target.closest ? e.target.closest(".seg-group[data-for] .seg-btn") : null;
+        if (segBtn) {
+          const group = segBtn.closest(".seg-group[data-for]");
+          const targetId = group ? group.getAttribute("data-for") : null;
+          const sel = targetId ? $("#" + targetId) : null;
+          const val = segBtn.getAttribute("data-value");
+          if (sel && !sel.disabled && val !== null) {
+            sel.value = val;
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+            refreshDrawerUI();
+          }
+          return;
+        }
+        if (e.target && e.target.closest && (e.target.closest(".chip") || e.target.closest(".preset-pill"))) {
           requestAnimationFrame(refreshDrawerUI);
         }
       });
@@ -1295,6 +1317,7 @@
     $("#btnLevelDown").addEventListener("click", () => stepLevel(-1));
     $("#btnLevelUp").addEventListener("click", () => stepLevel(1));
     $("#btnApply").addEventListener("click", generateFresh);
+    if ($("#btnApplyTop")) $("#btnApplyTop").addEventListener("click", generateFresh);
 
     if ($("#btnDuetToggle")) {
       $("#btnDuetToggle").addEventListener("click", () => {
@@ -1403,6 +1426,8 @@
           const lblB = $("#" + cfg.pairLbl);
           if (lblA) lblA.textContent = midiLabel(val);
           if (lblB) lblB.textContent = midiLabel(val);
+          updateDualRangeFill("rangeTptLow", "rangeTptHigh", "tptRangeFill");
+          updateDualRangeFill("rangeMalletLow", "rangeMalletHigh", "malRangeFill");
           saveSettings();
         });
         el.addEventListener("change", () => {
