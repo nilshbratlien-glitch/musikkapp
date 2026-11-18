@@ -54,6 +54,9 @@ export function Malletsight() {
   useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
   const profile = getProfile();
 
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+
   useEffect(() => {
     window.MalletSight?.setProfile?.(profile);
   }, [profile]);
@@ -77,7 +80,7 @@ export function Malletsight() {
         if (cancelled) return;
       }
       window.MalletSight?.mount(root);
-      window.MalletSight?.setProfile?.(profile);
+      window.MalletSight?.setProfile?.(profileRef.current);
     })();
     return () => {
       cancelled = true;

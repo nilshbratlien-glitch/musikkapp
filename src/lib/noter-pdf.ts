@@ -9,7 +9,7 @@ import {
 const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.js`;
 const PDFJS_WORKER_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
-const MAX_OFFSCREEN_CACHE = 6;
+const MAX_OFFSCREEN_CACHE = 10;
 const CROP_SCAN_SCALE = 0.75;
 
 type PdfViewport = {
