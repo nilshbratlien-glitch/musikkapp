@@ -1029,11 +1029,11 @@ export function Oveplan() {
                   </div>
                 ) : null}
 
-                {/* Row 4: Repertoar Noter / Setlist Linking Bar */}
-                {item.id === "rep" && (noterSheets.length > 0 || noterSetlists.length > 0 || cur.store.repTarget) ? (
+                {/* Row 4: Repertoar Noter / Setlist Linking Bar (always visible on rep card) */}
+                {item.id === "rep" ? (
                   <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl border border-line/70 bg-header/80 px-3 py-2">
                     <label htmlFor="oveplan-rep-target" className="shrink-0 text-xs font-semibold text-muted">
-                      Noter:
+                      Koblet til Noter:
                     </label>
                     <select
                       id="oveplan-rep-target"
@@ -1061,7 +1061,11 @@ export function Oveplan() {
                       }}
                       className="metro-field min-h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 text-xs font-medium text-fg"
                     >
-                      <option value="">Ingen kobling</option>
+                      <option value="">
+                        {noterSheets.length === 0 && noterSetlists.length === 0
+                          ? "Ingen kobling (last opp noteark i Noter først)"
+                          : "Ingen kobling — velg noteark eller settliste…"}
+                      </option>
                       {noterSetlists.length > 0 ? (
                         <optgroup label="Settlister">
                           {noterSetlists.map((sl) => (
@@ -1090,6 +1094,22 @@ export function Oveplan() {
                         </option>
                       ) : null}
                     </select>
+                    <a
+                      href={
+                        cur.store.repTarget?.kind === "sheet"
+                          ? `/noter?sheet=${encodeURIComponent(cur.store.repTarget.id)}`
+                          : cur.store.repTarget?.kind === "setlist"
+                            ? `/noter?setlist=${encodeURIComponent(cur.store.repTarget.id)}`
+                            : "/noter"
+                      }
+                      className="metro-press inline-flex min-h-9 shrink-0 items-center rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-accent hover:border-accent/60"
+                    >
+                      {cur.store.repTarget
+                        ? "Åpne i Noter"
+                        : noterSheets.length === 0
+                          ? "+ Last opp i Noter"
+                          : "Bibliotek"}
+                    </a>
                   </div>
                 ) : null}
               </li>
