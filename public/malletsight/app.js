@@ -782,7 +782,7 @@
     const malletsRow = $("#malletsRow");
     if (malletsRow) {
       malletsRow.hidden = isTrumpet && !settings.duetEnabled;
-      const lbl = malletsRow.querySelector("label");
+      const lbl = malletsRow.querySelector("label, .field-label");
       if (lbl) lbl.textContent = settings.duetEnabled ? "Køller (slagverk)" : "Køller";
     }
     const multi = !isTrumpet && settings.mallets >= 3 && settings.texture !== "melody" && settings.texture !== "mixed";
@@ -796,6 +796,8 @@
     if (mix) mix.hidden = isTrumpet || !(settings.texture === "mixed" || settings.texture === "doublestops");
     const ds = $("#doubleStopRow");
     if (ds) ds.hidden = isTrumpet || !twoStop;
+    const chordCard = $("#chordCard");
+    if (chordCard) chordCard.hidden = (!mix || mix.hidden) && (!ds || ds.hidden);
     const clefRow = $("#clefRow");
     if (clefRow) clefRow.hidden = isTrumpet;
     const rollsRow = $("#rollsRow");
@@ -1074,7 +1076,65 @@
     }
   }
 
+  let lastSettingsPanel = "instrument";
+
+  function syncSegmentedPills() {
+    $all(".seg-group[data-for]").forEach((group) => {
+      const targetId = group.getAttribute("data-for");
+      const sel = targetId ? $("#" + targetId) : null;
+      if (!sel) return;
+      const val = String(sel.value);
+      group.querySelectorAll(".seg-btn").forEach((btn) => {
+        const active = btn.getAttribute("data-value") === val;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+    });
+  }
+
+  function updateSettingsSummaries() {
+    const instEl = $("#instrument");
+    const instName =
+      instEl && instEl.selectedOptions && instEl.selectedOptions[0]
+        ? instEl.selectedOptions[0].textContent.replace(/\s*\(.*?\)\s*/g, "").trim()
+        : settings.instrumentId || "";
+    const isTrumpet = currentProfile() === "trumpet";
+    const malletLabel = isTrumpet && !settings.duetEnabled ? "Trompet" : `${settings.mallets} køller`;
+    const instSum = $('[data-summary="instrument"]');
+    if (instSum) instSum.textContent = isTrumpet ? malletLabel : `${instName} · ${malletLabel}`;
+
+    const rhythmSum = $('[data-summary="rytme"]');
+    if (rhythmSum) {
+      const nR = (settings.rhythms || []).length;
+      rhythmSum.textContent = `${nR} verdier · tetthet ${settings.rhythmDensity}`;
+    }
+
+    const regSum = $('[data-summary="register"]');
+    if (regSum) {
+      const lowLbl = $("#rangeLowLbl") ? $("#rangeLowLbl").textContent : "";
+      const highLbl = $("#rangeHighLbl") ? $("#rangeHighLbl").textContent : "";
+      regSum.textContent = settings.duetEnabled ? "Trompet + slagverk" : `${lowLbl}–${highLbl}`;
+    }
+
+    const keySum = $('[data-summary="toneart"]');
+    if (keySum) {
+      const ks = settings.keyIds || [];
+      keySum.textContent = ks.length === 1 ? ks[0] : `${ks.length} tonearter`;
+    }
+
+    const duetSum = $('[data-summary="duett"]');
+    if (duetSum) {
+      duetSum.textContent = settings.duetEnabled ? "På" : "Av";
+    }
+
+    const merSum = $('[data-summary="mer"]');
+    if (merSum) {
+      merSum.textContent = `Nivå ${settings.level} · ${settings.measures} takter · ${settings.tempo} BPM`;
+    }
+  }
+
   function showSettings(name) {
+    if (name) lastSettingsPanel = name;
     const grid = $("#settingsGrid");
     if (grid) grid.hidden = !!name;
     $all("[data-settings-panel]").forEach((panel) => {
@@ -1089,7 +1149,12 @@
     $("#drawer").classList.toggle("open", open);
     $("#scrim").classList.toggle("open", open);
     document.body.classList.toggle("drawer-open", open);
-    if (open) showSettings("");
+    if (open) {
+      const isWide = typeof window !== "undefined" && window.innerWidth >= 640;
+      showSettings(isWide ? (lastSettingsPanel || "instrument") : "");
+      syncSegmentedPills();
+      updateSettingsSummaries();
+    }
   }
 
   function wire() {
@@ -1182,6 +1247,35 @@
     $all("[data-settings-back]").forEach((btn) => {
       btn.addEventListener("click", () => showSettings(""));
     });
+    $all(".seg-group[data-for] .seg-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const group = btn.closest(".seg-group[data-for]");
+        const targetId = group ? group.getAttribute("data-for") : null;
+        const sel = targetId ? $("#" + targetId) : null;
+        const val = btn.getAttribute("data-value");
+        if (!sel || val === null) return;
+        sel.value = val;
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+        syncSegmentedPills();
+        updateSettingsSummaries();
+      });
+    });
+    const drawerEl = $("#drawer");
+    if (drawerEl) {
+      const refreshDrawerUI = () => {
+        syncSegmentedPills();
+        updateSettingsSummaries();
+      };
+      drawerEl.addEventListener("change", refreshDrawerUI);
+      drawerEl.addEventListener("input", refreshDrawerUI);
+      drawerEl.addEventListener("click", (e) => {
+        if (e.target && e.target.closest && e.target.closest(".chip")) {
+          requestAnimationFrame(refreshDrawerUI);
+        }
+      });
+    }
+    syncSegmentedPills();
+    updateSettingsSummaries();
     function generateFresh() {
       openSettings(false);
       requestAnimationFrame(() => requestAnimationFrame(() => generate()));
