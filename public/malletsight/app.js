@@ -1147,6 +1147,14 @@
     });
   }
 
+  function syncConditionalCards() {
+    const isDuet = Boolean(settings.duetEnabled);
+    if ($("#duetDetails")) $("#duetDetails").hidden = !isDuet;
+    if ($("#duetRangeCard")) $("#duetRangeCard").hidden = !isDuet;
+    const allowRests = $("#allowRests") ? $("#allowRests").checked : Boolean(settings.allowRests);
+    if ($("#restsWrap")) $("#restsWrap").hidden = !allowRests;
+  }
+
   function openSettings(open) {
     $("#drawer").classList.toggle("open", open);
     $("#scrim").classList.toggle("open", open);
@@ -1156,6 +1164,7 @@
       showSettings(isWide ? (lastSettingsPanel || "instrument") : "");
       syncSegmentedPills();
       updateSettingsSummaries();
+      syncConditionalCards();
     }
   }
 
