@@ -151,6 +151,8 @@
           merged.rolls = "off";
           merged.chordChance = 0;
           merged.doubleStopChance = 0;
+        } else if (merged.instrumentId === "trumpet" || !T.INSTRUMENTS.some((i) => i.id === merged.instrumentId && i.id !== "trumpet")) {
+          merged.instrumentId = DEFAULTS.instrumentId;
         }
         const valid = new Set(T.KEYS.map((k) => k.id));
         if (!Array.isArray(parsed.keyIds)) {
@@ -219,6 +221,23 @@
         midiLabel(maxW) +
         ".";
     }
+    updateDualRangeFill("rangeLow", "rangeHigh", "soloRangeFill");
+  }
+
+  function updateDualRangeFill(lowId, highId, fillId) {
+    const lowEl = $("#" + lowId);
+    const highEl = $("#" + highId);
+    const fillEl = $("#" + fillId);
+    if (!lowEl || !highEl || !fillEl) return;
+    const min = Number(lowEl.min) || 0;
+    const max = Number(lowEl.max) || 100;
+    const span = Math.max(1, max - min);
+    const lo = Math.min(Number(lowEl.value), Number(highEl.value));
+    const hi = Math.max(Number(lowEl.value), Number(highEl.value));
+    const leftPct = Math.max(0, Math.min(100, ((lo - min) / span) * 100));
+    const rightPct = Math.max(0, Math.min(100, ((hi - min) / span) * 100));
+    fillEl.style.left = leftPct + "%";
+    fillEl.style.width = Math.max(2, rightPct - leftPct) + "%";
   }
 
   function readRangeSliders() {
@@ -364,9 +383,50 @@
     if ($("#duetRangeMalletLowLbl")) $("#duetRangeMalletLowLbl").textContent = midiLabel(malLow);
     if ($("#rangeMalletHighLbl")) $("#rangeMalletHighLbl").textContent = midiLabel(malHigh);
     if ($("#duetRangeMalletHighLbl")) $("#duetRangeMalletHighLbl").textContent = midiLabel(malHigh);
+    updateDualRangeFill("rangeTptLow", "rangeTptHigh", "tptRangeFill");
+    updateDualRangeFill("rangeMalletLow", "rangeMalletHigh", "malRangeFill");
   }
 
+  const SHORT_PILL_LABELS = {
+    instrument: {
+      glock: "Klokkesp.",
+      xylo: "Xylofon",
+      vibes: "Vibrafon",
+      mar43: "Mar 4.3",
+      mar50: "Mar 5.0",
+      trumpet: "Trompet",
+    },
+    texture: {
+      mixed: "Melodi + akk",
+      melody: "Kun melodi",
+      doublestops: "Mest akk",
+      block: "Blokkakk.",
+      chorale: "Koral",
+    },
+    clef: {
+      auto: "Auto",
+      treble: "G-nøkkel",
+      bass: "F-nøkkel",
+      grand: "Piano",
+    },
+    time: {
+      random: "Tilfeldig",
+    },
+    maxLeap: {
+      "2": "2. Sek",
+      "3": "3. Ters",
+      "4": "4. Kvart",
+      "5": "5. Kvint",
+      "6": "6. Sekst",
+      "7": "7. Sept",
+      "8": "8. Oktav",
+      "9": "9. None",
+      "12": "12. Duod",
+    },
+  };
+
   function fillSelect(el, items, value, labelFn, valueFn) {
+    if (!el) return;
     el.innerHTML = "";
     items.forEach((it) => {
       const opt = document.createElement("option");
@@ -374,7 +434,27 @@
       opt.textContent = labelFn ? labelFn(it) : it.name;
       el.appendChild(opt);
     });
-    el.value = value;
+    const strVal = String(value);
+    const hasMatch = Array.from(el.options).some((o) => o.value === strVal);
+    el.value = hasMatch ? strVal : (el.options[0] ? el.options[0].value : "");
+    if (el.id) {
+      const group = $(`.seg-group[data-for="${el.id}"]`);
+      if (group) {
+        const shortMap = SHORT_PILL_LABELS[el.id] || {};
+        group.innerHTML = "";
+        Array.from(el.options).forEach((opt) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          const active = opt.value === el.value;
+          btn.className = "seg-btn" + (active ? " active" : "");
+          btn.setAttribute("data-value", opt.value);
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+          btn.textContent = shortMap[opt.value] || opt.textContent;
+          btn.title = opt.textContent;
+          group.appendChild(btn);
+        });
+      }
+    }
   }
 
   const RHYTHM_PRESETS = {
@@ -486,7 +566,9 @@
     buildRhythmToggles($("#rhythms"), "rhythms", settings.rhythms);
     buildRhythmToggles($("#rests"), "rests", settings.rests);
     markLevel();
-    openSettings(false);
+    syncSegmentedPills();
+    syncConditionalCards();
+    updateSettingsSummaries();
     requestAnimationFrame(() => requestAnimationFrame(generate));
   }
 
@@ -775,6 +857,9 @@
       });
     }
     updateMalletHints();
+    syncConditionalCards();
+    syncSegmentedPills();
+    updateSettingsSummaries();
   }
 
   function updateMalletHints() {
@@ -782,7 +867,7 @@
     const malletsRow = $("#malletsRow");
     if (malletsRow) {
       malletsRow.hidden = isTrumpet && !settings.duetEnabled;
-      const lbl = malletsRow.querySelector("label");
+      const lbl = malletsRow.querySelector("label, .field-label");
       if (lbl) lbl.textContent = settings.duetEnabled ? "Køller (slagverk)" : "Køller";
     }
     const multi = !isTrumpet && settings.mallets >= 3 && settings.texture !== "melody" && settings.texture !== "mixed";
@@ -796,6 +881,8 @@
     if (mix) mix.hidden = isTrumpet || !(settings.texture === "mixed" || settings.texture === "doublestops");
     const ds = $("#doubleStopRow");
     if (ds) ds.hidden = isTrumpet || !twoStop;
+    const chordCard = $("#chordCard");
+    if (chordCard) chordCard.hidden = (!mix || mix.hidden) && (!ds || ds.hidden);
     const clefRow = $("#clefRow");
     if (clefRow) clefRow.hidden = isTrumpet;
     const rollsRow = $("#rollsRow");
@@ -1074,22 +1161,97 @@
     }
   }
 
+  let lastSettingsPanel = "instrument";
+
+  function syncSegmentedPills() {
+    $all(".seg-group[data-for]").forEach((group) => {
+      const targetId = group.getAttribute("data-for");
+      const sel = targetId ? $("#" + targetId) : null;
+      if (!sel) return;
+      const val = String(sel.value);
+      const isDisabled = Boolean(sel.disabled);
+      group.querySelectorAll(".seg-btn").forEach((btn) => {
+        const active = btn.getAttribute("data-value") === val;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", active ? "true" : "false");
+        btn.disabled = isDisabled;
+      });
+    });
+  }
+
+  function updateSettingsSummaries() {
+    const instEl = $("#instrument");
+    const instName =
+      instEl && instEl.selectedOptions && instEl.selectedOptions[0]
+        ? instEl.selectedOptions[0].textContent.replace(/\s*\(.*?\)\s*/g, "").trim()
+        : settings.instrumentId || "";
+    const isTrumpet = currentProfile() === "trumpet";
+    const malletLabel = isTrumpet && !settings.duetEnabled ? "Trompet" : `${settings.mallets} køller`;
+    const instSum = $('[data-summary="instrument"]');
+    if (instSum) instSum.textContent = isTrumpet ? malletLabel : `${instName} · ${malletLabel}`;
+
+    const rhythmSum = $('[data-summary="rytme"]');
+    if (rhythmSum) {
+      const nR = (settings.rhythms || []).length;
+      rhythmSum.textContent = `${nR} verdier · tetthet ${settings.rhythmDensity}`;
+    }
+
+    const regSum = $('[data-summary="register"]');
+    if (regSum) {
+      const lowLbl = $("#rangeLowLbl") ? $("#rangeLowLbl").textContent : "";
+      const highLbl = $("#rangeHighLbl") ? $("#rangeHighLbl").textContent : "";
+      regSum.textContent = settings.duetEnabled ? "Trompet + slagverk" : `${lowLbl}–${highLbl}`;
+    }
+
+    const keySum = $('[data-summary="toneart"]');
+    if (keySum) {
+      const ks = settings.keyIds || [];
+      keySum.textContent = ks.length === 1 ? ks[0] : `${ks.length} tonearter`;
+    }
+
+    const duetSum = $('[data-summary="duett"]');
+    if (duetSum) {
+      duetSum.textContent = settings.duetEnabled ? "På" : "Av";
+    }
+
+    const merSum = $('[data-summary="mer"]');
+    if (merSum) {
+      merSum.textContent = `Nivå ${settings.level} · ${settings.measures} takter · ${settings.tempo} BPM`;
+    }
+  }
+
   function showSettings(name) {
+    if (name) lastSettingsPanel = name;
+    const isWide = typeof window !== "undefined" && window.innerWidth >= 640;
     const grid = $("#settingsGrid");
-    if (grid) grid.hidden = !!name;
+    if (grid) grid.hidden = isWide || !!name;
     $all("[data-settings-panel]").forEach((panel) => {
-      panel.hidden = panel.getAttribute("data-settings-panel") !== name;
+      panel.hidden = !isWide && panel.getAttribute("data-settings-panel") !== name;
     });
     $all(".settings-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.getAttribute("data-settings") === name);
     });
   }
 
+  function syncConditionalCards() {
+    const isDuet = Boolean(settings.duetEnabled);
+    if ($("#duetDetails")) $("#duetDetails").hidden = !isDuet;
+    if ($("#duetRangeCard")) $("#duetRangeCard").hidden = !isDuet;
+    const allowRests = $("#allowRests") ? $("#allowRests").checked : Boolean(settings.allowRests);
+    if ($("#restsWrap")) $("#restsWrap").hidden = !allowRests;
+  }
+
   function openSettings(open) {
     $("#drawer").classList.toggle("open", open);
     $("#scrim").classList.toggle("open", open);
     document.body.classList.toggle("drawer-open", open);
-    if (open) showSettings("");
+    if (open) {
+      const isWide = typeof window !== "undefined" && window.innerWidth >= 640;
+      showSettings(isWide ? (lastSettingsPanel || "instrument") : "");
+      syncSegmentedPills();
+      updateSettingsSummaries();
+      syncConditionalCards();
+    }
   }
 
   function wire() {
@@ -1097,10 +1259,21 @@
 
     $("#instrument").addEventListener("change", () => {
       settings.instrumentId = $("#instrument").value;
+      if (settings.instrumentId !== "trumpet") {
+        settings.duetMalletInstrument = settings.instrumentId;
+        if ($("#duetMalletInstrument")) $("#duetMalletInstrument").value = settings.instrumentId;
+        if ($("#duetToolbarMalletSelect")) $("#duetToolbarMalletSelect").value = settings.instrumentId;
+      }
+      if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
+        AudioEngine.loadInstrument(settings.instrumentId);
+      }
       applyInstrumentRange(true);
       syncRangeSliders();
+      if (settings.duetEnabled) syncDuetRangeSliders(true);
       updateMalletHints();
+      syncSegmentedPills();
       saveSettings();
+      if (settings.duetEnabled) generate();
     });
 
     $("#mallets").addEventListener("change", () => {
@@ -1182,6 +1355,36 @@
     $all("[data-settings-back]").forEach((btn) => {
       btn.addEventListener("click", () => showSettings(""));
     });
+    const drawerEl = $("#drawer");
+    if (drawerEl) {
+      const refreshDrawerUI = () => {
+        syncSegmentedPills();
+        updateSettingsSummaries();
+        markLevel();
+      };
+      drawerEl.addEventListener("change", refreshDrawerUI);
+      drawerEl.addEventListener("input", refreshDrawerUI);
+      drawerEl.addEventListener("click", (e) => {
+        const segBtn = e.target && e.target.closest ? e.target.closest(".seg-group[data-for] .seg-btn") : null;
+        if (segBtn) {
+          const group = segBtn.closest(".seg-group[data-for]");
+          const targetId = group ? group.getAttribute("data-for") : null;
+          const sel = targetId ? $("#" + targetId) : null;
+          const val = segBtn.getAttribute("data-value");
+          if (sel && !sel.disabled && val !== null) {
+            sel.value = val;
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+            refreshDrawerUI();
+          }
+          return;
+        }
+        if (e.target && e.target.closest && (e.target.closest(".chip") || e.target.closest(".preset-pill"))) {
+          requestAnimationFrame(refreshDrawerUI);
+        }
+      });
+    }
+    syncSegmentedPills();
+    updateSettingsSummaries();
     function generateFresh() {
       openSettings(false);
       requestAnimationFrame(() => requestAnimationFrame(() => generate()));
@@ -1190,6 +1393,7 @@
     $("#btnLevelDown").addEventListener("click", () => stepLevel(-1));
     $("#btnLevelUp").addEventListener("click", () => stepLevel(1));
     $("#btnApply").addEventListener("click", generateFresh);
+    if ($("#btnApplyTop")) $("#btnApplyTop").addEventListener("click", generateFresh);
 
     if ($("#btnDuetToggle")) {
       $("#btnDuetToggle").addEventListener("click", () => {
@@ -1203,6 +1407,7 @@
         } else {
           syncRangeSliders();
         }
+        syncConditionalCards();
         saveSettings();
         generate();
       });
@@ -1218,6 +1423,14 @@
         } else {
           syncRangeSliders();
         }
+        syncConditionalCards();
+        saveSettings();
+      });
+    }
+    if ($("#allowRests")) {
+      $("#allowRests").addEventListener("change", () => {
+        settings.allowRests = $("#allowRests").checked;
+        syncConditionalCards();
         saveSettings();
       });
     }
@@ -1289,6 +1502,8 @@
           const lblB = $("#" + cfg.pairLbl);
           if (lblA) lblA.textContent = midiLabel(val);
           if (lblB) lblB.textContent = midiLabel(val);
+          updateDualRangeFill("rangeTptLow", "rangeTptHigh", "tptRangeFill");
+          updateDualRangeFill("rangeMalletLow", "rangeMalletHigh", "malRangeFill");
           saveSettings();
         });
         el.addEventListener("change", () => {

@@ -145,13 +145,12 @@ export const TRUMPET_EXERCISES: Record<BlockId, ExerciseCard> = {
   },
 };
 
-/** The tool a block opens when it starts: 2- and 4-mallet practise with the metronome, SRF is sight-reading, linked Repertoar opens Noter, and unlinked trumpet Korpslekse opens metronome with exercise instructions. */
+/** The tool a block opens when it starts: 2- and 4-mallet (and unlinked Repertoar/Korpslekse) stay on Øveplan with its integrated metronome and exercise cards, SRF opens Bladlesing, and linked Repertoar opens Noter. */
 export function blockTool(
   id: BlockId,
-  profile: InstrumentProfile = getProfile(),
+  _profile: InstrumentProfile = getProfile(),
   repTarget?: RepTarget | null,
 ) {
-  if (id === "twomallet" || id === "fourmallet") return "/metronom";
   if (id === "srf") return "/bladlesing";
   if (id === "rep") {
     if (repTarget?.kind === "sheet" && repTarget.id) {
@@ -160,7 +159,6 @@ export function blockTool(
     if (repTarget?.kind === "setlist" && repTarget.id) {
       return `/noter?setlist=${encodeURIComponent(repTarget.id)}`;
     }
-    if (profile === "trumpet") return "/metronom";
   }
   return null;
 }

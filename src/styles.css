@@ -63,9 +63,69 @@
 }
 
 .plan-hero {
-  background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 70%);
+  background:
+    radial-gradient(
+      ellipse at 50% 25%,
+      rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.2),
+      transparent 70%
+    ),
+    var(--color-surface);
   border-radius: var(--radius-card);
-  padding: 1.5rem 1rem;
+  border: 1px solid rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.35);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.24);
+}
+
+.oveplan-card {
+  position: relative;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: inset 4px 0 0 var(--block, var(--color-accent));
+  transition: border-color 150ms ease, background-color 150ms ease, opacity 150ms ease;
+}
+
+.oveplan-card.is-active {
+  border-color: rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.65);
+  background:
+    linear-gradient(
+      90deg,
+      rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.14) 0%,
+      rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.04) 100%
+    ),
+    var(--color-surface);
+}
+
+.oveplan-switch {
+  position: relative;
+  display: inline-flex;
+  width: 2.75rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+  cursor: pointer;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--color-header);
+  border: 1px solid var(--color-line);
+  padding: 2px;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.oveplan-switch[data-checked="true"] {
+  background: rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.25);
+  border-color: var(--block, var(--color-accent));
+}
+
+.oveplan-switch-thumb {
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  background: var(--color-muted);
+  transition: transform 150ms ease, background-color 150ms ease;
+}
+
+.oveplan-switch[data-checked="true"] .oveplan-switch-thumb {
+  transform: translateX(1.1rem);
+  background: var(--block, var(--color-accent));
 }
 
 .metro-badge {

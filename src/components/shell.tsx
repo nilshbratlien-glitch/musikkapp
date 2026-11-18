@@ -427,10 +427,18 @@ export function Shell() {
           className={
             sheet
               ? "min-h-0 flex-1 overflow-hidden"
-              : "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pt-4 md:px-6 md:pt-5"
+              : "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pt-3 md:px-5 md:pt-4"
           }
         >
-          <div className={sheet ? "h-full min-h-0" : "mx-auto w-full max-w-xl md:max-w-4xl lg:max-w-6xl"}>
+          <div
+            className={
+              sheet
+                ? "h-full min-h-0"
+                : tool.id === "oveplan"
+                  ? "mx-auto w-full max-w-7xl"
+                  : "mx-auto w-full max-w-xl md:max-w-4xl lg:max-w-6xl"
+            }
+          >
             <Outlet />
           </div>
         </main>

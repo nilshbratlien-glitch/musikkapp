@@ -214,7 +214,7 @@ describe("plan clock on the pulse core", () => {
     assert.equal(ctx.state, "running", "and its audio resumed");
   });
 
-  it("opens the block's tool through the bound navigation", () => {
+  it("opens the block's tool through the bound navigation (staying on Øveplan for metronome blocks)", () => {
     planClock.ensurePlanClock();
     const went: string[] = [];
     planClock.bindPlanNavigate((to) => went.push(to));
@@ -222,12 +222,12 @@ describe("plan clock on the pulse core", () => {
     planClock.beginBlock(item("srf"), true);
     planClock.beginBlock(item("rep"), true);
     planClock.bindPlanNavigate(() => {});
-    assert.deepEqual(went, ["/metronom", "/bladlesing"]);
-    assert.equal(blockTool("fourmallet"), "/metronom");
+    assert.deepEqual(went, ["/bladlesing"]);
+    assert.equal(blockTool("fourmallet"), null);
     assert.equal(playsMetronome("rep"), false);
   });
 
-  it("navigates to /metronom for Korpslekse (rep) in trumpet profile with metronome paused", async () => {
+  it("stays on Øveplan for Korpslekse (rep) in trumpet profile with metronome paused", async () => {
     const profile = await import("./profile.ts");
     profile.setProfile("trumpet");
     planClock.ensurePlanClock();
@@ -235,7 +235,7 @@ describe("plan clock on the pulse core", () => {
     planClock.bindPlanNavigate((to) => went.push(to));
     planClock.beginBlock(item("rep"));
     planClock.bindPlanNavigate(() => {});
-    assert.deepEqual(went, ["/metronom"]);
+    assert.deepEqual(went, []);
     assert.equal(planClock.planMalletBlock(), true);
     assert.equal(pulse.getState().running, false, "metronome stays off/ready for rep");
     profile.setProfile("mallets");

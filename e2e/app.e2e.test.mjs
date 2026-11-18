@@ -188,19 +188,18 @@ describe("default route", () => {
 });
 
 describe("block navigation", () => {
-  it("2-mallet and 4-mallet open Metronom with the plan timer in the header", async () => {
+  it("2-mallet and 4-mallet stay on Øveplan with the plan timer in the header and play the block metronome", async () => {
     await open("/", plan(["twomallet", "fourmallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/metronom");
+    await header().waitFor();
+    assert.equal(new URL(page.url()).pathname, "/");
     assert.match(await header().innerText(), /2-mallet/);
-    assert.match(await page.locator("main").innerText(), /\b100\b/, "Metronom shows the block BPM");
+    assert.match(await page.locator("main").innerText(), /\b100\b/, "shows the block BPM");
     const clicks = await recentClicks(2200);
     assert.ok(clicks.length >= 2, "the block metronome plays");
     assert.ok(Math.abs(minGap(clicks) - 0.6) < 0.02, `one 100 BPM stream, got gap ${minGap(clicks)}`);
 
-    await tab("/");
     await page.getByRole("button", { name: "Ferdig", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/metronom");
     assert.match(await header().innerText(), /4-mallet/);
     await header().click();
     const next = await recentClicks(2500);
@@ -229,9 +228,8 @@ describe("block navigation", () => {
   it("switching block while the timer runs stops the old sound and keeps one countdown", async () => {
     await open("/", plan(["twomallet", "srf"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/metronom");
+    await header().waitFor();
     assert.ok((await recentClicks(1000)).length >= 1);
-    await tab("/");
     await page.locator(".plan-hero").getByRole("button", { name: /Bladlesing/ }).click();
     await page.waitForFunction(() => location.pathname === "/bladlesing");
     await page.waitForTimeout(300);
@@ -332,7 +330,7 @@ describe("Bladlesing buttons follow the shared pulse", () => {
   it("a plan block taking the pulse turns metronome and play-along off", async () => {
     await open("/", plan(["twomallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/metronom");
+    await header().waitFor();
     await header().click();
     await tab("/bladlesing");
     await page.waitForSelector("#score svg");
@@ -399,7 +397,8 @@ describe("Metronom during a 2-mallet block", () => {
   it("Stopp pauses the block, Start resumes it at the block's tempo, and the chips show the block's meter", async () => {
     await open("/", plan(["twomallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/metronom");
+    await header().waitFor();
+    await tab("/metronom");
     await page.locator(".plan-chip").waitFor();
     await traceOwners();
     const main = page.locator("main");
@@ -474,10 +473,13 @@ describe("layout", () => {
       assert.equal(lines, 1, "«Ny etyde» stays on one line");
       await page.locator("#btnSettings").click();
       for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) {
-        await page.locator(`[data-settings="${panel}"]`).click();
+        if (await page.locator(`[data-settings="${panel}"]`).isVisible()) {
+          await page.locator(`[data-settings="${panel}"]`).click();
+        }
         const drawer = await page.locator("#drawer").evaluate((el) => {
           const box = el.getBoundingClientRect();
           const wide = [...el.querySelectorAll("*")].filter((c) => {
+            if (c.classList.contains("sr-only-select")) return false;
             const r = c.getBoundingClientRect();
             return r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5);
           });
@@ -486,13 +488,15 @@ describe("layout", () => {
         assert.deepEqual(drawer, { scroll: 0, wide: [] }, `the ${panel} panel overflows`);
         assert.deepEqual(await overflowOf(), [0, 0], `Bladlesing with the ${panel} panel open overflows`);
         await shot(`bladlesing-drawer-${panel}-${width}x${height}`);
-        await page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`).click();
+        const backBtn = page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`);
+        if (await backBtn.isVisible()) await backBtn.click();
       }
       await page.locator("#btnCloseSettings").click();
 
       await open("/", plan(["twomallet"]));
       await page.getByRole("button", { name: "Start", exact: true }).click();
-      await page.waitForFunction(() => location.pathname === "/metronom");
+      await header().waitFor();
+      await tab("/metronom");
       await page.locator(".plan-chip").waitFor();
       assert.deepEqual(await overflowOf(), [0, 0], "/metronom with the plan chip overflows");
       await shot(`metronom-chip-${width}x${height}`);
@@ -549,9 +553,14 @@ describe("Bladlesing in Norwegian", () => {
     await page.waitForSelector("#score svg");
     for (const mallets of ["2", "3", "4"]) {
       await page.locator("#btnSettings").click();
-      await page.locator('[data-settings="instrument"]').click();
+      if (await page.locator('[data-settings="instrument"]').isVisible()) {
+        await page.locator('[data-settings="instrument"]').click();
+      }
       await page.locator("#mallets").selectOption(mallets);
-      await page.locator("#btnApply").click();
+      const applyBtn = (await page.locator("#btnApplyTop").isVisible())
+        ? page.locator("#btnApplyTop")
+        : page.locator("#btnApply");
+      await applyBtn.click();
       await page.waitForFunction(
         (n) => document.querySelector("#score svg text")?.textContent.includes(` ${n} `),
         mallets,
@@ -625,7 +634,8 @@ describe("Safari 15.6 readability", () => {
         if (simulated) await simulateSafari15();
         await open("/", plan([block]));
         await page.getByRole("button", { name: "Start", exact: true }).click();
-        await page.waitForFunction(() => location.pathname === "/metronom");
+        await header().waitFor();
+        await tab("/metronom");
         const chip = page.locator(".plan-chip");
         await chip.waitFor();
         const pill = header();
@@ -661,9 +671,12 @@ describe("Bladlesing settings wording", () => {
   }
 
   async function panelText(panel) {
-    await page.locator(`[data-settings="${panel}"]`).click();
+    if (await page.locator(`[data-settings="${panel}"]`).isVisible()) {
+      await page.locator(`[data-settings="${panel}"]`).click();
+    }
     const text = await page.locator(`[data-settings-panel="${panel}"]`).evaluate((el) => el.textContent.replace(/\s+/g, " "));
-    await page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`).click();
+    const backBtn = page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`);
+    if (await backBtn.isVisible()) await backBtn.click();
     return text;
   }
 
@@ -671,7 +684,9 @@ describe("Bladlesing settings wording", () => {
   async function crampedElements(shotPrefix) {
     const out = [];
     for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) {
-      await page.locator(`[data-settings="${panel}"]`).click();
+      if (await page.locator(`[data-settings="${panel}"]`).isVisible()) {
+        await page.locator(`[data-settings="${panel}"]`).click();
+      }
       await shot(`${shotPrefix}-${panel}`);
       out.push(
         ...(await page.locator(`[data-settings-panel="${panel}"]`).evaluate((root, name) => {
@@ -679,6 +694,7 @@ describe("Bladlesing settings wording", () => {
           const bad = [];
           const canvas = document.createElement("canvas").getContext("2d");
           for (const el of root.querySelectorAll("*")) {
+            if (el.classList.contains("sr-only-select")) continue;
             const r = el.getBoundingClientRect();
             if (!r.width) continue;
             if (r.right > box.right + 0.5 || r.left < box.left - 0.5) bad.push(`${name}: ${el.tagName} sticks out`);
@@ -695,7 +711,8 @@ describe("Bladlesing settings wording", () => {
           return bad;
         }, panel)),
       );
-      await page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`).click();
+      const backBtn = page.locator(`[data-settings-panel="${panel}"] [data-settings-back]`);
+      if (await backBtn.isVisible()) await backBtn.click();
     }
     const line = await page.locator("#practiceLine").evaluate((el) => el.scrollWidth - el.clientWidth);
     if (line > 0) out.push("practiceLine clipped");
@@ -709,7 +726,7 @@ describe("Bladlesing settings wording", () => {
     await openDrawer();
     const text = {};
     for (const panel of ["instrument", "rytme", "register", "toneart", "mer"]) text[panel] = await panelText(panel);
-    assert.match(text.instrument, /Instrument Instrument/);
+    assert.match(text.instrument, /Instrument/);
     assert.match(text.instrument, /Notebilde/);
     assert.match(text.rytme, /Bindebuer/);
     assert.match(text.toneart, /Løse fortegn/);
@@ -725,24 +742,29 @@ describe("Bladlesing settings wording", () => {
     assert.deepEqual(a11y, {
       slider: "Akkorder i linjen",
       sliderLabelFor: "chordChance",
-      groups: [["group", "Tonearter Dur"], ["group", "Tonearter Moll"], ["group", "Tonearter"]],
+      groups: [["group", "Tonearter Dur"], ["group", "Tonearter Parallellmoll"], ["group", "Tonearter"]],
     });
     for (const [panel, value] of Object.entries(text)) assert.doesNotMatch(value, OLD_WORDS, `${panel}: ${value.match(OLD_WORDS)?.[0]}`);
     const clef = await page.locator("#clef").evaluate((el) => [...el.options].map((o) => [o.value, o.textContent]));
     assert.deepEqual(clef, [["auto", "Auto"], ["treble", "G-nøkkel"], ["bass", "F-nøkkel"], ["grand", "Pianosystem"]]);
     const textures = {};
     for (const mallets of ["2", "3", "4"]) {
-      await page.locator('[data-settings="instrument"]').click();
+      if (await page.locator('[data-settings="instrument"]').isVisible()) {
+        await page.locator('[data-settings="instrument"]').click();
+      }
       await page.locator("#mallets").selectOption(mallets);
       textures[mallets] = await page.locator("#texture").evaluate((el) => [...el.options].map((o) => [o.value, o.textContent]));
-      await page.locator('[data-settings-panel="instrument"] [data-settings-back]').click();
+      const backBtn = page.locator('[data-settings-panel="instrument"] [data-settings-back]');
+      if (await backBtn.isVisible()) await backBtn.click();
     }
     assert.deepEqual(textures["2"], [["mixed", "Melodi med akkorder"], ["melody", "Bare én linje"], ["doublestops", "Mest akkorder"]]);
     assert.deepEqual(textures["3"], [["mixed", "Melodi med akkorder"], ["melody", "Bare én linje"], ["block", "Bare treklanger"]]);
     assert.deepEqual(textures["4"].map((o) => o[0]), ["mixed", "melody", "block", "chorale"]);
     await page.locator("#btnCloseSettings").click();
     await page.locator("#btnSettings").click();
-    await page.locator('[data-settings="mer"]').click();
+    if (await page.locator('[data-settings="mer"]').isVisible()) {
+      await page.locator('[data-settings="mer"]').click();
+    }
     for (const [level, word] of [[5, "bindebuer"], [7, "løse fortegn"]]) {
       await page.locator(`[data-level="${level}"]`).evaluate((el) => el.click());
       assert.match(await page.locator("#levelHint").textContent(), new RegExp(word), `level ${level} hint`);
@@ -780,13 +802,21 @@ describe("Bladlesing settings wording", () => {
       await open("/bladlesing");
       for (const mallets of ["2", "3", "4"]) {
         await openDrawer();
-        await page.locator('[data-settings="instrument"]').click();
+        if (await page.locator('[data-settings="instrument"]').isVisible()) {
+          await page.locator('[data-settings="instrument"]').click();
+        }
         await page.locator("#mallets").selectOption(mallets);
         await page.locator("#texture").selectOption({ index: 2 });
-        await page.locator('[data-settings-panel="instrument"] [data-settings-back]').click();
+        const backBtn = page.locator('[data-settings-panel="instrument"] [data-settings-back]');
+        if (await backBtn.isVisible()) await backBtn.click();
         assert.deepEqual(await crampedElements(`${name.startsWith("768") ? "768" : "ipad"}-${mallets}k`), [], `${mallets} mallets`);
-        await page.locator('[data-settings="instrument"]').click();
-        await page.locator("#btnApply").click();
+        if (await page.locator('[data-settings="instrument"]').isVisible()) {
+          await page.locator('[data-settings="instrument"]').click();
+        }
+        const applyBtn = (await page.locator("#btnApplyTop").isVisible())
+          ? page.locator("#btnApplyTop")
+          : page.locator("#btnApply");
+        await applyBtn.click();
         await page.waitForTimeout(300);
         await shot(`${name.startsWith("768") ? "768" : "ipad"}-${mallets}k-score`);
       }
@@ -841,7 +871,8 @@ describe("audio after the screen was locked", () => {
   it("Øveplan, clock freezes in a 2-mallet block: the plan pauses with its time kept, and the next Start carries on", async () => {
     await open("/", plan(["twomallet"]));
     await page.getByRole("button", { name: "Start", exact: true }).click();
-    await page.waitForFunction(() => location.pathname === "/metronom");
+    await header().waitFor();
+    await tab("/metronom");
     await pastFirstBeat();
     assert.equal(await header().getAttribute("aria-pressed"), "false", "the block is running");
     await lockContext("frozen");
