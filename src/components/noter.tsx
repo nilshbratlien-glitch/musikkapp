@@ -137,7 +137,20 @@ export function Noter({
     }
   }, []);
 
+  const MAX_PRELOADED_SHEETS = 5;
   const preloadedSheetsRef = useRef<Map<string, SheetRecord>>(new Map());
+  const cachePreloadedSheet = useCallback((id: string, rec: SheetRecord) => {
+    const map = preloadedSheetsRef.current;
+    if (map.has(id)) {
+      map.delete(id);
+    } else if (map.size >= MAX_PRELOADED_SHEETS) {
+      const oldestKey = map.keys().next().value;
+      if (oldestKey !== undefined) {
+        map.delete(oldestKey);
+      }
+    }
+    map.set(id, rec);
+  }, []);
   const [nextPreloadedSheet, setNextPreloadedSheet] = useState<SheetRecord | null>(null);
   const [prevPreloadedSheet, setPrevPreloadedSheet] = useState<SheetRecord | null>(null);
 
@@ -183,7 +196,7 @@ export function Noter({
       try {
         const rec = await getSheet(id);
         if (rec) {
-          preloadedSheetsRef.current.set(id, rec);
+          cachePreloadedSheet(id, rec);
         }
         if (!cancelled) setter(rec ?? null);
       } catch {
@@ -200,7 +213,7 @@ export function Noter({
     return () => {
       cancelled = true;
     };
-  }, [activeSetlistSession, activeSheet, setlists]);
+  }, [activeSetlistSession, activeSheet, setlists, cachePreloadedSheet]);
 
   const handleFiles = useCallback(
     async (fileList: FileList | File[]) => {
@@ -300,13 +313,13 @@ export function Noter({
         setSheets((prev) => prev.map((s) => (s.id === id ? updated : s)));
       }
       const mergedRecord = updated ? { ...record, ...updated } : { ...record, lastOpenedAt: now };
-      preloadedSheetsRef.current.set(id, mergedRecord);
+      cachePreloadedSheet(id, mergedRecord);
       setActiveSetlistSession(setlistSession ?? null);
       setActiveSheet(mergedRecord);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunne ikke åpne notearket.");
     }
-  }, []);
+  }, [cachePreloadedSheet]);
 
   const handledDeepLinkRef = useRef<string | null>(null);
 
@@ -1566,6 +1579,7 @@ export function Noter({
             setActiveSetlistSession(null);
             setNextPreloadedSheet(null);
             setPrevPreloadedSheet(null);
+            preloadedSheetsRef.current.clear();
           }}
           onUpdateMeta={handleUpdateActiveMeta}
           onSheetReplaced={(updated) => {
