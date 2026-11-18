@@ -308,14 +308,19 @@ export function Noter({
         return;
       }
       const now = Date.now();
-      const updated = await updateSheetMeta(id, { lastOpenedAt: now });
-      if (updated) {
-        setSheets((prev) => prev.map((s) => (s.id === id ? updated : s)));
-      }
-      const mergedRecord = updated ? { ...record, ...updated } : { ...record, lastOpenedAt: now };
-      cachePreloadedSheet(id, mergedRecord);
+      const optimisticRecord = { ...record, lastOpenedAt: now };
+      cachePreloadedSheet(id, optimisticRecord);
       setActiveSetlistSession(setlistSession ?? null);
-      setActiveSheet(mergedRecord);
+      setActiveSheet(optimisticRecord);
+      void updateSheetMeta(id, { lastOpenedAt: now })
+        .then((updated) => {
+          if (updated) {
+            setSheets((prev) => prev.map((s) => (s.id === id ? updated : s)));
+          }
+        })
+        .catch(() => {
+          /* ignore metadata timestamp update failure */
+        });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunne ikke åpne notearket.");
     }

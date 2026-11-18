@@ -136,6 +136,8 @@ type PrewarmedPdfEntry = {
   promise: Promise<LoadedPdfDocument>;
   doc: LoadedPdfDocument | null;
   cancelled: boolean;
+  dims?: Record<number, PageDimensions>;
+  detectedCrops?: Record<number, NormalizedRect>;
 };
 
 function createItemId(prefix: string): string {
@@ -455,13 +457,16 @@ export function NoterViewer({
     if (prevSheetIdRef.current === sheet.id) return;
     prevSheetIdRef.current = sheet.id;
     const s = latestSheetRef.current;
+    const prewarmed = prewarmedDocsRef.current.get(sheet.id);
+    const hasPrewarmed =
+      Boolean(prewarmed) && prewarmed?.pdfData === s.pdfData && !prewarmed?.cancelled;
     loadedPagesRef.current.clear();
     setAnnotationsByPage({});
     setHistoryByPage({});
-    setCropRects({});
+    setCropRects(hasPrewarmed && prewarmed?.detectedCrops ? { ...prewarmed.detectedCrops } : {});
     setManualCrops(normalizeManualCropsMap(s.manualCrops));
     setCropModalOpen(false);
-    setPageDims({});
+    setPageDims(hasPrewarmed && prewarmed?.dims ? { ...prewarmed.dims } : {});
     setSingleCanvasSize({ width: 0, height: 0 });
     setRightCanvasSize({ width: 0, height: 0 });
     setTopCanvasSize({ width: 0, height: 0 });
@@ -519,8 +524,9 @@ export function NoterViewer({
     };
   }, []);
 
-  // Stop noter metronome and flush pending BPM save on unmount/close
+  // Stop noter metronome, flush pending BPM save, and destroy pre-warmed PDFs on unmount/close
   useEffect(() => {
+    const prewarmedMap = prewarmedDocsRef.current;
     return () => {
       if (bpmSaveTimerRef.current !== null) {
         clearTimeout(bpmSaveTimerRef.current);
@@ -530,49 +536,88 @@ export function NoterViewer({
         void onUpdateMetaRef.current({ bpm: pendingBpmRef.current });
         pendingBpmRef.current = null;
       }
+      for (const entry of prewarmedMap.values()) {
+        entry.cancelled = true;
+        if (entry.doc) {
+          void entry.doc.destroy();
+          entry.doc = null;
+        }
+      }
+      prewarmedMap.clear();
       stop("noter");
     };
   }, []);
 
-  // Load PDF document
+  // Load PDF document (adopting pre-warmed adjacent documents synchronously when ready)
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setDocReady(false);
+    const prewarmed = prewarmedDocsRef.current.get(sheet.id);
+    const matchesPrewarmed =
+      Boolean(prewarmed) && prewarmed?.pdfData === sheet.pdfData && !prewarmed?.cancelled;
+    if (matchesPrewarmed) {
+      prewarmedDocsRef.current.delete(sheet.id);
+    }
 
-    loadPdfDocument(sheet.pdfData)
-      .then((loaded) => {
-        if (cancelled) {
-          void loaded.destroy();
-          return;
-        }
-        docRef.current = loaded;
-        const initialMeta = initialSheetMetaRef.current;
-        const total = Math.max(1, loaded.numPages);
-        setPageCount(total);
-        const effectiveSpread = twoPageSpreadRef.current && !halfPageTurnRef.current;
-        const clampedInitial = normalizeSpreadPage(
-          initialMeta.lastPage || 1,
-          total,
-          effectiveSpread,
-        );
-        setPosition((prev) => ({
-          page: clampedInitial,
-          halfOffset: clampedInitial >= total ? 0 : prev.halfOffset,
-        }));
-        setLoadedDoc(loaded);
-        setDocReady(true);
-        setLoading(false);
-        if (total !== initialMeta.pageCount || clampedInitial !== initialMeta.lastPage) {
-          void onUpdateMetaRef.current({ pageCount: total, lastPage: clampedInitial });
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setLoading(false);
-        setError(err instanceof Error ? err.message : "Kunne ikke åpne PDF-filen.");
-      });
+    const applyLoadedDocument = (loaded: LoadedPdfDocument) => {
+      docRef.current = loaded;
+      const initialMeta = initialSheetMetaRef.current;
+      const total = Math.max(1, loaded.numPages);
+      setPageCount(total);
+      const effectiveSpread = twoPageSpreadRef.current && !halfPageTurnRef.current;
+      const clampedInitial = normalizeSpreadPage(
+        initialMeta.lastPage || 1,
+        total,
+        effectiveSpread,
+      );
+      setPosition((prev) => ({
+        page: clampedInitial,
+        halfOffset: clampedInitial >= total ? 0 : prev.halfOffset,
+      }));
+      setLoadedDoc(loaded);
+      setDocReady(true);
+      setLoading(false);
+      if (total !== initialMeta.pageCount || clampedInitial !== initialMeta.lastPage) {
+        void onUpdateMetaRef.current({ pageCount: total, lastPage: clampedInitial });
+      }
+    };
+
+    if (matchesPrewarmed && prewarmed?.doc) {
+      setError(null);
+      applyLoadedDocument(prewarmed.doc);
+    } else {
+      setLoading(true);
+      setError(null);
+      setDocReady(false);
+
+      const docPromise =
+        matchesPrewarmed && prewarmed
+          ? prewarmed.promise.catch(() => loadPdfDocument(sheet.pdfData))
+          : loadPdfDocument(sheet.pdfData);
+
+      docPromise
+        .then((loaded) => {
+          if (cancelled) {
+            void loaded.destroy();
+            return;
+          }
+          if (matchesPrewarmed && prewarmed) {
+            if (prewarmed.dims) {
+              const preDims = prewarmed.dims;
+              setPageDims((prev) => ({ ...preDims, ...prev }));
+            }
+            if (prewarmed.detectedCrops) {
+              const preCrops = prewarmed.detectedCrops;
+              setCropRects((prev) => ({ ...preCrops, ...prev }));
+            }
+          }
+          applyLoadedDocument(loaded);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setLoading(false);
+          setError(err instanceof Error ? err.message : "Kunne ikke åpne PDF-filen.");
+        });
+    }
 
     return () => {
       cancelled = true;
@@ -1080,6 +1125,8 @@ export function NoterViewer({
           }),
         );
         if (cancelled || entry.cancelled) return;
+        entry.dims = dims;
+        entry.detectedCrops = detectedCrops;
 
         let targetScale: number;
         if (usesSpread && landingPages.length === 2) {
