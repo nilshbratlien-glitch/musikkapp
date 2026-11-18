@@ -9,7 +9,7 @@ import {
 const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.js`;
 const PDFJS_WORKER_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
-const MAX_OFFSCREEN_CACHE = 6;
+const MAX_OFFSCREEN_CACHE = 10;
 const CROP_SCAN_SCALE = 0.75;
 
 type PdfViewport = {
@@ -72,6 +72,7 @@ export type LoadedPdfDocument = {
     options?: RenderPageOptions,
   ) => Promise<PageDimensions>;
   prefetchPage: (pageNumber: number, scale: number) => Promise<void>;
+  hasCachedPage: (pageNumber: number, scale: number) => boolean;
   detectPageCropRect: (pageNumber: number) => Promise<NormalizedRect>;
   getPageDimensions: (pageNumber: number, scale: number) => Promise<PageDimensions>;
   renderThumbnail: (pageNumber: number, maxWidth?: number) => Promise<string>;
@@ -505,6 +506,11 @@ export async function loadPdfDocument(data: ArrayBuffer): Promise<LoadedPdfDocum
       } catch {
         /* ignore background prefetch errors */
       }
+    },
+    hasCachedPage(pageNumber: number, scale: number): boolean {
+      if (destroyed || pageNumber < 1 || pageNumber > doc.numPages) return false;
+      const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+      return offscreenCache.has(buildRenderKey(pageNumber, scale, dpr));
     },
     async detectPageCropRect(pageNumber: number): Promise<NormalizedRect> {
       if (destroyed) return FULL_PAGE_RECT;

@@ -262,7 +262,11 @@ export function NoteCards() {
     redraw();
   }, [profile, isTrumpet]);
 
+  const nextCardRef = useRef(nextCard);
+  nextCardRef.current = nextCard;
+
   useEffect(() => {
+    const currentModel = model.current;
     const onKey = (event: KeyboardEvent) => {
       const live = model.current;
       if (live.tab !== "drill" || !live.session.card) return;
@@ -272,7 +276,7 @@ export function NoteCards() {
         if (event.key === " " || event.key === "Enter") {
           event.preventDefault();
           clearContinue();
-          nextCard();
+          nextCardRef.current();
         }
         return;
       }
@@ -286,7 +290,7 @@ export function NoteCards() {
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      if (model.current.toastTimer != null) window.clearTimeout(model.current.toastTimer);
+      if (currentModel.toastTimer != null) window.clearTimeout(currentModel.toastTimer);
       clearContinue();
     };
   }, []);

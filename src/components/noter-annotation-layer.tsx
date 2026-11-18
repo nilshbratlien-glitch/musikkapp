@@ -1,5 +1,5 @@
 import { Link2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { JumpLink } from "@/lib/noter";
 import {
   ANNOTATION_VIEWBOX_SIZE,
@@ -472,6 +472,36 @@ function AlignmentReticle({
     </g>
   );
 }
+
+const CommittedAnnotationsSvg = memo(function CommittedAnnotationsSvg({
+  items,
+  erasedIds,
+  visible,
+  viewBox,
+  nightFilter,
+}: {
+  items: readonly AnnotationItem[];
+  erasedIds: Set<string>;
+  visible: boolean;
+  viewBox: string;
+  nightFilter?: string;
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox={viewBox}
+      preserveAspectRatio="none"
+      style={{ touchAction: "none" }}
+      className="pointer-events-none block h-full w-full"
+    >
+      {visible
+        ? items
+            .filter((item) => !erasedIds.has(item.id))
+            .map((item) => renderAnnotationItem(item, nightFilter))
+        : null}
+    </svg>
+  );
+});
 
 export function NoterAnnotationLayer({
   pageNumber,
@@ -1227,33 +1257,38 @@ export function NoterAnnotationLayer({
       }}
       className="absolute inset-0 z-10"
     >
-      <svg
-        aria-hidden="true"
+      <CommittedAnnotationsSvg
+        items={items}
+        erasedIds={erasedIds}
+        visible={visible}
         viewBox={viewBox}
-        preserveAspectRatio="none"
-        style={{ touchAction: "none" }}
-        className="pointer-events-none block h-full w-full"
-      >
-        {visible
-          ? items
-              .filter((item) => !erasedIds.has(item.id))
-              .map((item) => renderAnnotationItem(item, nightFilter))
-          : null}
-        {draftStroke ? renderAnnotationItem(draftStroke, nightFilter) : null}
-        {draftStampItem ? (
-          <>
-            {renderAnnotationItem(draftStampItem, nightFilter)}
-            {draftStampBounds ? (
-              <AlignmentReticle
-                minX={draftStampBounds.minX}
-                minY={draftStampBounds.minY}
-                maxX={draftStampBounds.maxX}
-                maxY={draftStampBounds.maxY}
-              />
-            ) : null}
-          </>
-        ) : null}
-      </svg>
+        nightFilter={nightFilter}
+      />
+
+      {draftStroke || draftStampItem ? (
+        <svg
+          aria-hidden="true"
+          viewBox={viewBox}
+          preserveAspectRatio="none"
+          style={{ touchAction: "none" }}
+          className="pointer-events-none absolute inset-0 block h-full w-full"
+        >
+          {draftStroke ? renderAnnotationItem(draftStroke, nightFilter) : null}
+          {draftStampItem ? (
+            <>
+              {renderAnnotationItem(draftStampItem, nightFilter)}
+              {draftStampBounds ? (
+                <AlignmentReticle
+                  minX={draftStampBounds.minX}
+                  minY={draftStampBounds.minY}
+                  maxX={draftStampBounds.maxX}
+                  maxY={draftStampBounds.maxY}
+                />
+              ) : null}
+            </>
+          ) : null}
+        </svg>
+      ) : null}
 
       {draftPlacement?.kind === "link" ? (
         <div
