@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { listSetlists, listSheets } from "@/lib/noter-db";
 import type { SetlistRecord, SheetMeta } from "@/lib/noter";
@@ -8,10 +9,12 @@ import {
   blockStyle,
   bpmFromTaps,
   bumpItem,
+  clampBpm,
   enableBladlesingDuet,
   fmtClock,
   liveItems,
   playingSum,
+  playsMetronome,
   SAMSPILL_DUET_PRESET,
   savePlanStore,
   TRUMPET_EXERCISES,
@@ -109,8 +112,10 @@ const MALLETS_QUICK_TEMPLATES: PlanPreset[] = [
 ];
 
 const QUICK_MINS = [3, 5, 10, 15, 20] as const;
+const QUICK_BPMS = [60, 80, 100, 120] as const;
 
 export function Oveplan() {
+  const navigate = useNavigate();
   const clock = {
     get current(): Clock {
       return getPlanClock();
@@ -191,6 +196,7 @@ export function Oveplan() {
   const heroBlockId = (activeItem?.id ?? firstLiveItem?.id ?? "twomallet") as BlockId;
   const doneCount = liveList.filter((item) => cur.store.done.includes(item.id)).length;
   const exercisesMap = profile === "trumpet" ? TRUMPET_EXERCISES : MALLETS_EXERCISES;
+  const activeExercise = cur.activeId ? exercisesMap[cur.activeId as BlockId] : null;
 
   const activeTotalSecs = activeItem ? Math.max(1, activeItem.mins * 60) : 0;
   const activeProgressPct = activeItem
@@ -224,10 +230,33 @@ export function Oveplan() {
     }
   }
 
+  function blockBpmFor(id: BlockId): number {
+    if (cur.activeId === id) return cur.store.bpm;
+    return cur.store.bpmMap[id] ?? cur.store.bpm;
+  }
+
+  function setBlockBpm(id: BlockId, nextBpm: number) {
+    const clamped = clampBpm(nextBpm);
+    cur.store.bpmMap[id] = clamped;
+    if (cur.activeId === id || (!cur.activeId && firstLiveItem?.id === id)) {
+      setPlanBpm(clamped);
+      return;
+    }
+    persist();
+    redraw();
+  }
+
+  function changeMetroBpm(nextBpm: number) {
+    const clamped = clampBpm(nextBpm);
+    if (cur.activeId && playsMetronome(cur.activeId)) {
+      cur.store.bpmMap[cur.activeId] = clamped;
+    }
+    setPlanBpm(clamped);
+  }
+
   function toolBadgeFor(item: PlanItem): string {
     if (item.id === "twomallet" || item.id === "fourmallet") {
-      const bpm = cur.store.bpmMap[item.id] ?? cur.store.bpm;
-      return `Metronom · ${bpm} BPM`;
+      return `Metronom · ${blockBpmFor(item.id)} BPM`;
     }
     if (item.id === "srf") {
       return "Bladlesing";
@@ -236,6 +265,25 @@ export function Oveplan() {
       return `Noter · ${cur.store.repTarget.title}`;
     }
     return profile === "trumpet" ? "Metronom · Øvelse" : "Egen øving";
+  }
+
+  function openRepInNoter() {
+    const target = cur.store.repTarget;
+    if (target?.kind === "sheet" && target.id) {
+      void navigate({
+        to: "/noter" as "/",
+        search: { sheet: target.id } as never,
+      });
+      return;
+    }
+    if (target?.kind === "setlist" && target.id) {
+      void navigate({
+        to: "/noter" as "/",
+        search: { setlist: target.id } as never,
+      });
+      return;
+    }
+    void navigate({ to: "/noter" as "/" });
   }
 
   const extraTemplates =
@@ -283,8 +331,8 @@ export function Oveplan() {
         </div>
       </div>
 
-      {/* Proportional visual session timeline bar */}
-      <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-header p-0.5 gap-1" aria-hidden="true">
+      {/* Interactive proportional visual session timeline bar */}
+      <div className="mt-3 flex h-7 w-full gap-1 overflow-hidden rounded-full bg-header p-1">
         {liveList.length > 0 ? (
           liveList.map((item) => {
             const isDone = cur.store.done.includes(item.id) && cur.activeId !== item.id;
@@ -294,16 +342,27 @@ export function Oveplan() {
                 key={item.id}
                 style={{
                   flexGrow: item.mins,
+                  flexBasis: 0,
                   backgroundColor: BLOCK_COLOR[item.id],
-                  opacity: isDone ? 0.35 : isCurrent ? 1 : 0.78,
+                  opacity: isDone ? 0.38 : isCurrent ? 1 : 0.85,
                 }}
-                className={isCurrent ? "h-full rounded-full ring-2 ring-fg/80 transition-all" : "h-full rounded-full transition-all"}
+                className={
+                  isCurrent
+                    ? "flex h-full min-w-0 items-center justify-center truncate rounded-full px-2 text-[11px] font-extrabold text-[#12151b] ring-2 ring-fg transition-all"
+                    : "flex h-full min-w-0 items-center justify-center truncate rounded-full px-2 text-[11px] font-bold text-[#12151b] transition-all"
+                }
                 title={`${blockName(item.id)}: ${item.mins} min`}
-              />
+              >
+                <span className="truncate">
+                  {blockName(item.id)} · {item.mins}m
+                </span>
+              </div>
             );
           })
         ) : (
-          <div className="h-full w-full rounded-full bg-line/40" />
+          <div className="flex h-full w-full items-center justify-center rounded-full bg-line/40 text-[11px] font-medium text-muted">
+            Ingen aktive blokker
+          </div>
         )}
       </div>
 
@@ -428,6 +487,11 @@ export function Oveplan() {
                 }}
               />
             </div>
+            {activeExercise?.items[0] ? (
+              <p className="mx-auto mt-2 max-w-md text-xs font-medium text-muted">
+                {activeExercise.items[0]}
+              </p>
+            ) : null}
           </>
         ) : (
           <div className="py-2">
@@ -556,7 +620,7 @@ export function Oveplan() {
               const now = Date.now();
               cur.taps = [...cur.taps.filter((tap) => now - tap < 3000), now];
               const next = bpmFromTaps(cur.taps);
-              if (next != null) setPlanBpm(next);
+              if (next != null) changeMetroBpm(next);
               else redraw();
             }}
             className="metro-press min-h-10 rounded-xl border border-line bg-header px-3 text-xs font-semibold text-fg"
@@ -581,14 +645,14 @@ export function Oveplan() {
       <div className="flex items-center gap-1.5">
         <button
           type="button"
-          onClick={() => setPlanBpm(cur.store.bpm - 5)}
+          onClick={() => changeMetroBpm(cur.store.bpm - 5)}
           className="metro-press min-h-10 rounded-xl border border-line bg-header px-2.5 text-xs font-semibold text-muted hover:text-fg"
         >
           −5
         </button>
         <button
           type="button"
-          onClick={() => setPlanBpm(cur.store.bpm - 2)}
+          onClick={() => changeMetroBpm(cur.store.bpm - 2)}
           className="metro-press min-h-10 min-w-10 rounded-xl border border-line bg-header px-3 text-base font-bold text-fg"
         >
           −
@@ -599,19 +663,19 @@ export function Oveplan() {
           min={40}
           max={220}
           value={cur.store.bpm}
-          onChange={(event) => setPlanBpm(Number(event.target.value) || 100)}
+          onChange={(event) => changeMetroBpm(Number(event.target.value) || 100)}
           className="h-2 min-w-0 flex-1 cursor-pointer accent-accent"
         />
         <button
           type="button"
-          onClick={() => setPlanBpm(cur.store.bpm + 2)}
+          onClick={() => changeMetroBpm(cur.store.bpm + 2)}
           className="metro-press min-h-10 min-w-10 rounded-xl border border-line bg-header px-3 text-base font-bold text-fg"
         >
           +
         </button>
         <button
           type="button"
-          onClick={() => setPlanBpm(cur.store.bpm + 5)}
+          onClick={() => changeMetroBpm(cur.store.bpm + 5)}
           className="metro-press min-h-10 rounded-xl border border-line bg-header px-2.5 text-xs font-semibold text-muted hover:text-fg"
         >
           +5
@@ -866,6 +930,8 @@ export function Oveplan() {
             const dim = !enabled || isDone;
             const exercise = exercisesMap[item.id];
             const showTips = openTips[item.id] ?? (isActive || profile === "trumpet");
+            const hasBlockBpm = playsMetronome(item.id);
+            const itemBpm = blockBpmFor(item.id);
 
             return (
               <li
@@ -961,7 +1027,7 @@ export function Oveplan() {
                   </div>
                 </div>
 
-                {/* Row 2: Quick Duration Pills + Tips Toggle + Direct Launch */}
+                {/* Row 2: Quick Duration Pills + Per-Block BPM Pills + Tips Toggle + Direct Launch */}
                 <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line/50 pt-2.5">
                   <div className="flex flex-wrap items-center gap-1">
                     {QUICK_MINS.map((m) => {
@@ -981,6 +1047,28 @@ export function Oveplan() {
                         </button>
                       );
                     })}
+
+                    {hasBlockBpm ? (
+                      <div className="ml-1.5 flex flex-wrap items-center gap-1 border-l border-line/60 pl-2">
+                        {QUICK_BPMS.map((bpmVal) => {
+                          const activeBpm = itemBpm === bpmVal;
+                          return (
+                            <button
+                              key={bpmVal}
+                              type="button"
+                              onClick={() => setBlockBpm(item.id, bpmVal)}
+                              className={
+                                activeBpm
+                                  ? "metro-press min-h-7 rounded-full border border-accent/60 bg-accent/15 px-2 text-[11px] font-bold text-accent tabular-nums"
+                                  : "metro-press min-h-7 rounded-full border border-line bg-header px-2 text-[11px] font-semibold text-muted tabular-nums hover:text-fg"
+                              }
+                            >
+                              {bpmVal} BPM
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -1094,14 +1182,9 @@ export function Oveplan() {
                         </option>
                       ) : null}
                     </select>
-                    <a
-                      href={
-                        cur.store.repTarget?.kind === "sheet"
-                          ? `/noter?sheet=${encodeURIComponent(cur.store.repTarget.id)}`
-                          : cur.store.repTarget?.kind === "setlist"
-                            ? `/noter?setlist=${encodeURIComponent(cur.store.repTarget.id)}`
-                            : "/noter"
-                      }
+                    <button
+                      type="button"
+                      onClick={openRepInNoter}
                       className="metro-press inline-flex min-h-9 shrink-0 items-center rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-accent hover:border-accent/60"
                     >
                       {cur.store.repTarget
@@ -1109,7 +1192,7 @@ export function Oveplan() {
                         : noterSheets.length === 0
                           ? "+ Last opp i Noter"
                           : "Bibliotek"}
-                    </a>
+                    </button>
                   </div>
                 ) : null}
               </li>
