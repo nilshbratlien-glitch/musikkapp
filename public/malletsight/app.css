@@ -722,9 +722,8 @@
     column-gap: 14px;
   }
   #malletsight-root .settings-panel,
-  #malletsight-root .settings-panel[hidden],
   #malletsight-root .settings-cards {
-    display: contents;
+    display: block;
   }
   #malletsight-root .settings-card {
     break-inside: avoid;

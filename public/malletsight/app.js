@@ -1135,10 +1135,11 @@
 
   function showSettings(name) {
     if (name) lastSettingsPanel = name;
+    const isWide = typeof window !== "undefined" && window.innerWidth >= 640;
     const grid = $("#settingsGrid");
-    if (grid) grid.hidden = !!name;
+    if (grid) grid.hidden = isWide || !!name;
     $all("[data-settings-panel]").forEach((panel) => {
-      panel.hidden = panel.getAttribute("data-settings-panel") !== name;
+      panel.hidden = !isWide && panel.getAttribute("data-settings-panel") !== name;
     });
     $all(".settings-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.getAttribute("data-settings") === name);
