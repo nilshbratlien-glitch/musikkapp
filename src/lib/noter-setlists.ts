@@ -22,6 +22,24 @@ export function moveSetlistItem(
   return list;
 }
 
+export function appendSheetIdsToSetlist(
+  existingIds: readonly string[],
+  idsToAdd: readonly string[],
+): string[] {
+  if (idsToAdd.length === 0) return [...existingIds];
+  return [...existingIds, ...idsToAdd.filter((id) => typeof id === "string" && id.length > 0)];
+}
+
+export function countSheetOccurrencesInSetlist(
+  sheetIds: readonly string[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const id of sheetIds) {
+    counts[id] = (counts[id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export function removeDeletedSheetFromSetlist(
   setlist: SetlistRecord,
   deletedSheetId: string,
