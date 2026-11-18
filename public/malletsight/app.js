@@ -151,6 +151,8 @@
           merged.rolls = "off";
           merged.chordChance = 0;
           merged.doubleStopChance = 0;
+        } else if (merged.instrumentId === "trumpet" || !T.INSTRUMENTS.some((i) => i.id === merged.instrumentId && i.id !== "trumpet")) {
+          merged.instrumentId = DEFAULTS.instrumentId;
         }
         const valid = new Set(T.KEYS.map((k) => k.id));
         if (!Array.isArray(parsed.keyIds)) {
@@ -381,9 +383,50 @@
     if ($("#duetRangeMalletLowLbl")) $("#duetRangeMalletLowLbl").textContent = midiLabel(malLow);
     if ($("#rangeMalletHighLbl")) $("#rangeMalletHighLbl").textContent = midiLabel(malHigh);
     if ($("#duetRangeMalletHighLbl")) $("#duetRangeMalletHighLbl").textContent = midiLabel(malHigh);
+    updateDualRangeFill("rangeTptLow", "rangeTptHigh", "tptRangeFill");
+    updateDualRangeFill("rangeMalletLow", "rangeMalletHigh", "malRangeFill");
   }
 
+  const SHORT_PILL_LABELS = {
+    instrument: {
+      glock: "Klokkesp.",
+      xylo: "Xylofon",
+      vibes: "Vibrafon",
+      mar43: "Mar 4.3",
+      mar50: "Mar 5.0",
+      trumpet: "Trompet",
+    },
+    texture: {
+      mixed: "Melodi + akk",
+      melody: "Kun melodi",
+      doublestops: "Mest akk",
+      block: "Blokkakk.",
+      chorale: "Koral",
+    },
+    clef: {
+      auto: "Auto",
+      treble: "G-nøkkel",
+      bass: "F-nøkkel",
+      grand: "Piano",
+    },
+    time: {
+      random: "Tilfeldig",
+    },
+    maxLeap: {
+      "2": "2. Sek",
+      "3": "3. Ters",
+      "4": "4. Kvart",
+      "5": "5. Kvint",
+      "6": "6. Sekst",
+      "7": "7. Sept",
+      "8": "8. Oktav",
+      "9": "9. None",
+      "12": "12. Duod",
+    },
+  };
+
   function fillSelect(el, items, value, labelFn, valueFn) {
+    if (!el) return;
     el.innerHTML = "";
     items.forEach((it) => {
       const opt = document.createElement("option");
@@ -391,7 +434,27 @@
       opt.textContent = labelFn ? labelFn(it) : it.name;
       el.appendChild(opt);
     });
-    el.value = value;
+    const strVal = String(value);
+    const hasMatch = Array.from(el.options).some((o) => o.value === strVal);
+    el.value = hasMatch ? strVal : (el.options[0] ? el.options[0].value : "");
+    if (el.id) {
+      const group = $(`.seg-group[data-for="${el.id}"]`);
+      if (group) {
+        const shortMap = SHORT_PILL_LABELS[el.id] || {};
+        group.innerHTML = "";
+        Array.from(el.options).forEach((opt) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          const active = opt.value === el.value;
+          btn.className = "seg-btn" + (active ? " active" : "");
+          btn.setAttribute("data-value", opt.value);
+          btn.setAttribute("aria-pressed", active ? "true" : "false");
+          btn.textContent = shortMap[opt.value] || opt.textContent;
+          btn.title = opt.textContent;
+          group.appendChild(btn);
+        });
+      }
+    }
   }
 
   const RHYTHM_PRESETS = {
@@ -795,6 +858,8 @@
     }
     updateMalletHints();
     syncConditionalCards();
+    syncSegmentedPills();
+    updateSettingsSummaries();
   }
 
   function updateMalletHints() {
@@ -1194,10 +1259,21 @@
 
     $("#instrument").addEventListener("change", () => {
       settings.instrumentId = $("#instrument").value;
+      if (settings.instrumentId !== "trumpet") {
+        settings.duetMalletInstrument = settings.instrumentId;
+        if ($("#duetMalletInstrument")) $("#duetMalletInstrument").value = settings.instrumentId;
+        if ($("#duetToolbarMalletSelect")) $("#duetToolbarMalletSelect").value = settings.instrumentId;
+      }
+      if (window.AudioEngine && typeof AudioEngine.loadInstrument === "function") {
+        AudioEngine.loadInstrument(settings.instrumentId);
+      }
       applyInstrumentRange(true);
       syncRangeSliders();
+      if (settings.duetEnabled) syncDuetRangeSliders(true);
       updateMalletHints();
+      syncSegmentedPills();
       saveSettings();
+      if (settings.duetEnabled) generate();
     });
 
     $("#mallets").addEventListener("change", () => {
