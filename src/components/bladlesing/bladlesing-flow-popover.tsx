@@ -15,13 +15,11 @@ export function BladlesingFlowPopover({
   if (!open) return null;
 
   return (
-    <>
-      <div className="fixed inset-0 z-30" onClick={onClose} aria-hidden="true" />
-      <div
-        role="dialog"
-        aria-label="Bladlesingsflyt"
-        className="absolute top-full right-0 z-40 mt-2 w-72 rounded-2xl border border-line bg-[rgb(var(--color-chrome-rgb)/0.96)] p-3.5 text-fg shadow-xl backdrop-blur-md sm:w-80"
-      >
+    <div
+      role="dialog"
+      aria-label="Bladlesingsflyt"
+      className="absolute top-full right-0 z-40 mt-2 w-72 rounded-2xl border border-line bg-[rgb(var(--color-chrome-rgb)/0.98)] p-3.5 text-fg shadow-xl backdrop-blur-md sm:w-80"
+    >
         <div className="mb-2.5 flex items-center justify-between">
           <div>
             <p className="text-xs font-bold tracking-wider text-accent uppercase">Bladlesingsflyt</p>
@@ -108,8 +106,7 @@ export function BladlesingFlowPopover({
               className="size-4 shrink-0 accent-[var(--color-accent)]"
             />
           </label>
-        </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -295,7 +295,9 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
   const startMetroInternal = useCallback(() => {
     const eng = engineRef.current;
     if (!eng) return;
+    cancelAutoNext();
     const spec = getMetroSpec();
+    const countInBars = settingsRef.current.flowCountIn ? 1 : 0;
     setBeatsPerBar(spec.beats);
     practiceBeatRef.current = 0;
     const musicClicks =
@@ -305,11 +307,11 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
     eng.AudioEngine.setClicks(true);
     eng.AudioEngine.ac();
     setMetroOn(true);
-    setMetroLabel("1");
+    setMetroLabel(countInBars > 0 ? "1" : "Stopp");
     eng.ScoreRenderer.showBeat(beatMapRef.current, 0);
     eng.AudioEngine.startMetronome(spec.bpm, spec.beats, {
       subdiv: subdivRef.current,
-      countIn: 1,
+      countIn: countInBars,
       musicClicks,
       onBeat: (i, count, fromClick, cue) => {
         if (!fromClick) {
@@ -341,9 +343,26 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
         setActiveBeat(-1);
         clearFadedMeasures();
         eng.ScoreRenderer.clearBeat();
+        if (settingsRef.current.flowAutoNext && !remoteCallRef.current) {
+          const delay = Math.max(2, Math.min(5, settingsRef.current.flowAutoNextDelay || 3));
+          let left = delay;
+          setAutoNextLeft(left);
+          autoNextTimerRef.current = window.setInterval(() => {
+            left -= 1;
+            if (left <= 0) {
+              cancelAutoNext();
+              generate();
+              window.setTimeout(() => {
+                startMetroInternal();
+              }, 120);
+            } else {
+              setAutoNextLeft(left);
+            }
+          }, 1000);
+        }
       },
     });
-  }, [clearFadedMeasures, fadeCompletedMeasures, getMetroSpec]);
+  }, [cancelAutoNext, clearFadedMeasures, fadeCompletedMeasures, generate, getMetroSpec]);
 
   const startPlayInternal = useCallback(
     (forceGenerate = false) => {

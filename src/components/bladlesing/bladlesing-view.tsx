@@ -29,9 +29,17 @@ export function BladlesingView() {
   const flowActive = state.settings.flowAutoNext || state.settings.flowDisappearing;
 
   return (
-    <div id="malletsight-root" className="flex h-full min-h-0 flex-col overflow-hidden bg-bg text-fg">
+    <div id="malletsight-root" className="relative flex h-full min-h-0 flex-col overflow-hidden bg-bg text-fg">
+      {flowOpen ? (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={() => setFlowOpen(false)}
+          aria-hidden="true"
+        />
+      ) : null}
+
       {/* Compact frosted top toolbar + Quick Practice Recipes */}
-      <div className="shrink-0 border-b border-line bg-[rgb(var(--color-chrome-rgb)/0.88)] backdrop-blur-md">
+      <div className="relative z-30 shrink-0 border-b border-line bg-[rgb(var(--color-chrome-rgb)/0.88)] backdrop-blur-md">
         <div className="flex items-center justify-between gap-1.5 px-2.5 py-2 sm:px-4">
           {/* Quick Practice Recipes on >= md, compact title/level on mobile */}
           <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
