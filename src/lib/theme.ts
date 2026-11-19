@@ -5,7 +5,7 @@ export const THEME_STORAGE_KEY = "musikkapp.theme";
 
 export const THEME_COLOR_META: Record<ResolvedTheme, string> = {
   light: "#ffffff",
-  dark: "#12151b",
+  dark: "#0f1218",
 };
 
 export const THEME_LABELS: Record<ThemePreference, string> = {

@@ -1,22 +1,22 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #12151b;
-  --color-chrome: #161a22;
-  --color-header: #161a22;
-  --color-surface: #1c222c;
-  --color-line: #2a3140;
-  --color-fg: #f4f6f8;
-  --color-muted: #9aa3b0;
-  --color-accent: #e0b15a;
-  --color-accent-fg: #1a1408;
-  --color-on-block: #12151b;
-  --color-ok: #4e9a6b;
-  --color-no: #c0483f;
-  --color-twomallet: #7ee0d6;
-  --color-fourmallet: #8aa4ff;
-  --color-srf: #e0b15a;
-  --color-rep: #e89b6d;
+  --color-bg: #0f1218;
+  --color-chrome: #141922;
+  --color-header: #161c26;
+  --color-surface: #1c2331;
+  --color-line: #2a3447;
+  --color-fg: #f8fafc;
+  --color-muted: #94a3b8;
+  --color-accent: #3b82f6;
+  --color-accent-fg: #ffffff;
+  --color-on-block: #0f172a;
+  --color-ok: #22c55e;
+  --color-no: #ef4444;
+  --color-twomallet: #22d3ee;
+  --color-fourmallet: #818cf8;
+  --color-srf: #3b82f6;
+  --color-rep: #a78bfa;
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --radius-card: 1.15rem;
 }
@@ -24,36 +24,36 @@
 @layer base {
   :root {
     color-scheme: dark;
-    --color-bg: #12151b;
-    --color-chrome: #161a22;
-    --color-chrome-rgb: 22 26 34;
-    --color-header: #161a22;
-    --color-surface: #1c222c;
-    --color-line: #2a3140;
-    --color-fg: #f4f6f8;
-    --color-muted: #9aa3b0;
-    --color-accent: #e0b15a;
-    --color-accent-fg: #1a1408;
-    --color-accent-shadow: #8a6a2e;
-    --color-on-block: #12151b;
-    --color-ok: #4e9a6b;
-    --color-no: #c0483f;
-    --color-no-rgb: 192 72 63;
-    --color-twomallet: #7ee0d6;
-    --color-fourmallet: #8aa4ff;
+    --color-bg: #0f1218;
+    --color-chrome: #141922;
+    --color-chrome-rgb: 20 25 34;
+    --color-header: #161c26;
+    --color-surface: #1c2331;
+    --color-line: #2a3447;
+    --color-fg: #f8fafc;
+    --color-muted: #94a3b8;
+    --color-accent: #3b82f6;
+    --color-accent-fg: #ffffff;
+    --color-accent-shadow: #1d4ed8;
+    --color-on-block: #0f172a;
+    --color-ok: #22c55e;
+    --color-no: #ef4444;
+    --color-no-rgb: 239 68 68;
+    --color-twomallet: #22d3ee;
+    --color-fourmallet: #818cf8;
     --color-srf: var(--color-accent);
-    --color-rep: #e89b6d;
+    --color-rep: #a78bfa;
     /* The same colours as rgb channels, for tints that Safari 15 (no color-mix) can draw: rgb(var(--x-rgb) / 0.12). */
-    --color-twomallet-rgb: 126 224 214;
-    --color-fourmallet-rgb: 138 164 255;
-    --color-accent-rgb: 224 177 90;
-    --color-rep-rgb: 232 155 109;
-    --color-scrim: rgb(0 0 0 / 0.72);
-    --color-stage: #0f1217;
+    --color-twomallet-rgb: 34 211 238;
+    --color-fourmallet-rgb: 129 140 248;
+    --color-accent-rgb: 59 130 246;
+    --color-rep-rgb: 167 139 250;
+    --color-scrim: rgb(2 6 23 / 0.72);
+    --color-stage: #0b0e14;
     --color-paper: #f3efe6;
-    --shadow-card: 0 10px 28px rgb(0 0 0 / 0.22);
-    --shadow-hero: 0 10px 28px rgb(0 0 0 / 0.24);
-    --shadow-paper: 0 8px 28px rgb(0 0 0 / 0.32);
+    --shadow-card: 0 2px 12px rgb(0 0 0 / 0.24);
+    --shadow-hero: 0 4px 18px rgb(0 0 0 / 0.26);
+    --shadow-paper: 0 8px 24px rgb(0 0 0 / 0.32);
   }
 
   html[data-theme="light"] {

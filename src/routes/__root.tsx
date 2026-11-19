@@ -14,7 +14,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
       { name: "description", content: "Bladlesing, metronom, øveplan og notekort." },
-      { name: "theme-color", content: "#12151b" },
+      { name: "theme-color", content: "#0f1218" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
     ],
     links: [
