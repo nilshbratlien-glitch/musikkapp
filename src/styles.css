@@ -37,6 +37,7 @@
     --color-accent-shadow: #1d4ed8;
     --color-on-block: #0f172a;
     --color-ok: #22c55e;
+    --color-ok-rgb: 34 197 94;
     --color-no: #ef4444;
     --color-no-rgb: 239 68 68;
     --color-twomallet: #22d3ee;
@@ -71,6 +72,7 @@
     --color-accent-shadow: #1d4ed8;
     --color-on-block: #ffffff;
     --color-ok: #15803d;
+    --color-ok-rgb: 21 128 61;
     --color-no: #dc2626;
     --color-no-rgb: 220 38 38;
     --color-twomallet: #0e7490;

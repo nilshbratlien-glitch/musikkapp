@@ -126,12 +126,12 @@ export function BladlesingScoreStage({
               Opptelling {countInBeat}/{beatsPerBar}
             </span>
           ) : autoNextLeft != null ? (
-            <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-semibold text-accent tabular-nums">
+            <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[rgb(var(--color-accent-rgb)/0.4)] bg-[rgb(var(--color-accent-rgb)/0.1)] px-2.5 py-0.5 text-xs font-semibold text-accent tabular-nums">
               <span>Neste etyde om {autoNextLeft}s</span>
               <button
                 type="button"
                 onClick={onCancelAutoNext}
-                className="underline decoration-accent/60 underline-offset-2 hover:text-fg"
+                className="underline decoration-accent underline-offset-2 hover:text-fg"
               >
                 Avbryt
               </button>

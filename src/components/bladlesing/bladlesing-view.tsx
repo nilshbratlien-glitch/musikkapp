@@ -53,7 +53,7 @@ export function BladlesingView() {
                   title={recipe.description}
                   className={
                     active
-                      ? "metro-press hidden min-h-9 shrink-0 items-center rounded-full border border-accent bg-accent/12 px-3 text-xs font-semibold text-accent md:inline-flex"
+                      ? "metro-press hidden min-h-9 shrink-0 items-center rounded-full border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-3 text-xs font-semibold text-accent md:inline-flex"
                       : "metro-press hidden min-h-9 shrink-0 items-center rounded-full border border-line bg-header px-3 text-xs font-medium text-muted hover:text-fg md:inline-flex"
                   }
                 >
@@ -71,7 +71,7 @@ export function BladlesingView() {
               }
               className={
                 state.settings.duetEnabled
-                  ? "on metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok"
+                  ? "on metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-ok bg-[rgb(var(--color-ok-rgb)/0.15)] px-2.5 text-xs font-semibold text-ok"
                   : "metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
               }
             >
@@ -126,7 +126,7 @@ export function BladlesingView() {
                 title="Bladlesingsflyt: 1 takt opptelling, automatisk neste etyde, og «Les forover»"
                 className={
                   flowActive
-                    ? "metro-press inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-accent bg-accent/12 px-2.5 text-xs font-semibold text-accent"
+                    ? "metro-press inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2.5 text-xs font-semibold text-accent"
                     : "metro-press inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
                 }
               >
@@ -173,7 +173,7 @@ export function BladlesingView() {
               id="btnSettings"
               type="button"
               onClick={() => setSettingsOpen(true)}
-              className="metro-press inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-xs font-semibold text-fg shadow-xs hover:border-accent/60 sm:px-3"
+              className="metro-press inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-xs font-semibold text-fg shadow-xs hover:border-[rgb(var(--color-accent-rgb)/0.6)] sm:px-3"
             >
               <SlidersHorizontal className="size-3.5 text-muted" aria-hidden="true" />
               <span>Innstillinger</span>
@@ -182,7 +182,7 @@ export function BladlesingView() {
         </div>
 
         {/* Mobile Quick Practice Recipes strip */}
-        <div className="flex items-center gap-1.5 overflow-x-auto border-t border-line/60 px-2.5 py-1.5 md:hidden">
+        <div className="flex items-center gap-1.5 overflow-x-auto border-t border-line px-2.5 py-1.5 md:hidden">
           {recipes.map((recipe) => {
             const active = activeRecipeId === recipe.id;
             return (
@@ -192,7 +192,7 @@ export function BladlesingView() {
                 onClick={() => actions.applyRecipe(recipe)}
                 className={
                   active
-                    ? "metro-press min-h-7 shrink-0 rounded-full border border-accent bg-accent/12 px-2.5 text-[11px] font-semibold text-accent"
+                    ? "metro-press min-h-7 shrink-0 rounded-full border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2.5 text-[11px] font-semibold text-accent"
                     : "metro-press min-h-7 shrink-0 rounded-full border border-line bg-header px-2.5 text-[11px] font-medium text-muted"
                 }
               >
@@ -235,10 +235,10 @@ export function BladlesingView() {
               onClick={actions.togglePlay}
               className={
                 state.playing
-                  ? "on metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-3 text-xs font-semibold text-ok sm:px-3.5 sm:text-sm"
+                  ? "on metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-ok bg-[rgb(var(--color-ok-rgb)/0.15)] px-3 text-xs font-semibold text-ok sm:px-3.5 sm:text-sm"
                   : state.yielded
-                    ? "yielded metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-dashed border-accent/60 bg-surface px-3 text-xs font-semibold text-muted sm:px-3.5 sm:text-sm"
-                    : "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-fg hover:border-accent/60 sm:px-3.5 sm:text-sm"
+                    ? "yielded metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-dashed border-[rgb(var(--color-accent-rgb)/0.6)] bg-surface px-3 text-xs font-semibold text-muted sm:px-3.5 sm:text-sm"
+                    : "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-fg hover:border-[rgb(var(--color-accent-rgb)/0.6)] sm:px-3.5 sm:text-sm"
               }
             >
               {state.playing ? (
@@ -255,10 +255,10 @@ export function BladlesingView() {
               onClick={actions.toggleMetro}
               className={
                 state.metroOn
-                  ? "on metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok sm:px-3 sm:text-sm"
+                  ? "on metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-ok bg-[rgb(var(--color-ok-rgb)/0.15)] px-2.5 text-xs font-semibold text-ok sm:px-3 sm:text-sm"
                   : state.yielded
-                    ? "yielded metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-dashed border-accent/60 bg-surface px-2.5 text-xs font-semibold text-muted sm:px-3 sm:text-sm"
-                    : "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-xs font-semibold text-fg hover:border-accent/60 sm:px-3 sm:text-sm"
+                    ? "yielded metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-dashed border-[rgb(var(--color-accent-rgb)/0.6)] bg-surface px-2.5 text-xs font-semibold text-muted sm:px-3 sm:text-sm"
+                    : "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-xs font-semibold text-fg hover:border-[rgb(var(--color-accent-rgb)/0.6)] sm:px-3 sm:text-sm"
               }
             >
               <Activity className="size-3.5" aria-hidden="true" />
@@ -272,7 +272,7 @@ export function BladlesingView() {
               onClick={actions.cycleSubdiv}
               className={
                 state.subdiv > 1
-                  ? "on metro-press hidden min-h-10 min-w-10 items-center justify-center rounded-xl border border-accent bg-accent/12 text-sm font-bold text-accent sm:inline-flex"
+                  ? "on metro-press hidden min-h-10 min-w-10 items-center justify-center rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] text-sm font-bold text-accent sm:inline-flex"
                   : "metro-press hidden min-h-10 min-w-10 items-center justify-center rounded-xl border border-line bg-surface text-sm font-semibold text-muted hover:text-fg sm:inline-flex"
               }
             >
@@ -333,7 +333,7 @@ export function BladlesingView() {
               type="button"
               title="Samme etyde, litt saktere"
               onClick={actions.again}
-              className="metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-xs font-semibold text-fg hover:border-accent/60 sm:px-3.5 sm:text-sm"
+              className="metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-xs font-semibold text-fg hover:border-[rgb(var(--color-accent-rgb)/0.6)] sm:px-3.5 sm:text-sm"
             >
               <RotateCcw className="size-3.5 text-muted" aria-hidden="true" />
               <span>Igjen</span>

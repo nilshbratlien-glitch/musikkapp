@@ -53,7 +53,7 @@ export function BladlesingDuetBar({
               onClick={() => onSetViewPart(part)}
               className={
                 active
-                  ? "active metro-press min-h-8 rounded-full border border-ok bg-ok/15 px-3 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
+                  ? "active metro-press min-h-8 rounded-full border border-ok bg-[rgb(var(--color-ok-rgb)/0.15)] px-3 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
                   : "metro-press min-h-8 rounded-full border border-line bg-header px-3 text-xs font-medium text-muted hover:text-fg md:min-h-9 md:text-sm"
               }
             >
@@ -69,7 +69,7 @@ export function BladlesingDuetBar({
             title="Speil stemmevisning til tilkoblede skjermer"
             className={
               duetPaired
-                ? "active metro-press min-h-8 rounded-full border border-accent bg-accent/12 px-3 text-xs font-semibold text-accent md:min-h-9 md:text-sm"
+                ? "active metro-press min-h-8 rounded-full border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-3 text-xs font-semibold text-accent md:min-h-9 md:text-sm"
                 : "metro-press min-h-8 rounded-full border border-line bg-header px-3 text-xs font-medium text-muted hover:text-fg md:min-h-9 md:text-sm"
             }
           >
@@ -113,7 +113,7 @@ export function BladlesingDuetBar({
           title="Slå av/på trompet-lyd"
           className={
             settings.duetPlayTrumpet
-              ? "active metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
+              ? "active metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-ok bg-[rgb(var(--color-ok-rgb)/0.15)] px-2.5 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
               : "muted metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-header px-2.5 text-xs font-medium text-muted line-through opacity-60 md:min-h-9 md:text-sm"
           }
         >
@@ -127,7 +127,7 @@ export function BladlesingDuetBar({
           title="Slå av/på slagverk-lyd"
           className={
             settings.duetPlayMallets
-              ? "active metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
+              ? "active metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-ok bg-[rgb(var(--color-ok-rgb)/0.15)] px-2.5 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
               : "muted metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-header px-2.5 text-xs font-medium text-muted line-through opacity-60 md:min-h-9 md:text-sm"
           }
         >

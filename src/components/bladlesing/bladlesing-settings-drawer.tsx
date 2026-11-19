@@ -27,7 +27,7 @@ const CLEF_OPTIONS: ReadonlyArray<readonly [string, string, string]> = [
   ["grand", "Pianosystem", "Piano"],
 ];
 
-const TIME_OPTIONS = ["4/4", "3/4", "2/4", "6/8", "2/2", "3/8", "5/8", "7/8", "random"] as const;
+const TIME_OPTIONS = ["random", "4/4", "3/4", "2/4", "2/2", "6/8", "3/8", "5/8", "7/8"] as const;
 const MEASURE_OPTIONS = [4, 8, 12, 16] as const;
 
 const LEAP_OPTIONS: ReadonlyArray<readonly [number, string, string]> = [
@@ -58,13 +58,19 @@ const DUET_STYLE_OPTIONS: ReadonlyArray<readonly [DuetStyle, string]> = [
 ];
 
 const STOP_INTERVALS: ReadonlyArray<readonly [string, string]> = [
-  ["2", "2."],
-  ["3", "3."],
-  ["4", "4."],
-  ["5", "5."],
-  ["6", "6."],
-  ["7", "7."],
-  ["8", "8."],
+  ["2", "Sekund"],
+  ["3", "Ters"],
+  ["4", "Kvart"],
+  ["5", "Kvint"],
+  ["6", "Sekst"],
+  ["7", "Septim"],
+  ["8", "Oktav"],
+];
+
+const STOP_PLACE_OPTIONS: ReadonlyArray<readonly [string, string]> = [
+  ["below", "Under"],
+  ["above", "Over"],
+  ["either", "Begge"],
 ];
 
 function textureOptionsForMallets(mallets: number): ReadonlyArray<readonly [string, string, string]> {
@@ -105,7 +111,7 @@ function SegPills({
   onChange: (next: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap gap-1.5">
       {options.map(([val, label]) => {
         const active = value === val;
         return (
@@ -115,8 +121,8 @@ function SegPills({
             onClick={() => onChange(val)}
             className={
               active
-                ? "metro-press min-h-8 flex-1 rounded-lg border border-accent bg-accent/12 px-2 py-1 text-center text-xs leading-tight font-semibold text-accent"
-                : "metro-press min-h-8 flex-1 rounded-lg border border-line bg-header px-2 py-1 text-center text-xs leading-tight font-medium text-muted hover:text-fg"
+                ? "metro-press min-h-9 flex-1 rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2.5 py-1.5 text-center text-xs leading-tight font-semibold text-accent"
+                : "metro-press min-h-9 flex-1 rounded-xl border border-line bg-header px-2.5 py-1.5 text-center text-xs leading-tight font-medium text-muted hover:text-fg"
             }
           >
             {label}
@@ -141,7 +147,7 @@ function PillSwitch({
   return (
     <label
       htmlFor={id}
-      className="flex min-h-9 cursor-pointer items-center justify-between gap-2 rounded-lg border border-line bg-header px-2.5 py-1.5 transition hover:border-accent/40"
+      className="flex min-h-9 cursor-pointer items-center justify-between gap-2 rounded-xl border border-line bg-header px-3 py-1.5 transition hover:border-[rgb(var(--color-accent-rgb)/0.4)]"
     >
       <span className="text-xs leading-tight font-medium text-fg">{label}</span>
       <span className="relative inline-flex shrink-0 items-center">
@@ -190,7 +196,7 @@ function DualRange({
     <div className="relative flex h-7 items-center">
       <div className="pointer-events-none absolute inset-x-0 h-1.5 overflow-hidden rounded-full bg-line">
         <div
-          className="absolute inset-y-0 rounded-full bg-accent/60"
+          className="absolute inset-y-0 rounded-full bg-[rgb(var(--color-accent-rgb)/0.6)]"
           style={{ left: `${leftPct}%`, width: `${Math.max(3, rightPct - leftPct)}%` }}
         />
       </div>
@@ -369,11 +375,11 @@ export function BladlesingSettingsDrawer({
             : "pointer-events-none fixed inset-0 z-50 flex flex-col bg-bg text-fg transition-transform duration-200 translate-y-full invisible"
         }
       >
-        {/* Compact Command Center Header (optimized for 13" 16:10) */}
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-[rgb(var(--color-chrome-rgb)/0.92)] px-4 py-2.5 backdrop-blur-md">
+        {/* Full-width Command Center Header */}
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-[rgb(var(--color-chrome-rgb)/0.94)] px-4 py-2.5 backdrop-blur-md">
           <div className="min-w-0">
             <h2 className="text-base leading-tight font-bold tracking-tight text-fg">Innstillinger</h2>
-            <p id="levelHint" className="max-w-md truncate text-xs text-muted">
+            <p id="levelHint" className="text-xs text-muted">
               {levelHintText}
             </p>
           </div>
@@ -392,7 +398,7 @@ export function BladlesingSettingsDrawer({
                     onClick={() => onApplyLevel(n)}
                     className={
                       active
-                        ? "metro-press flex size-8 items-center justify-center rounded-lg border border-accent bg-accent text-xs font-bold text-accent-fg"
+                        ? "metro-press flex size-8 items-center justify-center rounded-lg border border-accent bg-[rgb(var(--color-accent-rgb)/0.14)] text-xs font-bold text-accent"
                         : "metro-press flex size-8 items-center justify-center rounded-lg border border-line bg-surface text-xs font-semibold text-muted hover:text-fg"
                     }
                   >
@@ -411,7 +417,7 @@ export function BladlesingSettingsDrawer({
                 onApply();
                 closeDrawer();
               }}
-              className="metro-press hidden min-h-9 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-bold text-accent-fg sm:inline-flex"
+              className="metro-press hidden min-h-9 items-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-accent-fg shadow-xs sm:inline-flex"
             >
               <Check className="size-3.5" aria-hidden="true" />
               <span>Lag etyde</span>
@@ -420,7 +426,7 @@ export function BladlesingSettingsDrawer({
               id="btnCloseSettings"
               type="button"
               onClick={closeDrawer}
-              className="metro-press inline-flex min-h-9 items-center gap-1 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-fg"
+              className="metro-press inline-flex min-h-9 items-center gap-1 rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-fg"
             >
               <X className="size-3.5" aria-hidden="true" />
               <span>Lukk</span>
@@ -428,8 +434,8 @@ export function BladlesingSettingsDrawer({
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4 md:px-5">
-          {/* Mobile category grid */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
+          {/* Mobile category grid (< 640px) */}
           {mobilePanel === null ? (
             <nav
               id="settingsGrid"
@@ -451,18 +457,18 @@ export function BladlesingSettingsDrawer({
             </nav>
           ) : null}
 
-          {/* Full-width 3-column Command Center for 13" 16:10 (zero wasted space, balanced columns) */}
-          <div className="mx-auto grid max-w-[1380px] items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {/* COLUMN 1: INSTRUMENT + AKKORDER + DUETT */}
+          {/* Full-bleed 3-column layout (2 cols on tablet portrait, 3 cols on tablet landscape / 13" 16:10) */}
+          <div className="grid w-full items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {/* COLUMN 1: INSTRUMENT & OPPSETT + AKKORDER + REGISTER & SPRANG */}
             <div
               className={
-                mobilePanel === "instrument" || mobilePanel === "duett"
+                mobilePanel === "instrument" || mobilePanel === "register"
                   ? "flex flex-col gap-3"
                   : "hidden sm:flex sm:flex-col sm:gap-3"
               }
             >
               {/* PANEL: INSTRUMENT */}
-              <section data-settings-panel="instrument" className={`space-y-2.5 ${panelVisibility("instrument")}`}>
+              <section data-settings-panel="instrument" className={`space-y-3 ${panelVisibility("instrument")}`}>
                 <button
                   type="button"
                   data-settings-back
@@ -473,7 +479,7 @@ export function BladlesingSettingsDrawer({
                   <span>Tilbake</span>
                 </button>
 
-                <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
                   <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">Instrument & oppsett</h3>
 
                   {!isTrumpet ? (
@@ -551,7 +557,7 @@ export function BladlesingSettingsDrawer({
                     </>
                   ) : (
                     <p className="text-xs leading-relaxed text-muted">
-                      B-trompet er aktiv profil. Notene transponeres automatisk og ventilgrep styres under Mer.
+                      B-trompet er aktiv profil. Notene transponeres automatisk og ventilgrep styres under Uttrykk & hjelpemidler.
                     </p>
                   )}
 
@@ -579,9 +585,9 @@ export function BladlesingSettingsDrawer({
                   </div>
                 </div>
 
-                {/* Akkorder & doble grep (compact conditional card) */}
+                {/* Akkorder & grep */}
                 {!isTrumpet ? (
-                  <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
                     <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">Akkorder & grep</h3>
 
                     <div className="space-y-1">
@@ -604,28 +610,39 @@ export function BladlesingSettingsDrawer({
                     </div>
 
                     {settings.texture !== "melody" && settings.mallets === 2 ? (
-                      <div className="space-y-1.5">
-                        <span className="block text-xs font-medium text-muted">Tillatte intervaller</span>
-                        <div className="flex flex-wrap gap-1">
-                          {STOP_INTERVALS.map(([val, label]) => {
-                            const active = settings.stopIntervals.includes(val);
-                            return (
-                              <button
-                                key={val}
-                                type="button"
-                                onClick={() => toggleStopInterval(val)}
-                                className={
-                                  active
-                                    ? "metro-press min-h-7 min-w-8 rounded-lg border border-accent bg-accent/12 px-2 text-xs font-semibold text-accent"
-                                    : "metro-press min-h-7 min-w-8 rounded-lg border border-line bg-header px-2 text-xs font-medium text-muted hover:text-fg"
-                                }
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
+                      <>
+                        <div className="space-y-1.5">
+                          <span className="block text-xs font-medium text-muted">Tillatte intervaller</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {STOP_INTERVALS.map(([val, label]) => {
+                              const active = settings.stopIntervals.includes(val);
+                              return (
+                                <button
+                                  key={val}
+                                  type="button"
+                                  onClick={() => toggleStopInterval(val)}
+                                  className={
+                                    active
+                                      ? "metro-press min-h-8 rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2.5 text-xs font-semibold text-accent"
+                                      : "metro-press min-h-8 rounded-xl border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
+                                  }
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
+
+                        <div className="space-y-1">
+                          <span className="block text-xs font-medium text-muted">Andre kølle</span>
+                          <SegPills
+                            options={STOP_PLACE_OPTIONS}
+                            value={settings.stopPlace}
+                            onChange={(val) => onUpdateSettings({ stopPlace: val })}
+                          />
+                        </div>
+                      </>
                     ) : null}
 
                     {settings.mallets === 4 && settings.texture !== "melody" ? (
@@ -659,8 +676,555 @@ export function BladlesingSettingsDrawer({
                 ) : null}
               </section>
 
-              {/* PANEL: DUETT */}
-              <section data-settings-panel="duett" className={`space-y-2.5 ${panelVisibility("duett")}`}>
+              {/* PANEL: REGISTER & SPRANG */}
+              <section data-settings-panel="register" className={`space-y-3 ${panelVisibility("register")}`}>
+                <button
+                  type="button"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
+                </button>
+
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">Register & sprang</h3>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-muted">Toneomfang</span>
+                      <span className="rounded-full border border-line bg-header px-2.5 py-0.5 text-[11px] font-semibold text-fg tabular-nums">
+                        <strong id="rangeLowLbl" className="text-accent">
+                          {midiLabel(engine, curWLo)}
+                        </strong>{" "}
+                        –{" "}
+                        <strong id="rangeHighLbl" className="text-accent">
+                          {midiLabel(engine, curWHi)}
+                        </strong>
+                      </span>
+                    </div>
+                    <DualRange
+                      min={minW}
+                      max={maxW}
+                      low={curWLo}
+                      high={curWHi}
+                      lowId="rangeLow"
+                      highId="rangeHigh"
+                      lowLabel="Laveste tone"
+                      highLabel="Høyeste tone"
+                      onChangeLow={(wlo) => onUpdateSettings({ rangeLow: wlo - writeOff })}
+                      onChangeHigh={(whi) => onUpdateSettings({ rangeHigh: whi - writeOff })}
+                    />
+                    <p id="rangeHint" className="text-[11px] text-muted">
+                      Skrevet omfang for {inst?.name ?? "Marimba 5.0"}: {midiLabel(engine, minW)}–
+                      {midiLabel(engine, maxW)}.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="maxLeap" className="block text-xs font-medium text-muted">
+                      Største sprang
+                    </label>
+                    <select
+                      id="maxLeap"
+                      value={String(settings.maxLeap)}
+                      onChange={(e) => onUpdateSettings({ maxLeap: Number(e.target.value) })}
+                      className="sr-only-select"
+                    >
+                      {LEAP_OPTIONS.map(([val, fullLabel]) => (
+                        <option key={val} value={String(val)}>
+                          {fullLabel}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={LEAP_OPTIONS.map(([val, , shortLabel]) => [String(val), shortLabel] as const)}
+                      value={String(settings.maxLeap)}
+                      onChange={(val) => onUpdateSettings({ maxLeap: Number(val) })}
+                    />
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            {/* COLUMN 2: TAKT, LENGDE & TEMPO + NOTEVERDIER + PAUSER & RYTMISK KOMPLEKSITET */}
+            <div
+              className={
+                mobilePanel === "rytme"
+                  ? "flex flex-col gap-3"
+                  : "hidden sm:flex sm:flex-col sm:gap-3"
+              }
+            >
+              {/* PANEL: RYTME */}
+              <section data-settings-panel="rytme" className={`space-y-3 ${panelVisibility("rytme")}`}>
+                <button
+                  type="button"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
+                </button>
+
+                {/* Card 2.1: Takt, lengde & tempo */}
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">Takt, lengde & tempo</h3>
+
+                  <div className="space-y-1">
+                    <label htmlFor="time" className="block text-xs font-medium text-muted">
+                      Taktart
+                    </label>
+                    <select
+                      id="time"
+                      value={settings.timeId}
+                      onChange={(e) => onUpdateSettings({ timeId: e.target.value })}
+                      className="sr-only-select"
+                    >
+                      {TIME_OPTIONS.map((t) => (
+                        <option key={t} value={t}>
+                          {t === "random" ? "Tilfeldig" : t}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex flex-wrap gap-1.5">
+                      {TIME_OPTIONS.map((t) => {
+                        const active = settings.timeId === t;
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => onUpdateSettings({ timeId: t })}
+                            className={
+                              active
+                                ? "metro-press min-h-9 rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2.5 text-xs font-semibold text-accent"
+                                : "metro-press min-h-9 rounded-xl border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
+                            }
+                          >
+                            {t === "random" ? "Tilfeldig" : t}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="measures" className="block text-xs font-medium text-muted">
+                      Takter
+                    </label>
+                    <select
+                      id="measures"
+                      value={String(settings.measures)}
+                      onChange={(e) => onUpdateSettings({ measures: Number(e.target.value) })}
+                      className="sr-only-select"
+                    >
+                      {MEASURE_OPTIONS.map((m) => (
+                        <option key={m} value={String(m)}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={MEASURE_OPTIONS.map((m) => [String(m), String(m)] as const)}
+                      value={String(settings.measures)}
+                      onChange={(val) => onUpdateSettings({ measures: Number(val) })}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="settingsTempo" className="flex items-center justify-between text-xs font-medium text-muted">
+                      <span>Tempo</span>
+                      <span className="rounded-full border border-line bg-header px-2 py-0.5 text-[11px] font-semibold text-accent tabular-nums">
+                        {settings.tempo} BPM
+                      </span>
+                    </label>
+                    <input
+                      id="settingsTempo"
+                      type="range"
+                      min={40}
+                      max={160}
+                      value={settings.tempo}
+                      onChange={(e) => onUpdateSettings({ tempo: Number(e.target.value) })}
+                      className="w-full accent-[var(--color-accent)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Card 2.2: Noteverdier */}
+                <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">Noteverdier</h3>
+                    <div className="flex flex-wrap gap-1">
+                      {(
+                        [
+                          ["simple", "Enkle"],
+                          ["dotted", "Punkterte"],
+                          ["triplets", "Trioler"],
+                          ["all", "Alle"],
+                        ] as const
+                      ).map(([presetKey, label]) => {
+                        const active = sameIds(settings.rhythms, RHYTHM_PRESETS[presetKey]);
+                        return (
+                          <button
+                            key={presetKey}
+                            type="button"
+                            data-rhythm-preset={presetKey}
+                            onClick={() => onUpdateSettings({ rhythms: [...RHYTHM_PRESETS[presetKey]!] })}
+                            className={
+                              active
+                                ? "rounded-lg border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2 py-1 text-[11px] font-semibold text-accent"
+                                : "rounded-lg border border-line bg-header px-2 py-1 text-[11px] font-medium text-muted hover:text-fg"
+                            }
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div id="rhythms" className="flex flex-wrap gap-1.5">
+                    {durations.map((d) => {
+                      const active = settings.rhythms.includes(d.id);
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          data-id={d.id}
+                          onClick={() => toggleDuration("rhythms", d.id)}
+                          className={
+                            active
+                              ? "metro-press min-h-8 rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2.5 text-xs font-semibold text-accent"
+                              : "metro-press min-h-8 rounded-xl border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
+                          }
+                        >
+                          {d.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Card 2.3: Pauser & rytmisk kompleksitet */}
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">
+                    Pauser & rytmisk kompleksitet
+                  </h3>
+
+                  <PillSwitch
+                    id="allowRests"
+                    label="Tillat pauser"
+                    checked={settings.allowRests}
+                    onChange={(v) => onUpdateSettings({ allowRests: v })}
+                  />
+
+                  {settings.allowRests ? (
+                    <div id="rests" className="flex flex-wrap gap-1.5">
+                      {restDurations.map((d) => {
+                        const active = settings.rests.includes(d.id);
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            data-id={d.id}
+                            onClick={() => toggleDuration("rests", d.id)}
+                            className={
+                              active
+                                ? "metro-press min-h-8 rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2.5 text-xs font-semibold text-accent"
+                                : "metro-press min-h-8 rounded-xl border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
+                            }
+                          >
+                            {d.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-1">
+                    <span className="block text-xs font-medium text-muted">Tetthet (lett → vanskelig)</span>
+                    <SegPills
+                      options={[
+                        ["1", "1"],
+                        ["2", "2"],
+                        ["3", "3"],
+                        ["4", "4"],
+                        ["5", "5"],
+                      ]}
+                      value={String(settings.rhythmDensity)}
+                      onChange={(val) => onUpdateSettings({ rhythmDensity: Number(val) })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <PillSwitch
+                      id="syncopation"
+                      label="Synkoper"
+                      checked={settings.syncopation}
+                      onChange={(v) => onUpdateSettings({ syncopation: v })}
+                    />
+                    <PillSwitch
+                      id="ties"
+                      label="Bindebuer"
+                      checked={settings.ties}
+                      onChange={(v) => onUpdateSettings({ ties: v })}
+                    />
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            {/* COLUMN 3: TONEARTER + TONALITET & FORTEGN + UTTRYKK & HJELPEMIDLER + DUETT */}
+            <div
+              className={
+                mobilePanel === "toneart" || mobilePanel === "mer" || mobilePanel === "duett"
+                  ? "flex flex-col gap-3"
+                  : "hidden sm:flex sm:flex-col sm:gap-3"
+              }
+            >
+              {/* PANEL: TONEART */}
+              <section data-settings-panel="toneart" className={`space-y-3 ${panelVisibility("toneart")}`}>
+                <button
+                  type="button"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
+                </button>
+
+                {/* Card 3.1: Tonearter */}
+                <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <h3 id="keysHeading" className="text-[11px] font-bold tracking-wider text-accent uppercase">
+                      Tonearter
+                    </h3>
+                    <div role="group" aria-labelledby="keysHeading" className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setKeysGroup(majorKeys.map((k) => k.id))}
+                        className="rounded-lg border border-line bg-header px-2 py-1 text-[11px] font-medium text-muted hover:text-fg"
+                      >
+                        Dur
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setKeysGroup(minorKeys.map((k) => k.id))}
+                        className="rounded-lg border border-line bg-header px-2 py-1 text-[11px] font-medium text-muted hover:text-fg"
+                      >
+                        Moll
+                      </button>
+                      <button
+                        id="keysAll"
+                        type="button"
+                        onClick={() => setKeysGroup((T?.KEYS ?? []).map((k) => k.id))}
+                        className="rounded-lg border border-line bg-header px-2 py-1 text-[11px] font-medium text-muted hover:text-fg"
+                      >
+                        Alle
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p id="keysMajorHeading" className="text-[11px] font-medium text-muted">
+                      Dur
+                    </p>
+                    <div
+                      id="keysMajorChips"
+                      role="group"
+                      aria-labelledby="keysHeading keysMajorHeading"
+                      className="grid grid-cols-6 gap-1.5"
+                    >
+                      {majorKeys.map((k) => {
+                        const active = settings.keyIds.includes(k.id);
+                        return (
+                          <button
+                            key={k.id}
+                            type="button"
+                            onClick={() => toggleKey(k.id)}
+                            className={
+                              active
+                                ? "metro-press min-h-9 rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] text-xs font-semibold text-accent"
+                                : "metro-press min-h-9 rounded-xl border border-line bg-header text-xs font-medium text-muted hover:text-fg"
+                            }
+                          >
+                            {k.name.replace("-dur", "")}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p id="keysMinorHeading" className="text-[11px] font-medium text-muted">
+                      Parallellmoll
+                    </p>
+                    <div
+                      id="keysMinorChips"
+                      role="group"
+                      aria-labelledby="keysHeading keysMinorHeading"
+                      className="grid grid-cols-6 gap-1.5"
+                    >
+                      {minorKeys.map((k) => {
+                        const active = settings.keyIds.includes(k.id);
+                        return (
+                          <button
+                            key={k.id}
+                            type="button"
+                            onClick={() => toggleKey(k.id)}
+                            className={
+                              active
+                                ? "metro-press min-h-9 rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] text-xs font-semibold text-accent"
+                                : "metro-press min-h-9 rounded-xl border border-line bg-header text-xs font-medium text-muted hover:text-fg"
+                            }
+                          >
+                            {k.name.replace("-moll", "")}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3.2: Tonalitet & fortegn */}
+                <div className="space-y-2 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">Tonalitet & fortegn</h3>
+                  <PillSwitch
+                    id="accidentals"
+                    label="Løse fortegn (kromatiske nabotoner)"
+                    checked={settings.accidentals}
+                    onChange={(v) => onUpdateSettings({ accidentals: v })}
+                  />
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <PillSwitch
+                      id="startTonic"
+                      label="Start på grunntone"
+                      checked={settings.startTonic}
+                      onChange={(v) => onUpdateSettings({ startTonic: v })}
+                    />
+                    <PillSwitch
+                      id="endTonic"
+                      label="Slutt på grunntone"
+                      checked={settings.endTonic}
+                      onChange={(v) => onUpdateSettings({ endTonic: v })}
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* PANEL: MER (Uttrykk & hjelpemidler) */}
+              <section data-settings-panel="mer" className={`space-y-3 ${panelVisibility("mer")}`}>
+                <button
+                  type="button"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
+                </button>
+
+                <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">
+                      Uttrykk & hjelpemidler
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={onResetDefaults}
+                      className="metro-press inline-flex items-center gap-1 rounded-lg border border-line bg-header px-2 py-1 text-[11px] font-medium text-muted hover:text-fg"
+                    >
+                      <RotateCcw className="size-3" aria-hidden="true" />
+                      <span>Tilbakestill</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <PillSwitch
+                      id="accents"
+                      label="Aksenter"
+                      checked={settings.accents}
+                      onChange={(v) => onUpdateSettings({ accents: v })}
+                    />
+                    <PillSwitch
+                      id="staccato"
+                      label="Stakkato"
+                      checked={settings.staccato}
+                      onChange={(v) => onUpdateSettings({ staccato: v })}
+                    />
+                    <PillSwitch
+                      id="legato"
+                      label="Legato"
+                      checked={settings.legato}
+                      onChange={(v) => onUpdateSettings({ legato: v })}
+                    />
+                    <PillSwitch
+                      id="dynamics"
+                      label="Dynamikk"
+                      checked={settings.dynamics}
+                      onChange={(v) => onUpdateSettings({ dynamics: v })}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="rolls" className="block text-xs font-medium text-muted">
+                      Virvler
+                    </label>
+                    <select
+                      id="rolls"
+                      value={settings.rolls}
+                      onChange={(e) => onUpdateSettings({ rolls: e.target.value })}
+                      className="sr-only-select"
+                    >
+                      {ROLL_OPTIONS.map(([val, label]) => (
+                        <option key={val} value={val}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={ROLL_OPTIONS}
+                      value={settings.rolls}
+                      onChange={(val) => onUpdateSettings({ rolls: val })}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="annotate" className="block text-xs font-medium text-muted">
+                      Hjelpetekst
+                    </label>
+                    <select
+                      id="annotate"
+                      value={settings.annotate}
+                      onChange={(e) => onUpdateSettings({ annotate: e.target.value })}
+                      className="sr-only-select"
+                    >
+                      {ANNOTATE_OPTIONS.map(([val, label]) => (
+                        <option key={val} value={val}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={ANNOTATE_OPTIONS}
+                      value={settings.annotate}
+                      onChange={(val) => onUpdateSettings({ annotate: val })}
+                    />
+                  </div>
+
+                  <PillSwitch
+                    id="showSticking"
+                    label={isTrumpet ? "Vis ventilgrep" : "Vis køllenummer"}
+                    checked={settings.showSticking}
+                    onChange={(v) => onUpdateSettings({ showSticking: v })}
+                  />
+                </div>
+              </section>
+
+              {/* PANEL: DUETT (compact card) */}
+              <section data-settings-panel="duett" className={`space-y-3 ${panelVisibility("duett")}`}>
                 <button
                   type="button"
                   data-settings-back
@@ -718,510 +1282,11 @@ export function BladlesingSettingsDrawer({
                 </div>
               </section>
             </div>
-
-            {/* COLUMN 2: RYTME & TAKTART + MER */}
-            <div
-              className={
-                mobilePanel === "rytme" || mobilePanel === "mer"
-                  ? "flex flex-col gap-3"
-                  : "hidden sm:flex sm:flex-col sm:gap-3"
-              }
-            >
-              {/* PANEL: RYTME */}
-              <section data-settings-panel="rytme" className={`space-y-2.5 ${panelVisibility("rytme")}`}>
-                <button
-                  type="button"
-                  data-settings-back
-                  onClick={() => setMobilePanel(null)}
-                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-                >
-                  <ArrowLeft className="size-4" aria-hidden="true" />
-                  <span>Tilbake</span>
-                </button>
-
-                <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
-                  <div className="flex flex-wrap items-center justify-between gap-1.5">
-                    <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">Rytme & taktart</h3>
-                    <div className="flex flex-wrap gap-1">
-                      {(
-                        [
-                          ["simple", "Enkel"],
-                          ["dotted", "Punktert"],
-                          ["triplets", "Trioler"],
-                          ["all", "Alle"],
-                        ] as const
-                      ).map(([presetKey, label]) => {
-                        const active = sameIds(settings.rhythms, RHYTHM_PRESETS[presetKey]);
-                        return (
-                          <button
-                            key={presetKey}
-                            type="button"
-                            data-rhythm-preset={presetKey}
-                            onClick={() => onUpdateSettings({ rhythms: [...RHYTHM_PRESETS[presetKey]!] })}
-                            className={
-                              active
-                                ? "rounded-md border border-accent bg-accent/12 px-2 py-0.5 text-[11px] font-semibold text-accent"
-                                : "rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                            }
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div id="rhythms" className="flex flex-wrap gap-1">
-                    {durations.map((d) => {
-                      const active = settings.rhythms.includes(d.id);
-                      return (
-                        <button
-                          key={d.id}
-                          type="button"
-                          data-id={d.id}
-                          onClick={() => toggleDuration("rhythms", d.id)}
-                          className={
-                            active
-                              ? "metro-press min-h-8 rounded-lg border border-accent bg-accent/12 px-2 text-xs font-semibold text-accent"
-                              : "metro-press min-h-8 rounded-lg border border-line bg-header px-2 text-xs font-medium text-muted hover:text-fg"
-                          }
-                        >
-                          {d.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <PillSwitch
-                      id="allowRests"
-                      label="Pauser"
-                      checked={settings.allowRests}
-                      onChange={(v) => onUpdateSettings({ allowRests: v })}
-                    />
-                    <PillSwitch
-                      id="ties"
-                      label="Bindebuer"
-                      checked={settings.ties}
-                      onChange={(v) => onUpdateSettings({ ties: v })}
-                    />
-                    <PillSwitch
-                      id="syncopation"
-                      label="Synkoper"
-                      checked={settings.syncopation}
-                      onChange={(v) => onUpdateSettings({ syncopation: v })}
-                    />
-                    <PillSwitch
-                      id="dynamics"
-                      label="Dynamikk"
-                      checked={settings.dynamics}
-                      onChange={(v) => onUpdateSettings({ dynamics: v })}
-                    />
-                  </div>
-
-                  {settings.allowRests ? (
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted">Pauseverdier</p>
-                      <div id="rests" className="flex flex-wrap gap-1">
-                        {restDurations.map((d) => {
-                          const active = settings.rests.includes(d.id);
-                          return (
-                            <button
-                              key={d.id}
-                              type="button"
-                              data-id={d.id}
-                              onClick={() => toggleDuration("rests", d.id)}
-                              className={
-                                active
-                                  ? "metro-press min-h-7 rounded-lg border border-accent bg-accent/12 px-2 text-xs font-semibold text-accent"
-                                  : "metro-press min-h-7 rounded-lg border border-line bg-header px-2 text-xs font-medium text-muted hover:text-fg"
-                              }
-                            >
-                              {d.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="space-y-1">
-                    <label htmlFor="time" className="block text-xs font-medium text-muted">
-                      Taktart
-                    </label>
-                    <select
-                      id="time"
-                      value={settings.timeId}
-                      onChange={(e) => onUpdateSettings({ timeId: e.target.value })}
-                      className="sr-only-select"
-                    >
-                      {TIME_OPTIONS.map((t) => (
-                        <option key={t} value={t}>
-                          {t === "random" ? "Tilfeldig" : t}
-                        </option>
-                      ))}
-                    </select>
-                    <SegPills
-                      options={TIME_OPTIONS.map((t) => [t, t === "random" ? "Tilf." : t] as const)}
-                      value={settings.timeId}
-                      onChange={(val) => onUpdateSettings({ timeId: val })}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="measures" className="block text-xs font-medium text-muted">
-                      Lengde
-                    </label>
-                    <select
-                      id="measures"
-                      value={String(settings.measures)}
-                      onChange={(e) => onUpdateSettings({ measures: Number(e.target.value) })}
-                      className="sr-only-select"
-                    >
-                      {MEASURE_OPTIONS.map((m) => (
-                        <option key={m} value={String(m)}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                    <SegPills
-                      options={MEASURE_OPTIONS.map((m) => [String(m), `${m} takter`] as const)}
-                      value={String(settings.measures)}
-                      onChange={(val) => onUpdateSettings({ measures: Number(val) })}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              {/* PANEL: MER */}
-              <section data-settings-panel="mer" className={`space-y-2.5 ${panelVisibility("mer")}`}>
-                <button
-                  type="button"
-                  data-settings-back
-                  onClick={() => setMobilePanel(null)}
-                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-                >
-                  <ArrowLeft className="size-4" aria-hidden="true" />
-                  <span>Tilbake</span>
-                </button>
-
-                <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">Uttrykk & mer</h3>
-                    <button
-                      type="button"
-                      onClick={onResetDefaults}
-                      className="metro-press inline-flex items-center gap-1 rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                    >
-                      <RotateCcw className="size-3" aria-hidden="true" />
-                      <span>Tilbakestill</span>
-                    </button>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    <div className="space-y-1">
-                      <label htmlFor="rolls" className="block text-xs font-medium text-muted">
-                        Virvler
-                      </label>
-                      <select
-                        id="rolls"
-                        value={settings.rolls}
-                        onChange={(e) => onUpdateSettings({ rolls: e.target.value })}
-                        className="sr-only-select"
-                      >
-                        {ROLL_OPTIONS.map(([val, label]) => (
-                          <option key={val} value={val}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <SegPills
-                        options={ROLL_OPTIONS}
-                        value={settings.rolls}
-                        onChange={(val) => onUpdateSettings({ rolls: val })}
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label htmlFor="annotate" className="block text-xs font-medium text-muted">
-                        Hjelpetekst
-                      </label>
-                      <select
-                        id="annotate"
-                        value={settings.annotate}
-                        onChange={(e) => onUpdateSettings({ annotate: e.target.value })}
-                        className="sr-only-select"
-                      >
-                        {ANNOTATE_OPTIONS.map(([val, label]) => (
-                          <option key={val} value={val}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <SegPills
-                        options={ANNOTATE_OPTIONS}
-                        value={settings.annotate}
-                        onChange={(val) => onUpdateSettings({ annotate: val })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <PillSwitch
-                      id="accents"
-                      label="Aksenter"
-                      checked={settings.accents}
-                      onChange={(v) => onUpdateSettings({ accents: v })}
-                    />
-                    <PillSwitch
-                      id="staccato"
-                      label="Stakkato"
-                      checked={settings.staccato}
-                      onChange={(v) => onUpdateSettings({ staccato: v })}
-                    />
-                    <PillSwitch
-                      id="legato"
-                      label="Legato"
-                      checked={settings.legato}
-                      onChange={(v) => onUpdateSettings({ legato: v })}
-                    />
-                    <PillSwitch
-                      id="showSticking"
-                      label={isTrumpet ? "Ventilgrep" : "Kølleføring"}
-                      checked={settings.showSticking}
-                      onChange={(v) => onUpdateSettings({ showSticking: v })}
-                    />
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            {/* COLUMN 3: REGISTER & SPRANG + TONEARTER */}
-            <div
-              className={
-                mobilePanel === "register" || mobilePanel === "toneart"
-                  ? "flex flex-col gap-3"
-                  : "hidden sm:flex sm:flex-col sm:gap-3"
-              }
-            >
-              {/* PANEL: REGISTER */}
-              <section data-settings-panel="register" className={`space-y-2.5 ${panelVisibility("register")}`}>
-                <button
-                  type="button"
-                  data-settings-back
-                  onClick={() => setMobilePanel(null)}
-                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-                >
-                  <ArrowLeft className="size-4" aria-hidden="true" />
-                  <span>Tilbake</span>
-                </button>
-
-                <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
-                  <h3 className="text-[11px] font-bold tracking-wider text-accent uppercase">Register & sprang</h3>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-muted">Toneomfang</span>
-                      <span className="rounded-full border border-line bg-header px-2.5 py-0.5 text-[11px] font-semibold text-fg tabular-nums">
-                        <strong id="rangeLowLbl" className="text-accent">
-                          {midiLabel(engine, curWLo)}
-                        </strong>{" "}
-                        –{" "}
-                        <strong id="rangeHighLbl" className="text-accent">
-                          {midiLabel(engine, curWHi)}
-                        </strong>
-                      </span>
-                    </div>
-                    <DualRange
-                      min={minW}
-                      max={maxW}
-                      low={curWLo}
-                      high={curWHi}
-                      lowId="rangeLow"
-                      highId="rangeHigh"
-                      lowLabel="Laveste tone"
-                      highLabel="Høyeste tone"
-                      onChangeLow={(wlo) => onUpdateSettings({ rangeLow: wlo - writeOff })}
-                      onChangeHigh={(whi) => onUpdateSettings({ rangeHigh: whi - writeOff })}
-                    />
-                    <p id="rangeHint" className="text-[11px] text-muted">
-                      Skrevet omfang for {inst?.name ?? "Marimba 5.0"}: {midiLabel(engine, minW)}–
-                      {midiLabel(engine, maxW)}.
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="maxLeap" className="block text-xs font-medium text-muted">
-                      Største sprang
-                    </label>
-                    <select
-                      id="maxLeap"
-                      value={String(settings.maxLeap)}
-                      onChange={(e) => onUpdateSettings({ maxLeap: Number(e.target.value) })}
-                      className="sr-only-select"
-                    >
-                      {LEAP_OPTIONS.map(([val, fullLabel]) => (
-                        <option key={val} value={String(val)}>
-                          {fullLabel}
-                        </option>
-                      ))}
-                    </select>
-                    <SegPills
-                      options={LEAP_OPTIONS.map(([val, , shortLabel]) => [String(val), shortLabel] as const)}
-                      value={String(settings.maxLeap)}
-                      onChange={(val) => onUpdateSettings({ maxLeap: Number(val) })}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label htmlFor="density" className="flex items-center justify-between text-xs font-medium text-muted">
-                      <span>Tetthet</span>
-                      <span className="font-semibold text-fg tabular-nums">{settings.rhythmDensity} / 5</span>
-                    </label>
-                    <input
-                      id="density"
-                      type="range"
-                      min={1}
-                      max={5}
-                      value={settings.rhythmDensity}
-                      onChange={(e) => onUpdateSettings({ rhythmDensity: Number(e.target.value) })}
-                      className="w-full accent-[var(--color-accent)]"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              {/* PANEL: TONEART */}
-              <section data-settings-panel="toneart" className={`space-y-2.5 ${panelVisibility("toneart")}`}>
-                <button
-                  type="button"
-                  data-settings-back
-                  onClick={() => setMobilePanel(null)}
-                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-                >
-                  <ArrowLeft className="size-4" aria-hidden="true" />
-                  <span>Tilbake</span>
-                </button>
-
-                <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
-                  <div className="flex flex-wrap items-center justify-between gap-1.5">
-                    <h3 id="keysHeading" className="text-[11px] font-bold tracking-wider text-accent uppercase">
-                      Tonearter
-                    </h3>
-                    <div role="group" aria-labelledby="keysHeading" className="flex flex-wrap gap-1">
-                      <button
-                        id="keysAll"
-                        type="button"
-                        onClick={() => setKeysGroup((T?.KEYS ?? []).map((k) => k.id))}
-                        className="rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                      >
-                        Alle
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setKeysGroup(["C", "F", "G", "Bb", "D"])}
-                        className="rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                      >
-                        Vanlige
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setKeysGroup(["C"])}
-                        className="rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                      >
-                        Kun C
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p id="keysMajorHeading" className="text-[11px] font-medium text-muted">
-                      Dur
-                    </p>
-                    <div
-                      id="keysMajorChips"
-                      role="group"
-                      aria-labelledby="keysHeading keysMajorHeading"
-                      className="grid grid-cols-6 gap-1"
-                    >
-                      {majorKeys.map((k) => {
-                        const active = settings.keyIds.includes(k.id);
-                        return (
-                          <button
-                            key={k.id}
-                            type="button"
-                            onClick={() => toggleKey(k.id)}
-                            className={
-                              active
-                                ? "metro-press min-h-8 rounded-lg border border-accent bg-accent/12 text-xs font-semibold text-accent"
-                                : "metro-press min-h-8 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
-                            }
-                          >
-                            {k.name.replace("-dur", "")}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p id="keysMinorHeading" className="text-[11px] font-medium text-muted">
-                      Parallellmoll
-                    </p>
-                    <div
-                      id="keysMinorChips"
-                      role="group"
-                      aria-labelledby="keysHeading keysMinorHeading"
-                      className="grid grid-cols-6 gap-1"
-                    >
-                      {minorKeys.map((k) => {
-                        const active = settings.keyIds.includes(k.id);
-                        return (
-                          <button
-                            key={k.id}
-                            type="button"
-                            onClick={() => toggleKey(k.id)}
-                            className={
-                              active
-                                ? "metro-press min-h-8 rounded-lg border border-accent bg-accent/12 text-xs font-semibold text-accent"
-                                : "metro-press min-h-8 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
-                            }
-                          >
-                            {k.name.replace("-moll", "m")}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <PillSwitch
-                      id="accidentals"
-                      label="Løse fortegn"
-                      checked={settings.accidentals}
-                      onChange={(v) => onUpdateSettings({ accidentals: v })}
-                    />
-                    <PillSwitch
-                      id="startTonic"
-                      label="Start grunntone"
-                      checked={settings.startTonic}
-                      onChange={(v) => onUpdateSettings({ startTonic: v })}
-                    />
-                    <PillSwitch
-                      id="endTonic"
-                      label="Slutt grunntone"
-                      checked={settings.endTonic}
-                      onChange={(v) => onUpdateSettings({ endTonic: v })}
-                    />
-                  </div>
-                </div>
-              </section>
-            </div>
           </div>
         </div>
 
         {/* Mobile footer apply button */}
-        <footer className="flex shrink-0 justify-center border-t border-line bg-[rgb(var(--color-chrome-rgb)/0.92)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden">
+        <footer className="flex shrink-0 justify-center border-t border-line bg-[rgb(var(--color-chrome-rgb)/0.94)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden">
           <button
             id="btnApply"
             type="button"
