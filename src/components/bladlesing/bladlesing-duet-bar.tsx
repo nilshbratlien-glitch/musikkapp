@@ -25,6 +25,17 @@ export function BladlesingDuetBar({
       className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-2.5 py-2 shadow-[var(--shadow-card)]"
     >
       <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Visningsvalg">
+        <select
+          id="duetViewSelect"
+          value={settings.duetViewPart}
+          onChange={(e) => onSetViewPart(e.target.value as DuetViewPart)}
+          className="sr-only-select"
+          aria-label="Duett-visning"
+        >
+          <option value="score">Partitur</option>
+          <option value="trumpet">Trompet (B)</option>
+          <option value="mallets">Slagverk (C)</option>
+        </select>
         {(
           [
             ["score", "Partitur", "btnDuetViewScore"],
@@ -42,7 +53,7 @@ export function BladlesingDuetBar({
               onClick={() => onSetViewPart(part)}
               className={
                 active
-                  ? "metro-press min-h-8 rounded-full border border-ok bg-ok/15 px-3 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
+                  ? "active metro-press min-h-8 rounded-full border border-ok bg-ok/15 px-3 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
                   : "metro-press min-h-8 rounded-full border border-line bg-header px-3 text-xs font-medium text-muted hover:text-fg md:min-h-9 md:text-sm"
               }
             >
@@ -58,7 +69,7 @@ export function BladlesingDuetBar({
             title="Speil stemmevisning til tilkoblede skjermer"
             className={
               duetPaired
-                ? "metro-press min-h-8 rounded-full border border-accent bg-accent/12 px-3 text-xs font-semibold text-accent md:min-h-9 md:text-sm"
+                ? "active metro-press min-h-8 rounded-full border border-accent bg-accent/12 px-3 text-xs font-semibold text-accent md:min-h-9 md:text-sm"
                 : "metro-press min-h-8 rounded-full border border-line bg-header px-3 text-xs font-medium text-muted hover:text-fg md:min-h-9 md:text-sm"
             }
           >
@@ -102,8 +113,8 @@ export function BladlesingDuetBar({
           title="Slå av/på trompet-lyd"
           className={
             settings.duetPlayTrumpet
-              ? "metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
-              : "metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-header px-2.5 text-xs font-medium text-muted line-through opacity-60 md:min-h-9 md:text-sm"
+              ? "active metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
+              : "muted metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-header px-2.5 text-xs font-medium text-muted line-through opacity-60 md:min-h-9 md:text-sm"
           }
         >
           {settings.duetPlayTrumpet ? <Volume2 className="size-3.5" aria-hidden="true" /> : <VolumeX className="size-3.5" aria-hidden="true" />}
@@ -116,8 +127,8 @@ export function BladlesingDuetBar({
           title="Slå av/på slagverk-lyd"
           className={
             settings.duetPlayMallets
-              ? "metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
-              : "metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-header px-2.5 text-xs font-medium text-muted line-through opacity-60 md:min-h-9 md:text-sm"
+              ? "active metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok md:min-h-9 md:text-sm"
+              : "muted metro-press inline-flex min-h-8 items-center gap-1 rounded-full border border-line bg-header px-2.5 text-xs font-medium text-muted line-through opacity-60 md:min-h-9 md:text-sm"
           }
         >
           {settings.duetPlayMallets ? <Volume2 className="size-3.5" aria-hidden="true" /> : <VolumeX className="size-3.5" aria-hidden="true" />}

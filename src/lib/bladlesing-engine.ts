@@ -81,6 +81,13 @@ export interface ScoreRendererApi {
   clearBeat: () => void;
 }
 
+export interface AudioPlayCue {
+  phase: "countin" | "play";
+  beat: number;
+  beats: number;
+  musicBeats: number;
+}
+
 export interface AudioPlayOptions {
   quarterBpm: number;
   clickBpm: number;
@@ -89,14 +96,9 @@ export interface AudioPlayOptions {
   subdiv?: number;
   countIn?: number;
   clicks?: boolean;
-  playTrumpet?: boolean;
-  playMallets?: boolean;
-  onBeat?: (
-    beat: number,
-    beatsPerBar: number,
-    fromClick?: boolean,
-    cue?: { phase: "countin" | "music"; beat: number },
-  ) => void;
+  muteTrumpet?: boolean;
+  muteMallets?: boolean;
+  onCue?: (cue: AudioPlayCue) => void;
   done?: () => void;
 }
 

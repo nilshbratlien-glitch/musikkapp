@@ -89,7 +89,7 @@ function SegPills({
   value,
   onChange,
 }: {
-  options: ReadonlyArray<[string, string]>;
+  options: ReadonlyArray<readonly [string, string]>;
   value: string;
   onChange: (next: string) => void;
 }) {
@@ -365,670 +365,747 @@ export function BladlesingSettingsDrawer({
             </nav>
           ) : null}
 
-          {/* Responsive panels: stacked on mobile (when selected), 2-3 column Command Center on >= sm */}
-          <div className="mx-auto grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {/* PANEL: INSTRUMENT */}
-            <section data-settings-panel="instrument" className={`space-y-3 ${panelVisibility("instrument")}`}>
-              <button
-                type="button"
-                data-settings-back
-                onClick={() => setMobilePanel(null)}
-                className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-              >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                <span>Tilbake</span>
-              </button>
+          {/* Responsive panels: stacked on mobile (when selected), 3 balanced flex columns on >= sm with zero blank gaps */}
+          <div className="mx-auto grid max-w-6xl items-start gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+            {/* COLUMN 1: INSTRUMENT + DUETT */}
+            <div
+              className={
+                mobilePanel === "instrument" || mobilePanel === "duett"
+                  ? "flex flex-col gap-3.5"
+                  : "hidden sm:flex sm:flex-col sm:gap-3.5"
+              }
+            >
+              {/* PANEL: INSTRUMENT */}
+              <section data-settings-panel="instrument" className={`space-y-3 ${panelVisibility("instrument")}`}>
+                <button
+                  type="button"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
+                </button>
 
-              <div className="space-y-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)]">
-                <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Instrument</h3>
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Instrument</h3>
 
-                {!isTrumpet ? (
-                  <>
-                    <div className="space-y-1.5">
-                      <label htmlFor="instrument" className="block text-xs font-medium text-muted">
-                        Slagverkinstrument
-                      </label>
-                      <select
-                        id="instrument"
-                        value={settings.instrumentId}
-                        onChange={(e) => onUpdateSettings({ instrumentId: e.target.value })}
-                        className="sr-only-select"
-                      >
-                        {MALLET_INSTRUMENTS.map(([val, label]) => (
-                          <option key={val} value={val}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <SegPills
-                        options={MALLET_INSTRUMENTS}
-                        value={settings.instrumentId}
-                        onChange={(val) => onUpdateSettings({ instrumentId: val })}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label htmlFor="mallets" className="block text-xs font-medium text-muted">
-                        Antall køller
-                      </label>
-                      <select
-                        id="mallets"
-                        value={String(settings.mallets)}
-                        onChange={(e) => onUpdateSettings({ mallets: Number(e.target.value) })}
-                        className="sr-only-select"
-                      >
-                        <option value="2">2 køller</option>
-                        <option value="3">3 køller</option>
-                        <option value="4">4 køller</option>
-                      </select>
-                      <SegPills
-                        options={[
-                          ["2", "2 køller"],
-                          ["3", "3 køller"],
-                          ["4", "4 køller"],
-                        ]}
-                        value={String(settings.mallets)}
-                        onChange={(val) => onUpdateSettings({ mallets: Number(val) })}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label htmlFor="texture" className="block text-xs font-medium text-muted">
-                        Notebilde
-                      </label>
-                      <select
-                        id="texture"
-                        value={settings.texture}
-                        onChange={(e) => onUpdateSettings({ texture: e.target.value })}
-                        className="sr-only-select"
-                      >
-                        {textureOpts.map(([val, label]) => (
-                          <option key={val} value={val}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <SegPills
-                        options={textureOpts}
-                        value={settings.texture}
-                        onChange={(val) => onUpdateSettings({ texture: val })}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label htmlFor="chordChance" className="flex items-center justify-between text-xs font-medium text-muted">
-                        <span id="chordChanceTitle">Akkorder i linjen</span>
-                        <span className="font-semibold text-fg tabular-nums">
-                          {Math.round(settings.chordChance * 100)}%
-                        </span>
-                      </label>
-                      <input
-                        id="chordChance"
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={Math.round(settings.chordChance * 100)}
-                        aria-labelledby="chordChanceTitle"
-                        onChange={(e) => onUpdateSettings({ chordChance: Number(e.target.value) / 100 })}
-                        className="w-full accent-[var(--color-accent)]"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <p className="text-xs leading-relaxed text-muted">
-                    B-trompet er aktiv profil. Notene transponeres automatisk og ventilgrep kan slås av eller på under Mer.
-                  </p>
-                )}
-
-                <div className="space-y-1.5">
-                  <label htmlFor="clef" className="block text-xs font-medium text-muted">
-                    Nøkkel
-                  </label>
-                  <select
-                    id="clef"
-                    value={settings.clef}
-                    onChange={(e) => onUpdateSettings({ clef: e.target.value })}
-                    className="sr-only-select"
-                  >
-                    {CLEF_OPTIONS.map(([val, label]) => (
-                      <option key={val} value={val}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  <SegPills
-                    options={CLEF_OPTIONS}
-                    value={settings.clef}
-                    onChange={(val) => onUpdateSettings({ clef: val })}
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* PANEL: RYTME */}
-            <section data-settings-panel="rytme" className={`space-y-3 ${panelVisibility("rytme")}`}>
-              <button
-                type="button"
-                data-settings-back
-                onClick={() => setMobilePanel(null)}
-                className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-              >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                <span>Tilbake</span>
-              </button>
-
-              <div className="space-y-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)]">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Rytme</h3>
-                  <div className="flex flex-wrap gap-1">
-                    {(
-                      [
-                        ["simple", "Enkel"],
-                        ["dotted", "Punktert"],
-                        ["triplets", "Trioler"],
-                        ["all", "Alle"],
-                      ] as const
-                    ).map(([presetKey, label]) => {
-                      const active = sameIds(settings.rhythms, RHYTHM_PRESETS[presetKey]);
-                      return (
-                        <button
-                          key={presetKey}
-                          type="button"
-                          data-rhythm-preset={presetKey}
-                          onClick={() => onUpdateSettings({ rhythms: [...RHYTHM_PRESETS[presetKey]!] })}
-                          className={
-                            active
-                              ? "rounded-md border border-accent bg-accent/12 px-2 py-0.5 text-[11px] font-semibold text-accent"
-                              : "rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                          }
+                  {!isTrumpet ? (
+                    <>
+                      <div className="space-y-1.5">
+                        <label htmlFor="instrument" className="block text-xs font-medium text-muted">
+                          Slagverkinstrument
+                        </label>
+                        <select
+                          id="instrument"
+                          value={settings.instrumentId}
+                          onChange={(e) => onUpdateSettings({ instrumentId: e.target.value })}
+                          className="sr-only-select"
                         >
+                          {MALLET_INSTRUMENTS.map(([val, label]) => (
+                            <option key={val} value={val}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <SegPills
+                          options={MALLET_INSTRUMENTS}
+                          value={settings.instrumentId}
+                          onChange={(val) => onUpdateSettings({ instrumentId: val })}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label htmlFor="mallets" className="block text-xs font-medium text-muted">
+                          Antall køller
+                        </label>
+                        <select
+                          id="mallets"
+                          value={String(settings.mallets)}
+                          onChange={(e) => onUpdateSettings({ mallets: Number(e.target.value) })}
+                          className="sr-only-select"
+                        >
+                          <option value="2">2 køller</option>
+                          <option value="3">3 køller</option>
+                          <option value="4">4 køller</option>
+                        </select>
+                        <SegPills
+                          options={[
+                            ["2", "2 køller"],
+                            ["3", "3 køller"],
+                            ["4", "4 køller"],
+                          ]}
+                          value={String(settings.mallets)}
+                          onChange={(val) => onUpdateSettings({ mallets: Number(val) })}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label htmlFor="texture" className="block text-xs font-medium text-muted">
+                          Notebilde
+                        </label>
+                        <select
+                          id="texture"
+                          value={settings.texture}
+                          onChange={(e) => onUpdateSettings({ texture: e.target.value })}
+                          className="sr-only-select"
+                        >
+                          {textureOpts.map(([val, label]) => (
+                            <option key={val} value={val}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <SegPills
+                          options={textureOpts}
+                          value={settings.texture}
+                          onChange={(val) => onUpdateSettings({ texture: val })}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label htmlFor="chordChance" className="flex items-center justify-between text-xs font-medium text-muted">
+                          <span id="chordChanceTitle">Akkorder i linjen</span>
+                          <span className="font-semibold text-fg tabular-nums">
+                            {Math.round(settings.chordChance * 100)}%
+                          </span>
+                        </label>
+                        <input
+                          id="chordChance"
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={Math.round(settings.chordChance * 100)}
+                          aria-labelledby="chordChanceTitle"
+                          onChange={(e) => onUpdateSettings({ chordChance: Number(e.target.value) / 100 })}
+                          className="w-full accent-[var(--color-accent)]"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs leading-relaxed text-muted">
+                      B-trompet er aktiv profil. Notene transponeres automatisk og ventilgrep kan slås av eller på under Mer.
+                    </p>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="clef" className="block text-xs font-medium text-muted">
+                      Nøkkel
+                    </label>
+                    <select
+                      id="clef"
+                      value={settings.clef}
+                      onChange={(e) => onUpdateSettings({ clef: e.target.value })}
+                      className="sr-only-select"
+                    >
+                      {CLEF_OPTIONS.map(([val, label]) => (
+                        <option key={val} value={val}>
                           {label}
-                        </button>
-                      );
-                    })}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={CLEF_OPTIONS}
+                      value={settings.clef}
+                      onChange={(val) => onUpdateSettings({ clef: val })}
+                    />
                   </div>
                 </div>
+              </section>
 
-                <div id="rhythms" className="flex flex-wrap gap-1.5">
-                  {durations.map((d) => {
-                    const active = settings.rhythms.includes(d.id);
-                    return (
-                      <button
-                        key={d.id}
-                        type="button"
-                        data-id={d.id}
-                        onClick={() => toggleDuration("rhythms", d.id)}
-                        className={
-                          active
-                            ? "metro-press min-h-9 rounded-lg border border-accent bg-accent/12 px-2.5 text-xs font-semibold text-accent"
-                            : "metro-press min-h-9 rounded-lg border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
-                        }
-                      >
-                        {d.name}
-                      </button>
-                    );
-                  })}
+              {/* PANEL: DUETT */}
+              <section data-settings-panel="duett" className={`space-y-3 ${panelVisibility("duett")}`}>
+                <button
+                  type="button"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
+                </button>
+
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Duett</h3>
+                  <ToggleRow
+                    id="duetEnabled"
+                    label="Samspill (Trompet + Slagverk)"
+                    checked={settings.duetEnabled}
+                    onChange={(v) => onUpdateSettings({ duetEnabled: v })}
+                  />
+                  {settings.duetEnabled ? (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <span className="block text-xs font-medium text-muted">Stil</span>
+                        <SegPills
+                          options={DUET_STYLE_OPTIONS}
+                          value={settings.duetStyle}
+                          onChange={(val) => onUpdateSettings({ duetStyle: val as DuetStyle })}
+                        />
+                      </div>
+                      <ToggleRow
+                        id="duetAllowChords"
+                        label="Tillat akkorder i slagverk"
+                        checked={settings.duetAllowChords}
+                        onChange={(v) => onUpdateSettings({ duetAllowChords: v })}
+                      />
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium text-muted">Trompet-omfang</span>
+                          <span className="rounded-full border border-line bg-header px-2 py-0.5 text-[11px] font-semibold text-fg tabular-nums">
+                            {midiLabel(engine, settings.duetRangeTptLow)}–{midiLabel(engine, settings.duetRangeTptHigh)}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="range"
+                            min={54}
+                            max={84}
+                            aria-label="Trompet laveste tone"
+                            value={settings.duetRangeTptLow}
+                            onChange={(e) =>
+                              onUpdateSettings({
+                                duetRangeTptLow: Math.min(Number(e.target.value), settings.duetRangeTptHigh),
+                              })
+                            }
+                            className="w-full accent-[var(--color-accent)]"
+                          />
+                          <input
+                            type="range"
+                            min={54}
+                            max={84}
+                            aria-label="Trompet høyeste tone"
+                            value={settings.duetRangeTptHigh}
+                            onChange={(e) =>
+                              onUpdateSettings({
+                                duetRangeTptHigh: Math.max(Number(e.target.value), settings.duetRangeTptLow),
+                              })
+                            }
+                            className="w-full accent-[var(--color-accent)]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
+              </section>
+            </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <ToggleRow
-                    id="allowRests"
-                    label="Pauser"
-                    checked={settings.allowRests}
-                    onChange={(v) => onUpdateSettings({ allowRests: v })}
-                  />
-                  <ToggleRow
-                    id="ties"
-                    label="Bindebuer"
-                    checked={settings.ties}
-                    onChange={(v) => onUpdateSettings({ ties: v })}
-                  />
-                  <ToggleRow
-                    id="syncopation"
-                    label="Synkoper"
-                    checked={settings.syncopation}
-                    onChange={(v) => onUpdateSettings({ syncopation: v })}
-                  />
-                  <ToggleRow
-                    id="dynamics"
-                    label="Dynamikk"
-                    checked={settings.dynamics}
-                    onChange={(v) => onUpdateSettings({ dynamics: v })}
-                  />
-                </div>
+            {/* COLUMN 2: RYTME + MER */}
+            <div
+              className={
+                mobilePanel === "rytme" || mobilePanel === "mer"
+                  ? "flex flex-col gap-3.5"
+                  : "hidden sm:flex sm:flex-col sm:gap-3.5"
+              }
+            >
+              {/* PANEL: RYTME */}
+              <section data-settings-panel="rytme" className={`space-y-3 ${panelVisibility("rytme")}`}>
+                <button
+                  type="button"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
+                </button>
 
-                {settings.allowRests ? (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-medium text-muted">Pauseverdier</p>
-                    <div id="rests" className="flex flex-wrap gap-1.5">
-                      {restDurations.map((d) => {
-                        const active = settings.rests.includes(d.id);
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Rytme</h3>
+                    <div className="flex flex-wrap gap-1">
+                      {(
+                        [
+                          ["simple", "Enkel"],
+                          ["dotted", "Punktert"],
+                          ["triplets", "Trioler"],
+                          ["all", "Alle"],
+                        ] as const
+                      ).map(([presetKey, label]) => {
+                        const active = sameIds(settings.rhythms, RHYTHM_PRESETS[presetKey]);
                         return (
                           <button
-                            key={d.id}
+                            key={presetKey}
                             type="button"
-                            data-id={d.id}
-                            onClick={() => toggleDuration("rests", d.id)}
+                            data-rhythm-preset={presetKey}
+                            onClick={() => onUpdateSettings({ rhythms: [...RHYTHM_PRESETS[presetKey]!] })}
                             className={
                               active
-                                ? "metro-press min-h-8 rounded-lg border border-accent bg-accent/12 px-2.5 text-xs font-semibold text-accent"
-                                : "metro-press min-h-8 rounded-lg border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
+                                ? "rounded-md border border-accent bg-accent/12 px-2 py-0.5 text-[11px] font-semibold text-accent"
+                                : "rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
                             }
                           >
-                            {d.name}
+                            {label}
                           </button>
                         );
                       })}
                     </div>
                   </div>
-                ) : null}
 
-                <div className="space-y-1.5">
-                  <label htmlFor="time" className="block text-xs font-medium text-muted">
-                    Taktart
-                  </label>
-                  <select
-                    id="time"
-                    value={settings.timeId}
-                    onChange={(e) => onUpdateSettings({ timeId: e.target.value })}
-                    className="sr-only-select"
-                  >
-                    {TIME_OPTIONS.map((t) => (
-                      <option key={t} value={t}>
-                        {t === "random" ? "Tilfeldig" : t}
-                      </option>
-                    ))}
-                  </select>
-                  <SegPills
-                    options={TIME_OPTIONS.map((t) => [t, t === "random" ? "Tilfeldig" : t])}
-                    value={settings.timeId}
-                    onChange={(val) => onUpdateSettings({ timeId: val })}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="measures" className="block text-xs font-medium text-muted">
-                    Antall takter
-                  </label>
-                  <select
-                    id="measures"
-                    value={String(settings.measures)}
-                    onChange={(e) => onUpdateSettings({ measures: Number(e.target.value) })}
-                    className="sr-only-select"
-                  >
-                    {MEASURE_OPTIONS.map((m) => (
-                      <option key={m} value={String(m)}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <SegPills
-                    options={MEASURE_OPTIONS.map((m) => [String(m), `${m} takter`])}
-                    value={String(settings.measures)}
-                    onChange={(val) => onUpdateSettings({ measures: Number(val) })}
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* PANEL: REGISTER */}
-            <section data-settings-panel="register" className={`space-y-3 ${panelVisibility("register")}`}>
-              <button
-                type="button"
-                data-settings-back
-                onClick={() => setMobilePanel(null)}
-                className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-              >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                <span>Tilbake</span>
-              </button>
-
-              <div className="space-y-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)]">
-                <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Register</h3>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-muted">Toneomfang</span>
-                    <span className="rounded-full border border-line bg-header px-2.5 py-0.5 font-semibold text-fg tabular-nums">
-                      <strong id="rangeLowLbl" className="text-accent">
-                        {midiLabel(engine, curWLo)}
-                      </strong>{" "}
-                      –{" "}
-                      <strong id="rangeHighLbl" className="text-accent">
-                        {midiLabel(engine, curWHi)}
-                      </strong>
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="space-y-1 text-[11px] text-muted">
-                      <span>Laveste</span>
-                      <input
-                        id="rangeLow"
-                        type="range"
-                        min={minW}
-                        max={maxW}
-                        value={curWLo}
-                        onChange={(e) => {
-                          const wlo = Math.min(Number(e.target.value), curWHi);
-                          onUpdateSettings({ rangeLow: wlo - writeOff });
-                        }}
-                        className="w-full accent-[var(--color-accent)]"
-                      />
-                    </label>
-                    <label className="space-y-1 text-[11px] text-muted">
-                      <span>Høyeste</span>
-                      <input
-                        id="rangeHigh"
-                        type="range"
-                        min={minW}
-                        max={maxW}
-                        value={curWHi}
-                        onChange={(e) => {
-                          const whi = Math.max(Number(e.target.value), curWLo);
-                          onUpdateSettings({ rangeHigh: whi - writeOff });
-                        }}
-                        className="w-full accent-[var(--color-accent)]"
-                      />
-                    </label>
-                  </div>
-                  <p id="rangeHint" className="text-[11px] text-muted">
-                    Skrevet omfang for {inst?.name ?? "Marimba 5.0"}: {midiLabel(engine, minW)}–
-                    {midiLabel(engine, maxW)}.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="maxLeap" className="block text-xs font-medium text-muted">
-                    Største sprang
-                  </label>
-                  <select
-                    id="maxLeap"
-                    value={String(settings.maxLeap)}
-                    onChange={(e) => onUpdateSettings({ maxLeap: Number(e.target.value) })}
-                    className="sr-only-select"
-                  >
-                    {LEAP_OPTIONS.map(([val, label]) => (
-                      <option key={val} value={String(val)}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  <SegPills
-                    options={LEAP_OPTIONS.map(([val, label]) => [String(val), label])}
-                    value={String(settings.maxLeap)}
-                    onChange={(val) => onUpdateSettings({ maxLeap: Number(val) })}
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="density" className="flex items-center justify-between text-xs font-medium text-muted">
-                    <span>Tetthet</span>
-                    <span className="font-semibold text-fg tabular-nums">{settings.rhythmDensity} / 5</span>
-                  </label>
-                  <input
-                    id="density"
-                    type="range"
-                    min={1}
-                    max={5}
-                    value={settings.rhythmDensity}
-                    onChange={(e) => onUpdateSettings({ rhythmDensity: Number(e.target.value) })}
-                    className="w-full accent-[var(--color-accent)]"
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* PANEL: TONEART */}
-            <section data-settings-panel="toneart" className={`space-y-3 ${panelVisibility("toneart")}`}>
-              <button
-                type="button"
-                data-settings-back
-                onClick={() => setMobilePanel(null)}
-                className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-              >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                <span>Tilbake</span>
-              </button>
-
-              <div className="space-y-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)]">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 id="keysHeading" className="text-xs font-bold tracking-wider text-accent uppercase">
-                    Tonearter
-                  </h3>
-                  <div role="group" aria-labelledby="keysHeading" className="flex flex-wrap gap-1">
-                    <button
-                      id="keysAll"
-                      type="button"
-                      onClick={() => setKeysGroup((T?.KEYS ?? []).map((k) => k.id))}
-                      className="rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                    >
-                      Alle
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setKeysGroup(["C", "F", "G", "Bb", "D"])}
-                      className="rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                    >
-                      Vanlige
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setKeysGroup(["C"])}
-                      className="rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                    >
-                      Kun C
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <p id="keysMajorHeading" className="text-xs font-medium text-muted">
-                    Dur
-                  </p>
-                  <div
-                    id="keysMajorChips"
-                    role="group"
-                    aria-labelledby="keysHeading keysMajorHeading"
-                    className="grid grid-cols-6 gap-1"
-                  >
-                    {majorKeys.map((k) => {
-                      const active = settings.keyIds.includes(k.id);
+                  <div id="rhythms" className="flex flex-wrap gap-1.5">
+                    {durations.map((d) => {
+                      const active = settings.rhythms.includes(d.id);
                       return (
                         <button
-                          key={k.id}
+                          key={d.id}
                           type="button"
-                          onClick={() => toggleKey(k.id)}
+                          data-id={d.id}
+                          onClick={() => toggleDuration("rhythms", d.id)}
                           className={
                             active
-                              ? "metro-press min-h-9 rounded-lg border border-accent bg-accent/12 text-xs font-semibold text-accent"
-                              : "metro-press min-h-9 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
+                              ? "metro-press min-h-8 rounded-lg border border-accent bg-accent/12 px-2.5 text-xs font-semibold text-accent"
+                              : "metro-press min-h-8 rounded-lg border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
                           }
                         >
-                          {k.name.replace("-dur", "")}
+                          {d.name}
                         </button>
                       );
                     })}
                   </div>
-                </div>
 
-                <div className="space-y-1.5">
-                  <p id="keysMinorHeading" className="text-xs font-medium text-muted">
-                    Parallellmoll
-                  </p>
-                  <div
-                    id="keysMinorChips"
-                    role="group"
-                    aria-labelledby="keysHeading keysMinorHeading"
-                    className="grid grid-cols-6 gap-1"
-                  >
-                    {minorKeys.map((k) => {
-                      const active = settings.keyIds.includes(k.id);
-                      return (
-                        <button
-                          key={k.id}
-                          type="button"
-                          onClick={() => toggleKey(k.id)}
-                          className={
-                            active
-                              ? "metro-press min-h-9 rounded-lg border border-accent bg-accent/12 text-xs font-semibold text-accent"
-                              : "metro-press min-h-9 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
-                          }
-                        >
-                          {k.name.replace("-moll", "m")}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <ToggleRow
-                  id="accidentals"
-                  label="Løse fortegn"
-                  checked={settings.accidentals}
-                  onChange={(v) => onUpdateSettings({ accidentals: v })}
-                />
-              </div>
-            </section>
-
-            {/* PANEL: DUETT */}
-            <section data-settings-panel="duett" className={`space-y-3 ${panelVisibility("duett")}`}>
-              <button
-                type="button"
-                data-settings-back
-                onClick={() => setMobilePanel(null)}
-                className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-              >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                <span>Tilbake</span>
-              </button>
-
-              <div className="space-y-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)]">
-                <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Duett</h3>
-                <ToggleRow
-                  id="duetEnabled"
-                  label="Samspill (Trompet + Slagverk)"
-                  checked={settings.duetEnabled}
-                  onChange={(v) => onUpdateSettings({ duetEnabled: v })}
-                />
-                {settings.duetEnabled ? (
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <span className="block text-xs font-medium text-muted">Stil</span>
-                      <SegPills
-                        options={DUET_STYLE_OPTIONS}
-                        value={settings.duetStyle}
-                        onChange={(val) => onUpdateSettings({ duetStyle: val as DuetStyle })}
-                      />
-                    </div>
+                  <div className="grid grid-cols-2 gap-1.5">
                     <ToggleRow
-                      id="duetAllowChords"
-                      label="Tillat akkorder i slagverk"
-                      checked={settings.duetAllowChords}
-                      onChange={(v) => onUpdateSettings({ duetAllowChords: v })}
+                      id="allowRests"
+                      label="Pauser"
+                      checked={settings.allowRests}
+                      onChange={(v) => onUpdateSettings({ allowRests: v })}
+                    />
+                    <ToggleRow
+                      id="ties"
+                      label="Bindebuer"
+                      checked={settings.ties}
+                      onChange={(v) => onUpdateSettings({ ties: v })}
+                    />
+                    <ToggleRow
+                      id="syncopation"
+                      label="Synkoper"
+                      checked={settings.syncopation}
+                      onChange={(v) => onUpdateSettings({ syncopation: v })}
+                    />
+                    <ToggleRow
+                      id="dynamics"
+                      label="Dynamikk"
+                      checked={settings.dynamics}
+                      onChange={(v) => onUpdateSettings({ dynamics: v })}
                     />
                   </div>
-                ) : null}
-              </div>
-            </section>
 
-            {/* PANEL: MER */}
-            <section data-settings-panel="mer" className={`space-y-3 ${panelVisibility("mer")}`}>
-              <button
-                type="button"
-                data-settings-back
-                onClick={() => setMobilePanel(null)}
-                className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
-              >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                <span>Tilbake</span>
-              </button>
+                  {settings.allowRests ? (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted">Pauseverdier</p>
+                      <div id="rests" className="flex flex-wrap gap-1.5">
+                        {restDurations.map((d) => {
+                          const active = settings.rests.includes(d.id);
+                          return (
+                            <button
+                              key={d.id}
+                              type="button"
+                              data-id={d.id}
+                              onClick={() => toggleDuration("rests", d.id)}
+                              className={
+                                active
+                                  ? "metro-press min-h-8 rounded-lg border border-accent bg-accent/12 px-2.5 text-xs font-semibold text-accent"
+                                  : "metro-press min-h-8 rounded-lg border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
+                              }
+                            >
+                              {d.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
 
-              <div className="space-y-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)]">
-                <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Mer</h3>
+                  <div className="space-y-1.5">
+                    <label htmlFor="time" className="block text-xs font-medium text-muted">
+                      Taktart
+                    </label>
+                    <select
+                      id="time"
+                      value={settings.timeId}
+                      onChange={(e) => onUpdateSettings({ timeId: e.target.value })}
+                      className="sr-only-select"
+                    >
+                      {TIME_OPTIONS.map((t) => (
+                        <option key={t} value={t}>
+                          {t === "random" ? "Tilfeldig" : t}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={TIME_OPTIONS.map((t) => [t, t === "random" ? "Tilfeldig" : t] as const)}
+                      value={settings.timeId}
+                      onChange={(val) => onUpdateSettings({ timeId: val })}
+                    />
+                  </div>
 
-                <div className="space-y-1.5">
-                  <label htmlFor="rolls" className="block text-xs font-medium text-muted">
-                    Virvler
-                  </label>
-                  <select
-                    id="rolls"
-                    value={settings.rolls}
-                    onChange={(e) => onUpdateSettings({ rolls: e.target.value })}
-                    className="sr-only-select"
-                  >
-                    {ROLL_OPTIONS.map(([val, label]) => (
-                      <option key={val} value={val}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  <SegPills
-                    options={ROLL_OPTIONS}
-                    value={settings.rolls}
-                    onChange={(val) => onUpdateSettings({ rolls: val })}
-                  />
+                  <div className="space-y-1.5">
+                    <label htmlFor="measures" className="block text-xs font-medium text-muted">
+                      Antall takter
+                    </label>
+                    <select
+                      id="measures"
+                      value={String(settings.measures)}
+                      onChange={(e) => onUpdateSettings({ measures: Number(e.target.value) })}
+                      className="sr-only-select"
+                    >
+                      {MEASURE_OPTIONS.map((m) => (
+                        <option key={m} value={String(m)}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={MEASURE_OPTIONS.map((m) => [String(m), `${m} takter`] as const)}
+                      value={String(settings.measures)}
+                      onChange={(val) => onUpdateSettings({ measures: Number(val) })}
+                    />
+                  </div>
                 </div>
+              </section>
 
-                <div className="space-y-1.5">
-                  <label htmlFor="annotate" className="block text-xs font-medium text-muted">
-                    Hjelpetekst
-                  </label>
-                  <select
-                    id="annotate"
-                    value={settings.annotate}
-                    onChange={(e) => onUpdateSettings({ annotate: e.target.value })}
-                    className="sr-only-select"
-                  >
-                    {ANNOTATE_OPTIONS.map(([val, label]) => (
-                      <option key={val} value={val}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  <SegPills
-                    options={ANNOTATE_OPTIONS}
-                    value={settings.annotate}
-                    onChange={(val) => onUpdateSettings({ annotate: val })}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <ToggleRow
-                    id="accents"
-                    label="Aksenter"
-                    checked={settings.accents}
-                    onChange={(v) => onUpdateSettings({ accents: v })}
-                  />
-                  <ToggleRow
-                    id="staccato"
-                    label="Stakkato"
-                    checked={settings.staccato}
-                    onChange={(v) => onUpdateSettings({ staccato: v })}
-                  />
-                  <ToggleRow
-                    id="legato"
-                    label="Legato"
-                    checked={settings.legato}
-                    onChange={(v) => onUpdateSettings({ legato: v })}
-                  />
-                  <ToggleRow
-                    id="showSticking"
-                    label={isTrumpet ? "Ventilgrep" : "Kølleføring"}
-                    checked={settings.showSticking}
-                    onChange={(v) => onUpdateSettings({ showSticking: v })}
-                  />
-                </div>
-
+              {/* PANEL: MER */}
+              <section data-settings-panel="mer" className={`space-y-3 ${panelVisibility("mer")}`}>
                 <button
                   type="button"
-                  onClick={onResetDefaults}
-                  className="metro-press inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-line bg-header px-3 text-xs font-semibold text-muted hover:text-fg"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
                 >
-                  <RotateCcw className="size-3.5" aria-hidden="true" />
-                  <span>Tilbakestill standard</span>
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
                 </button>
-              </div>
-            </section>
+
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Mer</h3>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="rolls" className="block text-xs font-medium text-muted">
+                      Virvler
+                    </label>
+                    <select
+                      id="rolls"
+                      value={settings.rolls}
+                      onChange={(e) => onUpdateSettings({ rolls: e.target.value })}
+                      className="sr-only-select"
+                    >
+                      {ROLL_OPTIONS.map(([val, label]) => (
+                        <option key={val} value={val}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={ROLL_OPTIONS}
+                      value={settings.rolls}
+                      onChange={(val) => onUpdateSettings({ rolls: val })}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="annotate" className="block text-xs font-medium text-muted">
+                      Hjelpetekst
+                    </label>
+                    <select
+                      id="annotate"
+                      value={settings.annotate}
+                      onChange={(e) => onUpdateSettings({ annotate: e.target.value })}
+                      className="sr-only-select"
+                    >
+                      {ANNOTATE_OPTIONS.map(([val, label]) => (
+                        <option key={val} value={val}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={ANNOTATE_OPTIONS}
+                      value={settings.annotate}
+                      onChange={(val) => onUpdateSettings({ annotate: val })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <ToggleRow
+                      id="accents"
+                      label="Aksenter"
+                      checked={settings.accents}
+                      onChange={(v) => onUpdateSettings({ accents: v })}
+                    />
+                    <ToggleRow
+                      id="staccato"
+                      label="Stakkato"
+                      checked={settings.staccato}
+                      onChange={(v) => onUpdateSettings({ staccato: v })}
+                    />
+                    <ToggleRow
+                      id="legato"
+                      label="Legato"
+                      checked={settings.legato}
+                      onChange={(v) => onUpdateSettings({ legato: v })}
+                    />
+                    <ToggleRow
+                      id="showSticking"
+                      label={isTrumpet ? "Ventilgrep" : "Kølleføring"}
+                      checked={settings.showSticking}
+                      onChange={(v) => onUpdateSettings({ showSticking: v })}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onResetDefaults}
+                    className="metro-press inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-line bg-header px-3 text-xs font-semibold text-muted hover:text-fg"
+                  >
+                    <RotateCcw className="size-3.5" aria-hidden="true" />
+                    <span>Tilbakestill standard</span>
+                  </button>
+                </div>
+              </section>
+            </div>
+
+            {/* COLUMN 3: REGISTER + TONEART */}
+            <div
+              className={
+                mobilePanel === "register" || mobilePanel === "toneart"
+                  ? "flex flex-col gap-3.5"
+                  : "hidden sm:flex sm:flex-col sm:gap-3.5"
+              }
+            >
+              {/* PANEL: REGISTER */}
+              <section data-settings-panel="register" className={`space-y-3 ${panelVisibility("register")}`}>
+                <button
+                  type="button"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
+                </button>
+
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <h3 className="text-xs font-bold tracking-wider text-accent uppercase">Register</h3>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-muted">Toneomfang</span>
+                      <span className="rounded-full border border-line bg-header px-2.5 py-0.5 font-semibold text-fg tabular-nums">
+                        <strong id="rangeLowLbl" className="text-accent">
+                          {midiLabel(engine, curWLo)}
+                        </strong>{" "}
+                        –{" "}
+                        <strong id="rangeHighLbl" className="text-accent">
+                          {midiLabel(engine, curWHi)}
+                        </strong>
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="space-y-1 text-[11px] text-muted">
+                        <span>Laveste</span>
+                        <input
+                          id="rangeLow"
+                          type="range"
+                          min={minW}
+                          max={maxW}
+                          value={curWLo}
+                          onChange={(e) => {
+                            const wlo = Math.min(Number(e.target.value), curWHi);
+                            onUpdateSettings({ rangeLow: wlo - writeOff });
+                          }}
+                          className="w-full accent-[var(--color-accent)]"
+                        />
+                      </label>
+                      <label className="space-y-1 text-[11px] text-muted">
+                        <span>Høyeste</span>
+                        <input
+                          id="rangeHigh"
+                          type="range"
+                          min={minW}
+                          max={maxW}
+                          value={curWHi}
+                          onChange={(e) => {
+                            const whi = Math.max(Number(e.target.value), curWLo);
+                            onUpdateSettings({ rangeHigh: whi - writeOff });
+                          }}
+                          className="w-full accent-[var(--color-accent)]"
+                        />
+                      </label>
+                    </div>
+                    <p id="rangeHint" className="text-[11px] text-muted">
+                      Skrevet omfang for {inst?.name ?? "Marimba 5.0"}: {midiLabel(engine, minW)}–
+                      {midiLabel(engine, maxW)}.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="maxLeap" className="block text-xs font-medium text-muted">
+                      Største sprang
+                    </label>
+                    <select
+                      id="maxLeap"
+                      value={String(settings.maxLeap)}
+                      onChange={(e) => onUpdateSettings({ maxLeap: Number(e.target.value) })}
+                      className="sr-only-select"
+                    >
+                      {LEAP_OPTIONS.map(([val, label]) => (
+                        <option key={val} value={String(val)}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <SegPills
+                      options={LEAP_OPTIONS.map(([val, label]) => [String(val), label] as const)}
+                      value={String(settings.maxLeap)}
+                      onChange={(val) => onUpdateSettings({ maxLeap: Number(val) })}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="density" className="flex items-center justify-between text-xs font-medium text-muted">
+                      <span>Tetthet</span>
+                      <span className="font-semibold text-fg tabular-nums">{settings.rhythmDensity} / 5</span>
+                    </label>
+                    <input
+                      id="density"
+                      type="range"
+                      min={1}
+                      max={5}
+                      value={settings.rhythmDensity}
+                      onChange={(e) => onUpdateSettings({ rhythmDensity: Number(e.target.value) })}
+                      className="w-full accent-[var(--color-accent)]"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* PANEL: TONEART */}
+              <section data-settings-panel="toneart" className={`space-y-3 ${panelVisibility("toneart")}`}>
+                <button
+                  type="button"
+                  data-settings-back
+                  onClick={() => setMobilePanel(null)}
+                  className="inline-flex min-h-9 items-center gap-1 text-sm font-semibold text-accent sm:hidden"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  <span>Tilbake</span>
+                </button>
+
+                <div className="space-y-3 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-card)]">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 id="keysHeading" className="text-xs font-bold tracking-wider text-accent uppercase">
+                      Tonearter
+                    </h3>
+                    <div role="group" aria-labelledby="keysHeading" className="flex flex-wrap gap-1">
+                      <button
+                        id="keysAll"
+                        type="button"
+                        onClick={() => setKeysGroup((T?.KEYS ?? []).map((k) => k.id))}
+                        className="rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
+                      >
+                        Alle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setKeysGroup(["C", "F", "G", "Bb", "D"])}
+                        className="rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
+                      >
+                        Vanlige
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setKeysGroup(["C"])}
+                        className="rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
+                      >
+                        Kun C
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p id="keysMajorHeading" className="text-xs font-medium text-muted">
+                      Dur
+                    </p>
+                    <div
+                      id="keysMajorChips"
+                      role="group"
+                      aria-labelledby="keysHeading keysMajorHeading"
+                      className="grid grid-cols-6 gap-1"
+                    >
+                      {majorKeys.map((k) => {
+                        const active = settings.keyIds.includes(k.id);
+                        return (
+                          <button
+                            key={k.id}
+                            type="button"
+                            onClick={() => toggleKey(k.id)}
+                            className={
+                              active
+                                ? "metro-press min-h-8 rounded-lg border border-accent bg-accent/12 text-xs font-semibold text-accent"
+                                : "metro-press min-h-8 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
+                            }
+                          >
+                            {k.name.replace("-dur", "")}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p id="keysMinorHeading" className="text-xs font-medium text-muted">
+                      Parallellmoll
+                    </p>
+                    <div
+                      id="keysMinorChips"
+                      role="group"
+                      aria-labelledby="keysHeading keysMinorHeading"
+                      className="grid grid-cols-6 gap-1"
+                    >
+                      {minorKeys.map((k) => {
+                        const active = settings.keyIds.includes(k.id);
+                        return (
+                          <button
+                            key={k.id}
+                            type="button"
+                            onClick={() => toggleKey(k.id)}
+                            className={
+                              active
+                                ? "metro-press min-h-8 rounded-lg border border-accent bg-accent/12 text-xs font-semibold text-accent"
+                                : "metro-press min-h-8 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
+                            }
+                          >
+                            {k.name.replace("-moll", "m")}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <ToggleRow
+                      id="accidentals"
+                      label="Løse fortegn"
+                      checked={settings.accidentals}
+                      onChange={(v) => onUpdateSettings({ accidentals: v })}
+                    />
+                    <ToggleRow
+                      id="startTonic"
+                      label="Start på grunntone"
+                      checked={settings.startTonic}
+                      onChange={(v) => onUpdateSettings({ startTonic: v })}
+                    />
+                    <ToggleRow
+                      id="endTonic"
+                      label="Slutt på grunntone"
+                      checked={settings.endTonic}
+                      onChange={(v) => onUpdateSettings({ endTonic: v })}
+                    />
+                  </div>
+                </div>
+              </section>
+            </div>
           </div>
         </div>
 

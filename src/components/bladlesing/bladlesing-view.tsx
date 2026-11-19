@@ -3,7 +3,6 @@ import {
   Minus,
   Play,
   Plus,
-  RefreshCw,
   RotateCcw,
   SlidersHorizontal,
   Sparkles,
@@ -64,7 +63,7 @@ export function BladlesingView() {
               }
               className={
                 state.settings.duetEnabled
-                  ? "metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok md:hidden"
+                  ? "on metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok md:hidden"
                   : "metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg md:hidden"
               }
             >
@@ -116,7 +115,7 @@ export function BladlesingView() {
                 onClick={() => setFlowOpen((o) => !o)}
                 aria-expanded={flowOpen}
                 aria-label="Bladlesingsflyt"
-                title="Bladlesingsflyt (opptelling, auto-neste, les forover)"
+                title="Bladlesingsflyt: 1 takt opptelling, automatisk neste etyde, og «Les forover»"
                 className={
                   flowActive
                     ? "metro-press inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-accent bg-accent/12 px-2.5 text-xs font-semibold text-accent"
@@ -228,9 +227,9 @@ export function BladlesingView() {
               onClick={actions.togglePlay}
               className={
                 state.playing
-                  ? "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-3 text-xs font-semibold text-ok sm:px-3.5 sm:text-sm"
+                  ? "on metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-3 text-xs font-semibold text-ok sm:px-3.5 sm:text-sm"
                   : state.yielded
-                    ? "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-dashed border-accent/60 bg-surface px-3 text-xs font-semibold text-muted sm:px-3.5 sm:text-sm"
+                    ? "yielded metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-dashed border-accent/60 bg-surface px-3 text-xs font-semibold text-muted sm:px-3.5 sm:text-sm"
                     : "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-fg hover:border-accent/60 sm:px-3.5 sm:text-sm"
               }
             >
@@ -248,9 +247,9 @@ export function BladlesingView() {
               onClick={actions.toggleMetro}
               className={
                 state.metroOn
-                  ? "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok sm:px-3 sm:text-sm"
+                  ? "on metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok sm:px-3 sm:text-sm"
                   : state.yielded
-                    ? "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-dashed border-accent/60 bg-surface px-2.5 text-xs font-semibold text-muted sm:px-3 sm:text-sm"
+                    ? "yielded metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-dashed border-accent/60 bg-surface px-2.5 text-xs font-semibold text-muted sm:px-3 sm:text-sm"
                     : "metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-xs font-semibold text-fg hover:border-accent/60 sm:px-3 sm:text-sm"
               }
             >
@@ -265,7 +264,7 @@ export function BladlesingView() {
               onClick={actions.cycleSubdiv}
               className={
                 state.subdiv > 1
-                  ? "metro-press hidden min-h-10 min-w-10 items-center justify-center rounded-xl border border-accent bg-accent/12 text-sm font-bold text-accent sm:inline-flex"
+                  ? "on metro-press hidden min-h-10 min-w-10 items-center justify-center rounded-xl border border-accent bg-accent/12 text-sm font-bold text-accent sm:inline-flex"
                   : "metro-press hidden min-h-10 min-w-10 items-center justify-center rounded-xl border border-line bg-surface text-sm font-semibold text-muted hover:text-fg sm:inline-flex"
               }
             >
@@ -294,9 +293,9 @@ export function BladlesingView() {
                         key={i}
                         className={
                           isDown
-                            ? "size-2 rounded-full bg-fg shadow-xs transition-colors"
+                            ? "on down size-2 rounded-full bg-fg shadow-xs transition-colors"
                             : isOn
-                              ? "size-2 rounded-full bg-accent shadow-xs transition-colors"
+                              ? "on size-2 rounded-full bg-accent shadow-xs transition-colors"
                               : "size-2 rounded-full bg-line transition-colors"
                         }
                       />
@@ -335,10 +334,9 @@ export function BladlesingView() {
               id="btnGenerate"
               type="button"
               onClick={() => actions.generate()}
-              className="metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-bold whitespace-nowrap text-accent-fg shadow-xs sm:px-4 sm:text-sm"
+              className="metro-press inline-flex min-h-10 items-center justify-center rounded-xl bg-accent px-3.5 text-xs font-bold whitespace-nowrap text-accent-fg shadow-xs sm:px-4 sm:text-sm"
             >
-              <RefreshCw className="size-3.5" aria-hidden="true" />
-              <span>Ny etyde</span>
+              Ny etyde
             </button>
           </div>
         </div>

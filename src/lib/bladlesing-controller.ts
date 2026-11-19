@@ -376,21 +376,20 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
         subdiv: subdivRef.current,
         countIn: countInBars,
         clicks: clicksOn,
-        playTrumpet: s.duetPlayTrumpet,
-        playMallets: s.duetPlayMallets,
-        onBeat: (i, count, _fromClick, cue) => {
-          if (cue && cue.phase === "countin") {
+        muteTrumpet: !s.duetPlayTrumpet,
+        muteMallets: !s.duetPlayMallets,
+        onCue: (cue) => {
+          if (cue.phase === "countin") {
             setActiveBeat(cue.beat);
             setCountInBeat(cue.beat + 1);
             eng.ScoreRenderer.showBeat(beatMapRef.current, 0);
           } else {
             setCountInBeat(null);
-            const beatIdx = cue ? cue.beat : i;
-            setActiveBeat(beatIdx % count);
+            setActiveBeat(cue.beat % cue.beats);
             if (beatMapRef.current.length) {
-              eng.ScoreRenderer.showBeat(beatMapRef.current, Math.min(beatIdx, beatMapRef.current.length - 1));
+              eng.ScoreRenderer.showBeat(beatMapRef.current, Math.min(cue.beat, beatMapRef.current.length - 1));
             }
-            fadeCompletedMeasures(beatIdx, count);
+            fadeCompletedMeasures(cue.beat, cue.beats);
           }
         },
         done: () => {
@@ -426,6 +425,9 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
           }
         },
       });
+      if (!clicksOn) {
+        eng.AudioEngine.setClicks(false);
+      }
       return true;
     },
     [cancelAutoNext, clearFadedMeasures, fadeCompletedMeasures, generate, getMetroSpec, startMetroInternal],
@@ -537,7 +539,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
   const updateSettings = useCallback(
     (patch: Partial<BladlesingSettings>, opts?: { regenerate?: boolean; rerender?: boolean }) => {
       const eng = engineRef.current;
-      let next: BladlesingSettings = { ...settingsRef.current, ...patch };
+      const next: BladlesingSettings = { ...settingsRef.current, ...patch };
       if (patch.instrumentId && patch.instrumentId !== settingsRef.current.instrumentId && eng) {
         const inst = eng.Theory.INSTRUMENTS.find((i) => i.id === patch.instrumentId);
         if (inst) {
