@@ -239,12 +239,12 @@ export function NoterPageTrimModal({
       role="dialog"
       aria-modal="true"
       aria-label="Velg sider å beholde"
-      style={{ backgroundColor: "rgba(10, 13, 18, 0.82)" }}
+      style={{ backgroundColor: "var(--color-scrim)" }}
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
       onClick={busy ? undefined : onClose}
     >
       <div
-        style={{ backgroundColor: "rgba(22, 26, 34, 0.98)" }}
+        style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.98)" }}
         className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-t-2xl border border-line shadow-2xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -326,7 +326,7 @@ export function NoterPageTrimModal({
                   setRangeAnchor(null);
                 }}
                 style={
-                  rangeMode ? { backgroundColor: "rgba(224, 177, 90, 0.16)" } : undefined
+                  rangeMode ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.16)" } : undefined
                 }
                 className={
                   rangeMode
@@ -350,7 +350,7 @@ export function NoterPageTrimModal({
           {error ? (
             <div
               role="alert"
-              style={{ backgroundColor: "rgba(239, 68, 68, 0.12)", borderColor: "rgba(239, 68, 68, 0.4)" }}
+              style={{ backgroundColor: "rgb(var(--color-no-rgb) / 0.12)", borderColor: "rgb(var(--color-no-rgb) / 0.4)" }}
               className="rounded-xl border px-3 py-2 text-xs text-red-200"
             >
               {error}
@@ -370,7 +370,7 @@ export function NoterPageTrimModal({
                   key={p}
                   style={
                     isSelected
-                      ? { backgroundColor: "rgba(224, 177, 90, 0.14)" }
+                      ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.14)" }
                       : undefined
                   }
                   className={
@@ -399,7 +399,7 @@ export function NoterPageTrimModal({
                       {isSelected ? (
                         <span
                           aria-hidden="true"
-                          className="absolute top-1.5 left-1.5 flex size-6 items-center justify-center rounded-full bg-accent text-[#1a1408] shadow"
+                          className="absolute top-1.5 left-1.5 flex size-6 items-center justify-center rounded-full bg-accent text-accent-fg shadow"
                         >
                           <Check className="size-3.5 stroke-[3]" />
                         </span>
@@ -452,7 +452,7 @@ export function NoterPageTrimModal({
                 type="button"
                 disabled={busy || selectedPages.length === 0}
                 onClick={() => void handleTrimCopy()}
-                className="metro-press min-h-10 shrink-0 rounded-xl bg-accent px-4 text-xs font-bold text-[#1a1408] disabled:opacity-40"
+                className="metro-press min-h-10 shrink-0 rounded-xl bg-accent px-4 text-xs font-bold text-accent-fg disabled:opacity-40"
               >
                 {busy ? "Lagrer…" : "Opprett utdrag"}
               </button>
@@ -494,7 +494,7 @@ export function NoterPageTrimModal({
                   type="button"
                   disabled={busy || selectedPages.length === 0}
                   onClick={() => void handleTrimReplace()}
-                  className="metro-press flex min-h-11 items-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-[#1a1408] disabled:opacity-40"
+                  className="metro-press flex min-h-11 items-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-accent-fg disabled:opacity-40"
                 >
                   <Scissors className="size-4" aria-hidden="true" />
                   <span>
@@ -515,7 +515,7 @@ export function NoterPageTrimModal({
           role="dialog"
           aria-modal="true"
           aria-label={`Forhåndsvisning av side ${previewPage}`}
-          style={{ backgroundColor: "rgba(6, 8, 12, 0.9)" }}
+          style={{ backgroundColor: "var(--color-scrim)" }}
           className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4"
           onClick={(e) => {
             e.stopPropagation();

@@ -90,12 +90,12 @@ export function NoterNavDrawer({
       role="dialog"
       aria-modal="true"
       aria-label="Sider og bokmerker"
-      style={{ backgroundColor: "rgba(10, 13, 18, 0.78)" }}
+      style={{ backgroundColor: "var(--color-scrim)" }}
       className="fixed inset-0 z-40 flex items-end justify-center sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
-        style={{ backgroundColor: "rgba(22, 26, 34, 0.98)" }}
+        style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.98)" }}
         className="flex max-h-[82vh] w-full max-w-lg flex-col rounded-t-2xl border border-line shadow-2xl sm:rounded-2xl md:max-w-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -106,7 +106,7 @@ export function NoterNavDrawer({
               role="tab"
               aria-selected={tab === "pages"}
               onClick={() => setTab("pages")}
-              style={tab === "pages" ? { backgroundColor: "rgba(224, 177, 90, 0.16)" } : undefined}
+              style={tab === "pages" ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.16)" } : undefined}
               className={
                 tab === "pages"
                   ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-3 text-xs font-semibold text-accent"
@@ -123,7 +123,7 @@ export function NoterNavDrawer({
               aria-selected={tab === "bookmarks"}
               onClick={() => setTab("bookmarks")}
               style={
-                tab === "bookmarks" ? { backgroundColor: "rgba(224, 177, 90, 0.16)" } : undefined
+                tab === "bookmarks" ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.16)" } : undefined
               }
               className={
                 tab === "bookmarks"
@@ -142,7 +142,7 @@ export function NoterNavDrawer({
                 aria-selected={tab === "setlist"}
                 onClick={() => setTab("setlist")}
                 style={
-                  tab === "setlist" ? { backgroundColor: "rgba(224, 177, 90, 0.16)" } : undefined
+                  tab === "setlist" ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.16)" } : undefined
                 }
                 className={
                   tab === "setlist"
@@ -197,7 +197,7 @@ export function NoterNavDrawer({
                     }}
                     style={
                       isCurrent
-                        ? { backgroundColor: "rgba(224, 177, 90, 0.12)" }
+                        ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.12)" }
                         : undefined
                     }
                     className={
@@ -243,7 +243,7 @@ export function NoterNavDrawer({
                 />
                 <button
                   type="submit"
-                  className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-bold text-[#1a1408]"
+                  className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-bold text-accent-fg"
                 >
                   <Plus className="size-4" aria-hidden="true" />
                   <span>Side {currentPage}</span>
@@ -308,7 +308,7 @@ export function NoterNavDrawer({
                         }}
                         style={
                           isCurrent
-                            ? { backgroundColor: "rgba(224, 177, 90, 0.14)" }
+                            ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.14)" }
                             : undefined
                         }
                         className={

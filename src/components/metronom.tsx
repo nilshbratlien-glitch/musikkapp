@@ -33,14 +33,14 @@ export function Metronom() {
 
   return (
     <section className="pb-4">
-      <div className="mb-4 grid grid-cols-2 gap-1.5 md:max-w-md">
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl border border-line bg-header p-1 md:max-w-md">
         <button
           type="button"
           onClick={() => choose("metro")}
           className={
             mode === "metro"
-              ? "min-h-11 rounded-lg border border-accent bg-surface font-semibold"
-              : "min-h-11 rounded-lg border border-line text-muted"
+              ? "min-h-10 rounded-lg border border-line/70 bg-surface font-semibold text-fg shadow-xs transition"
+              : "min-h-10 rounded-lg border border-transparent text-muted transition hover:text-fg"
           }
         >
           Metronom
@@ -50,8 +50,8 @@ export function Metronom() {
           onClick={() => choose("rudiment")}
           className={
             mode === "rudiment"
-              ? "min-h-11 rounded-lg border border-accent bg-surface font-semibold"
-              : "min-h-11 rounded-lg border border-line text-muted"
+              ? "min-h-10 rounded-lg border border-line/70 bg-surface font-semibold text-fg shadow-xs transition"
+              : "min-h-10 rounded-lg border border-transparent text-muted transition hover:text-fg"
           }
         >
           Rudiment

@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { BookOpen, Drum, FileText, Music, Pause, Piano, Play, Wifi } from "lucide-react";
+import { BookOpen, Drum, FileText, Monitor, Moon, Music, Pause, Piano, Play, Sun, Wifi } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { SyncModal } from "@/components/sync-modal";
 import { blockName, blockStyle, fmtClock, type BlockId } from "@/lib/oveplan";
@@ -25,6 +25,14 @@ import { unlock } from "@/lib/pulse";
 import { initSyncBridge, registerSyncNavigator } from "@/lib/sync/bridge";
 import { autoReconnectIfConfigured, getSyncState } from "@/lib/sync/room";
 import { useSync } from "@/lib/sync/use-sync";
+import {
+  THEME_LABELS,
+  cycleThemePreference,
+  getThemePreference,
+  getThemeVersion,
+  initTheme,
+  subscribeTheme,
+} from "@/lib/theme";
 import { TOOLS, ensureToolNamespaces, toolForPath, type ToolId } from "@/lib/tools";
 
 const ICONS: Record<ToolId, typeof Music> = {
@@ -115,8 +123,8 @@ export function PlanHeaderTimer({ showStart = false }: { showStart?: boolean }) 
       style={blockStyle(clock.activeId as BlockId)}
       className={
         paused
-          ? "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-line px-2 text-sm font-semibold text-muted"
-          : "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-[var(--block)] bg-[rgb(var(--block-rgb)/0.1)] px-2 text-sm font-semibold text-[var(--block)]"
+          ? "metro-press flex min-h-10 max-w-32 items-center gap-1.5 rounded-lg border border-line px-2 text-xs font-semibold text-muted sm:max-w-40 sm:text-sm"
+          : "metro-press flex min-h-10 max-w-32 items-center gap-1.5 rounded-lg border border-[var(--block)] bg-[rgb(var(--block-rgb)/0.1)] px-2 text-xs font-semibold text-[var(--block)] sm:max-w-40 sm:text-sm"
       }
     >
       <Icon className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden="true" />
@@ -140,7 +148,7 @@ function InstrumentModal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-scrim)] p-4 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
       aria-labelledby="instrument-modal-title"
@@ -192,7 +200,7 @@ function InstrumentModal({
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-lg font-bold text-fg">{meta.label}</span>
                     {selected ? (
-                      <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-bg">
+                      <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-accent-fg">
                         Aktiv
                       </span>
                     ) : null}
@@ -216,13 +224,20 @@ export function Shell() {
   const navigate = useNavigate();
   const sync = useSync();
   useSyncExternalStore(subscribeProfile, getProfileVersion, getProfileVersion);
+  useSyncExternalStore(subscribeTheme, getThemeVersion, getThemeVersion);
   const profile = getProfile();
   const profileMeta = PROFILE_META[profile];
+  const [hydrated, setHydrated] = useState(false);
+  const themePref = hydrated ? getThemePreference() : "system";
+  const ThemeIcon = themePref === "light" ? Sun : themePref === "dark" ? Moon : Monitor;
+  const themeLabel = THEME_LABELS[themePref];
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [installDismissed, setInstallDismissed] = useState(false);
 
   useEffect(() => {
+    setHydrated(true);
+    initTheme();
     try {
       if (window.localStorage.getItem("musikkapp.installDismissed") === "1") {
         setInstallDismissed(true);
@@ -300,15 +315,15 @@ export function Shell() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
-      <header className="shrink-0 border-b border-line bg-header px-4 py-2.5 md:landscape:py-2">
-        <div className="flex items-center justify-between gap-3">
+      <header className="shrink-0 border-b border-line bg-[rgb(var(--color-chrome-rgb)/0.88)] px-3 py-2.5 backdrop-blur-md sm:px-4 md:landscape:py-2">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
           <div className="min-w-0 md:landscape:flex md:landscape:items-baseline md:landscape:gap-3">
-            <p className="truncate text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
-            <p className="truncate text-sm text-muted">
+            <p className="truncate text-lg leading-tight font-semibold tracking-tight sm:text-xl">Musikkapp</p>
+            <p className="truncate text-xs text-muted sm:text-sm">
               {tool.label} · {profileMeta.label}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <PlanHeaderTimer showStart={tool.id === "noter"} />
             <button
               type="button"
@@ -318,10 +333,23 @@ export function Shell() {
               }}
               aria-label={`Bytt instrument (nå: ${profileMeta.label})`}
               title={`Aktiv profil: ${profileMeta.label} — trykk for å bytte mellom Køller og Trompet`}
-              className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-fg hover:border-accent/60"
+              className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-header px-2 text-xs font-semibold text-fg hover:border-accent/60 sm:px-2.5"
             >
               <span aria-hidden="true" className="text-base leading-none">{profileMeta.emoji}</span>
-              <span>{profileMeta.label}</span>
+              <span className="hidden sm:inline">{profileMeta.label}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                unlock();
+                cycleThemePreference();
+              }}
+              aria-label={`Tema: ${themeLabel} — trykk for å bytte`}
+              title={`Tema: ${themeLabel} (System / Lys / Mørk)`}
+              className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-header px-2 text-xs font-medium text-muted hover:border-accent/60 hover:text-fg sm:px-2.5"
+            >
+              <ThemeIcon className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="hidden sm:inline">{themeLabel}</span>
             </button>
             <button
               type="button"
@@ -334,7 +362,7 @@ export function Shell() {
               className={
                 sync.connected
                   ? "metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-ok/40 bg-ok/10 px-2.5 text-xs font-semibold text-ok"
-                  : "metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-medium text-muted hover:text-fg"
+                  : "metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
               }
             >
               <Wifi className={sync.connected ? "size-3.5 text-ok" : "size-3.5 text-muted"} />
@@ -343,7 +371,7 @@ export function Shell() {
               </span>
             </button>
             {install.standalone || installDismissed ? null : (
-              <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-line">
+              <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-line bg-header">
                 <button
                   type="button"
                   onClick={() => void install.install()}
@@ -386,7 +414,7 @@ export function Shell() {
       <div className="flex min-h-0 flex-1 flex-col md:landscape:flex-row">
         <nav
           aria-label="Verktøy"
-          className="order-last shrink-0 border-t border-line bg-header pb-[env(safe-area-inset-bottom)] md:landscape:order-first md:landscape:w-22 md:landscape:border-t-0 md:landscape:border-r md:landscape:py-3 md:landscape:pb-3"
+          className="order-last shrink-0 border-t border-line bg-[rgb(var(--color-chrome-rgb)/0.88)] pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:landscape:order-first md:landscape:w-22 md:landscape:border-t-0 md:landscape:border-r md:landscape:py-3 md:landscape:pb-3"
         >
           <ul className="grid grid-cols-5 md:landscape:flex md:landscape:h-full md:landscape:flex-col md:landscape:justify-start md:landscape:gap-2 md:landscape:px-2">
             {TOOLS.map((item) => {
@@ -399,8 +427,8 @@ export function Shell() {
                     aria-current={active ? "page" : undefined}
                     className={
                       active
-                        ? "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border border-accent/50 bg-accent/15 px-1 text-accent shadow-xs md:landscape:min-h-16 md:landscape:py-2"
-                        : "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border border-transparent px-1 text-muted hover:bg-surface/60 hover:text-fg md:landscape:min-h-16 md:landscape:py-2"
+                        ? "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border border-accent/40 bg-accent/12 px-1 text-accent shadow-xs md:landscape:min-h-16 md:landscape:py-2"
+                        : "flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl border border-transparent px-1 text-muted hover:bg-header hover:text-fg md:landscape:min-h-16 md:landscape:py-2"
                     }
                   >
                     <Icon

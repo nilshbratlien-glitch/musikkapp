@@ -217,8 +217,8 @@ export function PlainMetronome() {
                 key={index}
                 className={
                   isBeat
-                    ? `metro-badge is-active flex size-10 items-center justify-center rounded-2xl bg-accent text-sm font-bold text-bg tabular-nums md:h-14 md:w-auto md:max-w-20 md:flex-1 md:text-lg ${isDownbeat ? "ring-2 ring-accent/40" : ""}`
-                    : `metro-badge flex size-10 items-center justify-center rounded-2xl bg-header text-sm font-semibold tabular-nums md:h-14 md:w-auto md:max-w-20 md:flex-1 md:text-lg ${isDownbeat ? "border border-accent/40 text-fg" : "border border-line/60 text-muted"}`
+                    ? `metro-badge is-active flex size-10 items-center justify-center rounded-2xl bg-accent text-sm font-bold text-accent-fg tabular-nums md:h-14 md:w-auto md:max-w-20 md:flex-1 md:text-lg ${isDownbeat ? "ring-2 ring-accent/40" : ""}`
+                    : `metro-badge flex size-10 items-center justify-center rounded-2xl bg-surface text-sm font-semibold tabular-nums md:h-14 md:w-auto md:max-w-20 md:flex-1 md:text-lg ${isDownbeat ? "border border-accent/40 text-fg" : "border border-line text-muted"}`
                 }
               >
                 {index + 1}
@@ -232,7 +232,7 @@ export function PlainMetronome() {
             type="button"
             onClick={start}
             disabled={playing}
-            className="metro-press min-h-14 rounded-xl bg-accent text-base font-semibold text-bg disabled:bg-header disabled:text-muted md:min-h-16 md:text-lg"
+            className="metro-press min-h-14 rounded-xl bg-accent text-base font-semibold text-accent-fg disabled:border disabled:border-line disabled:bg-surface/60 disabled:text-muted md:min-h-16 md:text-lg"
           >
             Start
           </button>
@@ -241,7 +241,7 @@ export function PlainMetronome() {
             onClick={stop}
             disabled={!(pulse.owner === "metronom" || (owns && planMalletBlock()))}
             style={plan ? ({ "--block": BLOCK_COLOR[block] } as CSSProperties) : undefined}
-            className="metro-press min-h-14 rounded-xl border border-[var(--block,var(--color-accent))] bg-header text-base font-semibold disabled:border-transparent disabled:bg-header disabled:text-muted md:min-h-16 md:text-lg"
+            className="metro-press min-h-14 rounded-xl border border-[var(--block,var(--color-accent))] bg-surface text-base font-semibold text-fg disabled:border-line disabled:bg-surface/60 disabled:text-muted md:min-h-16 md:text-lg"
           >
             Stopp
           </button>
@@ -249,7 +249,7 @@ export function PlainMetronome() {
       </div>
 
       <div className="mt-4 space-y-4 md:mt-0">
-        <div className="grid gap-3 rounded-card border border-line bg-surface p-4 md:p-5">
+        <div className="grid gap-3 rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-card)] md:p-5">
           <p className="text-sm font-medium text-muted">Tempo</p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <button
@@ -271,7 +271,7 @@ export function PlainMetronome() {
             <button
               type="button"
               onClick={handleTap}
-              className="metro-press min-h-12 flex-[1.6] rounded-lg border border-accent/60 bg-header px-4 text-sm font-semibold text-accent md:min-h-14 md:text-base"
+              className="metro-press min-h-12 flex-[1.6] rounded-lg border border-accent/40 bg-accent/10 px-4 text-sm font-semibold text-accent md:min-h-14 md:text-base"
             >
               Tap tempo
             </button>
@@ -319,8 +319,8 @@ export function PlainMetronome() {
                 onClick={() => changeBpm(preset)}
                 className={
                   shownBpm === preset
-                    ? "metro-press min-h-10 rounded-lg border border-accent bg-header text-sm font-semibold text-accent tabular-nums"
-                    : "metro-press min-h-10 rounded-lg border border-line text-sm font-medium text-muted tabular-nums hover:text-fg"
+                    ? "metro-press min-h-10 rounded-lg border border-accent bg-accent/10 text-sm font-semibold text-accent tabular-nums"
+                    : "metro-press min-h-10 rounded-lg border border-line bg-header text-sm font-medium text-muted tabular-nums hover:text-fg"
                 }
               >
                 {preset}
@@ -329,7 +329,7 @@ export function PlainMetronome() {
           </div>
         </div>
 
-        <div className="grid gap-3 rounded-card border border-line bg-surface p-4 md:p-5">
+        <div className="grid gap-3 rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-card)] md:p-5">
           <p className="text-sm font-medium text-muted">Taktart</p>
           <div className="grid grid-cols-4 gap-1.5 md:gap-2">
             {METERS.map((item) => (
@@ -340,8 +340,8 @@ export function PlainMetronome() {
                 aria-pressed={item === shownMeter}
                 className={
                   item === shownMeter
-                    ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold md:min-h-14 md:text-base"
-                    : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted md:min-h-14 md:text-base"
+                    ? "metro-press min-h-11 rounded-lg border border-accent bg-accent/10 text-sm font-semibold text-accent md:min-h-14 md:text-base"
+                    : "metro-press min-h-11 rounded-lg border border-line bg-header text-sm text-muted hover:text-fg md:min-h-14 md:text-base"
                 }
               >
                 {item}
@@ -358,8 +358,8 @@ export function PlainMetronome() {
                 aria-pressed={item === shownSub}
                 className={
                   item === shownSub
-                    ? "metro-press min-h-11 rounded-lg border border-accent bg-header text-sm font-semibold md:min-h-14 md:text-base"
-                    : "metro-press min-h-11 rounded-lg border border-line text-sm text-muted md:min-h-14 md:text-base"
+                    ? "metro-press min-h-11 rounded-lg border border-accent bg-accent/10 text-sm font-semibold text-accent md:min-h-14 md:text-base"
+                    : "metro-press min-h-11 rounded-lg border border-line bg-header text-sm text-muted hover:text-fg md:min-h-14 md:text-base"
                 }
               >
                 {SUB_LABELS[item]}

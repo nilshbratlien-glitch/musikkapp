@@ -741,7 +741,7 @@ export function Noter({
               type="button"
               onClick={() => setBackupOpen((o) => !o)}
               aria-expanded={backupOpen}
-              style={backupOpen ? { backgroundColor: "rgba(224, 177, 90, 0.14)" } : undefined}
+              style={backupOpen ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.14)" } : undefined}
               className={
                 backupOpen
                   ? "metro-press flex min-h-10 items-center gap-1.5 rounded-xl border border-accent px-3 text-sm font-semibold text-accent"
@@ -755,7 +755,7 @@ export function Noter({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="metro-press flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-accent px-3.5 text-sm font-bold text-[#1a1408] disabled:opacity-60"
+              className="metro-press flex min-h-10 shrink-0 items-center gap-2 rounded-xl bg-accent px-3.5 text-sm font-bold text-accent-fg disabled:opacity-60"
             >
               <Upload className="size-4" aria-hidden="true" />
               <span>{uploading ? "Laster opp …" : "Last opp PDF"}</span>
@@ -816,7 +816,7 @@ export function Noter({
               <button
                 type="button"
                 onClick={() => void handleExportBackup()}
-                className="metro-press flex min-h-10 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-bold text-[#1a1408]"
+                className="metro-press flex min-h-10 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-bold text-accent-fg"
               >
                 <Download className="size-4" aria-hidden="true" />
                 <span>Eksporter backup (JSON)</span>
@@ -842,7 +842,7 @@ export function Noter({
             {backupNotice ? (
               <p
                 role="status"
-                style={{ backgroundColor: "rgba(224, 177, 90, 0.12)" }}
+                style={{ backgroundColor: "rgb(var(--color-accent-rgb) / 0.12)" }}
                 className="rounded-xl border border-accent px-3 py-2 text-xs font-medium text-fg"
               >
                 {backupNotice}
@@ -855,8 +855,8 @@ export function Noter({
           <div
             role="alert"
             style={{
-              borderColor: "rgba(192, 72, 63, 0.5)",
-              backgroundColor: "rgba(192, 72, 63, 0.15)",
+              borderColor: "rgb(var(--color-no-rgb) / 0.5)",
+              backgroundColor: "rgb(var(--color-no-rgb) / 0.15)",
             }}
             className="flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2 text-sm text-fg"
           >
@@ -880,7 +880,7 @@ export function Noter({
             aria-selected={activeTab === "sheets"}
             onClick={() => setActiveTab("sheets")}
             style={
-              activeTab === "sheets" ? { backgroundColor: "rgba(224, 177, 90, 0.16)" } : undefined
+              activeTab === "sheets" ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.16)" } : undefined
             }
             className={
               activeTab === "sheets"
@@ -897,7 +897,7 @@ export function Noter({
             aria-selected={activeTab === "setlists"}
             onClick={() => setActiveTab("setlists")}
             style={
-              activeTab === "setlists" ? { backgroundColor: "rgba(224, 177, 90, 0.16)" } : undefined
+              activeTab === "setlists" ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.16)" } : undefined
             }
             className={
               activeTab === "setlists"
@@ -959,7 +959,7 @@ export function Noter({
                     onClick={() => setActiveCategory(ALL_CATEGORIES_FILTER)}
                     style={
                       activeCategory === ALL_CATEGORIES_FILTER
-                        ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                        ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.18)" }
                         : undefined
                     }
                     className={
@@ -978,7 +978,7 @@ export function Noter({
                       onClick={() => setActiveCategory(UNCATEGORIZED_FILTER)}
                       style={
                         activeCategory === UNCATEGORIZED_FILTER
-                          ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                          ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.18)" }
                           : undefined
                       }
                       className={
@@ -1003,7 +1003,7 @@ export function Noter({
                         onClick={() => setActiveCategory(cat)}
                         style={
                           selected
-                            ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                            ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.18)" }
                             : undefined
                         }
                         className={
@@ -1066,7 +1066,7 @@ export function Noter({
                       <button
                         type="submit"
                         disabled={!newCategoryName.trim()}
-                        className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-sm font-semibold text-[#1a1408] disabled:opacity-40"
+                        className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-sm font-semibold text-accent-fg disabled:opacity-40"
                       >
                         <Plus className="size-4" aria-hidden="true" />
                         <span>Legg til</span>
@@ -1101,7 +1101,7 @@ export function Noter({
                                   <button
                                     type="submit"
                                     aria-label="Lagre kategorinavn"
-                                    className="metro-press flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-[#1a1408]"
+                                    className="metro-press flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg"
                                   >
                                     <Check className="size-4" aria-hidden="true" />
                                   </button>
@@ -1210,7 +1210,7 @@ export function Noter({
                           <button
                             type="submit"
                             aria-label="Lagre navn"
-                            className="metro-press flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-[#1a1408]"
+                            className="metro-press flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg"
                           >
                             <Check className="size-4" aria-hidden="true" />
                           </button>
@@ -1257,7 +1257,7 @@ export function Noter({
                                     key={cat}
                                     type="button"
                                     onClick={() => setActiveCategory(cat)}
-                                    style={{ backgroundColor: "rgba(224, 177, 90, 0.12)" }}
+                                    style={{ backgroundColor: "rgb(var(--color-accent-rgb) / 0.12)" }}
                                     className="metro-press rounded-full border border-line px-2 py-0.5 text-[11px] font-medium text-accent hover:border-accent"
                                   >
                                     {cat}
@@ -1356,7 +1356,7 @@ export function Noter({
               <button
                 type="submit"
                 disabled={!newSetlistName.trim()}
-                className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-sm font-bold text-[#1a1408] disabled:opacity-50"
+                className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-sm font-bold text-accent-fg disabled:opacity-50"
               >
                 <Plus className="size-4" aria-hidden="true" />
                 <span>Opprett</span>
@@ -1396,7 +1396,7 @@ export function Noter({
                             type="button"
                             onClick={() => handleStartConcertMode(setlist, 0)}
                             disabled={setlist.sheetIds.length === 0}
-                            className="metro-press flex min-h-10 items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-bold text-[#1a1408] disabled:opacity-40"
+                            className="metro-press flex min-h-10 items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-bold text-accent-fg disabled:opacity-40"
                           >
                             <Play className="size-3.5" aria-hidden="true" />
                             <span>Start konsertmodus</span>
@@ -1595,7 +1595,7 @@ export function Noter({
           role="dialog"
           aria-modal="true"
           aria-labelledby="category-picker-title"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.72)" }}
+          style={{ backgroundColor: "var(--color-scrim)" }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={() => setCategoryPickerSheetId(null)}
         >
@@ -1635,7 +1635,7 @@ export function Noter({
                       aria-pressed={active}
                       onClick={() => void handleToggleSheetCategory(categoryPickerSheet, cat)}
                       style={
-                        active ? { backgroundColor: "rgba(224, 177, 90, 0.18)" } : undefined
+                        active ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.18)" } : undefined
                       }
                       className={
                         active
@@ -1676,7 +1676,7 @@ export function Noter({
               <button
                 type="submit"
                 disabled={!pickerNewCategoryName.trim()}
-                className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-sm font-semibold text-[#1a1408] disabled:opacity-40"
+                className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-sm font-semibold text-accent-fg disabled:opacity-40"
               >
                 <Plus className="size-4" aria-hidden="true" />
                 <span>Legg til</span>

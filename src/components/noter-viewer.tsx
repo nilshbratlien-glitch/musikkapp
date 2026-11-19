@@ -1866,13 +1866,13 @@ export function NoterViewer({
       role="dialog"
       aria-modal="true"
       aria-label={`Noteviser: ${sheet.title}`}
-      className="fixed inset-0 z-50 flex flex-col bg-[#0f1217] text-fg select-none"
+      className={`fixed inset-0 z-50 flex flex-col text-fg select-none ${nightMode ? "bg-[#0f1217]" : "bg-[var(--color-stage)]"}`}
     >
       {/* Top HUD */}
       {hudVisible ? (
         <header
-          style={{ backgroundColor: "rgba(22, 26, 34, 0.95)" }}
-          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-xs md:landscape:py-1.5"
+          style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.88)" }}
+          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-md md:landscape:py-1.5"
         >
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -1889,7 +1889,7 @@ export function NoterViewer({
             </h2>
             {setlistContext ? (
               <span
-                style={{ backgroundColor: "rgba(224, 177, 90, 0.14)" }}
+                style={{ backgroundColor: "rgb(var(--color-accent-rgb) / 0.14)" }}
                 className="shrink-0 rounded-full border border-accent px-2 py-0.5 text-[11px] font-bold text-accent tabular-nums"
               >
                 {setlistContext.activeIndex + 1}/{setlistContext.sheets.length}
@@ -1900,7 +1900,7 @@ export function NoterViewer({
                 type="button"
                 onClick={handleJumpBack}
                 aria-label={`Tilbake til side ${previousJumpPage}`}
-                style={{ backgroundColor: "rgba(224, 177, 90, 0.15)" }}
+                style={{ backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" }}
                 className="metro-press flex min-h-9 shrink-0 items-center gap-1 rounded-lg border border-accent px-2 text-xs font-bold text-accent"
               >
                 <Undo2 className="size-3.5" aria-hidden="true" />
@@ -1928,7 +1928,7 @@ export function NoterViewer({
                 onClick={() => openNavDrawer("setlist")}
                 aria-label="Åpne settliste"
                 title="Åpne settliste"
-                style={{ backgroundColor: "rgba(224, 177, 90, 0.12)" }}
+                style={{ backgroundColor: "rgb(var(--color-accent-rgb) / 0.12)" }}
                 className="metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent sm:px-2.5"
               >
                 <ListMusic className="size-4 shrink-0" aria-hidden="true" />
@@ -1942,7 +1942,7 @@ export function NoterViewer({
               aria-pressed={autoCrop}
               aria-label={autoCrop ? "Slå av auto-beskjæring" : "Slå på auto-beskjæring"}
               title={autoCrop ? "Slå av auto-beskjæring" : "Slå på auto-beskjæring"}
-              style={autoCrop ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+              style={autoCrop ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" } : undefined}
               className={
                 autoCrop
                   ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent sm:px-2.5"
@@ -1959,7 +1959,7 @@ export function NoterViewer({
               aria-label="Manuell beskjæring"
               title="Manuell beskjæring av denne siden"
               style={
-                manualCrops[page] ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined
+                manualCrops[page] ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" } : undefined
               }
               className={
                 manualCrops[page]
@@ -1976,7 +1976,7 @@ export function NoterViewer({
               aria-pressed={halfPageTurn}
               aria-label={halfPageTurn ? "Slå av halvside-vending" : "Slå på halvside-vending"}
               title={halfPageTurn ? "Slå av halvside-vending" : "Slå på halvside-vending"}
-              style={halfPageTurn ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+              style={halfPageTurn ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" } : undefined}
               className={
                 halfPageTurn
                   ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent sm:px-2.5"
@@ -1993,7 +1993,7 @@ export function NoterViewer({
               aria-pressed={twoPageSpread}
               aria-label={twoPageSpread ? "Slå av to-siders visning" : "Slå på to-siders visning"}
               title={twoPageSpread ? "Slå av to-siders visning" : "Slå på to-siders visning"}
-              style={twoPageSpread ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+              style={twoPageSpread ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" } : undefined}
               className={
                 twoPageSpread
                   ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent sm:px-2.5"
@@ -2023,7 +2023,7 @@ export function NoterViewer({
               onClick={toggleNightMode}
               aria-pressed={nightMode}
               aria-label={nightMode ? "Slå av nattmodus" : "Slå på nattmodus"}
-              style={nightMode ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+              style={nightMode ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" } : undefined}
               className={
                 nightMode
                   ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2 text-xs font-semibold text-accent sm:px-2.5"
@@ -2129,7 +2129,7 @@ export function NoterViewer({
           }
         }}
         style={{ touchAction: "none" }}
-        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#0f1217] p-2"
+        className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2 ${nightMode ? "bg-[#0f1217]" : "bg-[var(--color-stage)]"}`}
       >
         {loading ? (
           <div className="rounded-xl border border-line bg-surface px-5 py-4 text-sm text-muted">
@@ -2139,7 +2139,7 @@ export function NoterViewer({
 
         {error ? (
           <div
-            style={{ borderColor: "rgba(192, 72, 63, 0.5)" }}
+            style={{ borderColor: "rgb(var(--color-no-rgb) / 0.5)" }}
             className="max-w-md rounded-xl border bg-surface px-5 py-4 text-center"
           >
             <p className="text-sm font-semibold text-no">{error}</p>
@@ -2198,7 +2198,7 @@ export function NoterViewer({
               </div>
 
               <div
-                style={{ backgroundColor: "rgba(22, 26, 34, 0.92)" }}
+                style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.92)" }}
                 className="pointer-events-none flex w-full items-center justify-between border-y-2 border-accent px-2.5 py-1 text-[11px] font-semibold text-accent"
               >
                 <span>Side {page + 1} (øverst)</span>
@@ -2352,7 +2352,7 @@ export function NoterViewer({
         {edgeTapFlash === "prev" ? (
           <div
             aria-hidden="true"
-            style={{ backgroundColor: "rgba(224, 177, 90, 0.16)" }}
+            style={{ backgroundColor: "rgb(var(--color-accent-rgb) / 0.16)" }}
             className="pointer-events-none absolute inset-y-0 left-0 flex w-14 items-center justify-center text-accent"
           >
             <ChevronLeft className="size-8" />
@@ -2362,7 +2362,7 @@ export function NoterViewer({
         {edgeTapFlash === "next" ? (
           <div
             aria-hidden="true"
-            style={{ backgroundColor: "rgba(224, 177, 90, 0.16)" }}
+            style={{ backgroundColor: "rgb(var(--color-accent-rgb) / 0.16)" }}
             className="pointer-events-none absolute inset-y-0 right-0 flex w-14 items-center justify-center text-accent"
           >
             <ChevronRight className="size-8" />
@@ -2378,7 +2378,7 @@ export function NoterViewer({
               setPan({ x: 0, y: 0 });
             }}
             aria-label="Tilbakestill zoom til 1x"
-            style={{ backgroundColor: "rgba(22, 26, 34, 0.9)" }}
+            style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.9)" }}
             className="metro-press absolute bottom-4 left-1/2 z-20 flex min-h-10 -translate-x-1/2 items-center gap-1.5 rounded-full border border-accent/60 px-3.5 text-xs font-semibold text-accent shadow-lg backdrop-blur-xs"
           >
             <RotateCcw className="size-3.5" aria-hidden="true" />
@@ -2388,7 +2388,7 @@ export function NoterViewer({
 
         {rendering && !loading && !error ? (
           <div
-            style={{ backgroundColor: "rgba(22, 26, 34, 0.9)" }}
+            style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.9)" }}
             className="pointer-events-none absolute top-3 right-3 rounded-full border border-line px-3 py-1 text-xs text-muted"
           >
             Tegner side …
@@ -2399,8 +2399,8 @@ export function NoterViewer({
       {/* Bottom HUD */}
       {hudVisible ? (
         <footer
-          style={{ backgroundColor: "rgba(22, 26, 34, 0.95)" }}
-          className="z-20 flex shrink-0 items-center justify-between gap-2 border-t border-line px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur-xs md:landscape:py-1.5"
+          style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.88)" }}
+          className="z-20 flex shrink-0 items-center justify-between gap-2 border-t border-line px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur-md md:landscape:py-1.5"
         >
           <div className="flex items-center gap-1.5">
             <button

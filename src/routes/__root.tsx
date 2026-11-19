@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { Shell } from "@/components/shell";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "Musikkapp";
@@ -13,7 +14,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
       { name: "description", content: "Bladlesing, metronom, øveplan og notekort." },
-      { name: "theme-color", content: "#12151b" },
+      { name: "theme-color", content: "#0f1218" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
     ],
     links: [
@@ -33,6 +34,7 @@ export const Route = createRootRoute({
     <html lang="nb" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         <PreviewHostBridge />

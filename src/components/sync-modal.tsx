@@ -123,7 +123,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="sync-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-scrim)] p-4 backdrop-blur-xs"
     >
       <div className="flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-line bg-surface text-fg shadow-2xl">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
@@ -198,7 +198,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
                   }}
                   className={
                     sync.audioActive
-                      ? "metro-press rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-bg"
+                      ? "metro-press rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-fg"
                       : "metro-press rounded-lg border border-line px-3 py-1.5 text-xs text-muted"
                   }
                 >
@@ -260,7 +260,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
                   <button
                     type="submit"
                     disabled={!roomInput.trim() || sync.connecting}
-                    className="metro-press min-h-11 rounded-xl bg-accent px-4 text-xs font-semibold text-bg disabled:opacity-40"
+                    className="metro-press min-h-11 rounded-xl bg-accent px-4 text-xs font-semibold text-accent-fg disabled:opacity-40"
                   >
                     {sync.connecting ? "Kobler til…" : "Bli med"}
                   </button>
@@ -330,7 +330,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
                     </div>
                     <button
                       type="submit"
-                      className="metro-press mt-1 min-h-8 w-full rounded-lg bg-accent px-3 text-xs font-semibold text-bg"
+                      className="metro-press mt-1 min-h-8 w-full rounded-lg bg-accent px-3 text-xs font-semibold text-accent-fg"
                     >
                       {configSaved ? "Lagret!" : "Lagre nøkler"}
                     </button>

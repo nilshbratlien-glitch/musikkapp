@@ -442,7 +442,7 @@ function AlignmentReticle({
         y1={centerY}
         x2={ANNOTATION_VIEWBOX_SIZE}
         y2={centerY}
-        stroke="#e0b15a"
+        stroke="var(--color-accent)"
         strokeWidth={1.2}
         strokeOpacity={0.45}
         strokeDasharray="6 6"
@@ -452,7 +452,7 @@ function AlignmentReticle({
         y1={0}
         x2={centerX}
         y2={ANNOTATION_VIEWBOX_SIZE}
-        stroke="#e0b15a"
+        stroke="var(--color-accent)"
         strokeWidth={1.2}
         strokeOpacity={0.45}
         strokeDasharray="6 6"
@@ -463,12 +463,12 @@ function AlignmentReticle({
         width={Math.max(12, (maxX - minX) * ANNOTATION_VIEWBOX_SIZE)}
         height={Math.max(12, (maxY - minY) * ANNOTATION_VIEWBOX_SIZE)}
         rx={6}
-        fill="rgba(224, 177, 90, 0.1)"
-        stroke="#e0b15a"
+        fill="rgb(var(--color-accent-rgb) / 0.1)"
+        stroke="var(--color-accent)"
         strokeWidth={2}
         strokeDasharray="5 4"
       />
-      <circle cx={centerX} cy={centerY} r={5} fill="none" stroke="#e0b15a" strokeWidth={2} />
+      <circle cx={centerX} cy={centerY} r={5} fill="none" stroke="var(--color-accent)" strokeWidth={2} />
     </g>
   );
 }
@@ -872,7 +872,7 @@ export function NoterAnnotationLayer({
               style={{
                 left: `${leftPct}%`,
                 top: `${topPct}%`,
-                backgroundColor: "rgba(22, 26, 34, 0.92)",
+                backgroundColor: "rgb(var(--color-chrome-rgb) / 0.92)",
               }}
               aria-label={`Hopp til side ${link.targetPage}: ${link.label}`}
               className={
@@ -1296,7 +1296,7 @@ export function NoterAnnotationLayer({
           style={{
             left: `${((draftPlacement.x - normRegion.x) / normRegion.width) * 100}%`,
             top: `${((draftPlacement.y - normRegion.y) / normRegion.height) * 100}%`,
-            backgroundColor: "rgba(22, 26, 34, 0.94)",
+            backgroundColor: "rgb(var(--color-chrome-rgb) / 0.94)",
           }}
           className="pointer-events-none absolute z-30 flex min-h-8 -translate-x-1/2 -translate-y-1/2 scale-105 items-center gap-1 rounded-full border-2 border-accent px-2.5 py-1 text-xs font-bold text-accent shadow-2xl ring-4 ring-accent/30"
         >
@@ -1317,7 +1317,7 @@ export function NoterAnnotationLayer({
                 style={{
                   left: `${jLeftPct}%`,
                   top: `${jTopPct}%`,
-                  backgroundColor: "rgba(22, 26, 34, 0.94)",
+                  backgroundColor: "rgb(var(--color-chrome-rgb) / 0.94)",
                 }}
                 className="absolute z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-accent py-1 pl-2.5 pr-1 text-xs font-bold text-accent shadow-lg"
               >
@@ -1353,7 +1353,7 @@ export function NoterAnnotationLayer({
             }
           }}
           style={{
-            backgroundColor: "rgba(22, 26, 34, 0.96)",
+            backgroundColor: "rgb(var(--color-chrome-rgb) / 0.96)",
             left: `clamp(8px, ${leftPct}%, calc(100% - 216px))`,
             top: `clamp(8px, ${topPct}%, calc(100% - 104px))`,
           }}
@@ -1394,7 +1394,7 @@ export function NoterAnnotationLayer({
             </button>
             <button
               type="submit"
-              className="metro-press min-h-9 rounded-lg bg-accent px-3 text-xs font-bold text-[#1a1408]"
+              className="metro-press min-h-9 rounded-lg bg-accent px-3 text-xs font-bold text-accent-fg"
             >
               Bekreft
             </button>
@@ -1414,7 +1414,7 @@ export function NoterAnnotationLayer({
             }
           }}
           style={{
-            backgroundColor: "rgba(22, 26, 34, 0.97)",
+            backgroundColor: "rgb(var(--color-chrome-rgb) / 0.97)",
             left: `clamp(8px, ${linkLeftPct}%, calc(100% - 240px))`,
             top: `clamp(8px, ${linkTopPct}%, calc(100% - 180px))`,
           }}
@@ -1433,7 +1433,7 @@ export function NoterAnnotationLayer({
                 onClick={() => setLinkDraft({ ...linkDraft, label: preset })}
                 style={
                   linkDraft.label === preset
-                    ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                    ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.18)" }
                     : undefined
                 }
                 className={
@@ -1488,7 +1488,7 @@ export function NoterAnnotationLayer({
             </button>
             <button
               type="submit"
-              className="metro-press min-h-9 rounded-lg bg-accent px-3 text-xs font-bold text-[#1a1408]"
+              className="metro-press min-h-9 rounded-lg bg-accent px-3 text-xs font-bold text-accent-fg"
             >
               Lagre lenke
             </button>

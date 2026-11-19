@@ -317,7 +317,7 @@ export function NoteCards() {
   return (
     <section className="pb-4">
       <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="grid grid-cols-2 gap-1.5 md:w-full md:max-w-md" role="tablist" aria-label="Notekort">
+        <div className="grid grid-cols-2 gap-1 rounded-xl border border-line bg-header p-1 md:w-full md:max-w-md" role="tablist" aria-label="Notekort">
           {(
             [
               ["drill", "Øv"],
@@ -332,8 +332,8 @@ export function NoteCards() {
               onClick={() => show(id)}
               className={
                 cur.tab === id
-                  ? "min-h-11 rounded-lg border border-accent bg-surface text-sm font-semibold"
-                  : "min-h-11 rounded-lg border border-line text-sm text-muted"
+                  ? "min-h-10 rounded-lg border border-line/70 bg-surface text-sm font-semibold text-fg shadow-xs transition"
+                  : "min-h-10 rounded-lg border border-transparent text-sm text-muted transition hover:text-fg"
               }
             >
               {label}
@@ -383,7 +383,7 @@ export function NoteCards() {
                         onClick={() => setDrillMode(m)}
                         className={
                           activeMode === m
-                            ? "min-h-11 rounded-lg bg-accent px-2 text-xs font-semibold text-bg md:min-h-12 md:text-sm"
+                            ? "min-h-11 rounded-lg bg-accent px-2 text-xs font-semibold text-accent-fg md:min-h-12 md:text-sm"
                             : "min-h-11 rounded-lg border border-line px-2 text-xs font-medium text-muted md:min-h-12 md:text-sm"
                         }
                       >
@@ -469,7 +469,7 @@ export function NoteCards() {
                       clearContinue();
                       nextCard();
                     }}
-                    className="metro-press min-h-12 w-full rounded-xl bg-accent text-base font-bold text-[#1a1408] md:min-h-14 md:text-lg"
+                    className="metro-press min-h-12 w-full rounded-xl bg-accent text-base font-bold text-accent-fg md:min-h-14 md:text-lg"
                   >
                     Neste kort
                   </button>
@@ -550,7 +550,7 @@ export function NoteCards() {
                     onClick={() => setLang(lang)}
                     className={
                       cur.stored.lang === lang
-                        ? "min-h-11 rounded-lg bg-accent text-sm font-semibold text-bg"
+                        ? "min-h-11 rounded-lg bg-accent text-sm font-semibold text-accent-fg"
                         : "min-h-11 rounded-lg border border-line text-sm text-muted"
                     }
                   >
@@ -595,7 +595,7 @@ export function NoteCards() {
                     }}
                     className={
                       cur.clef === id
-                        ? "min-h-11 rounded-lg bg-accent text-sm font-semibold text-bg"
+                        ? "min-h-11 rounded-lg bg-accent text-sm font-semibold text-accent-fg"
                         : "min-h-11 rounded-lg border border-line text-sm text-muted"
                     }
                   >
@@ -677,7 +677,7 @@ export function NoteCards() {
                 );
                 redraw();
               }}
-              className="metro-press mt-4 min-h-12 w-full rounded-lg bg-accent font-semibold text-bg"
+              className="metro-press mt-4 min-h-12 w-full rounded-lg bg-accent font-semibold text-accent-fg"
             >
               Lagre utvalget
             </button>
