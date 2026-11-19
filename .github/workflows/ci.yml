@@ -44,4 +44,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - name: Run E2E tests
+        run: |
+          set -o pipefail
+          npm run test:e2e 2>&1 | tee /tmp/e2e.log || {
+            node -e '
+              const log = require("fs").readFileSync("/tmp/e2e.log", "utf8");
+              const idx = log.indexOf("failing tests:");
+              const tail = idx >= 0 ? log.slice(idx) : log.slice(-4000);
+              const chunks = tail.split(/\n(?=test at )/).slice(0, 8);
+              for (const c of chunks) {
+                const msg = c.replace(/\r?\n/g, " | ").slice(0, 800);
+                console.log("::error::" + msg);
+              }
+            '
+            exit 1
+          }
