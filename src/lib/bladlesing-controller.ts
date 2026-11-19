@@ -129,6 +129,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
   const subdivRef = useRef<1 | 2 | 4>(1);
   const remoteCallRef = useRef(false);
   const metroBeforePlayRef = useRef(false);
+  const metroOnRef = useRef(false);
   const practiceBeatRef = useRef(0);
   const autoNextTimerRef = useRef<number | null>(null);
   const autoNextModeRef = useRef<"play" | "metro" | null>(null);
@@ -138,6 +139,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
   profileRef.current = profile;
   scoreRef.current = score;
   subdivRef.current = subdiv;
+  metroOnRef.current = metroOn;
 
   const clearFadedMeasures = useCallback(() => {
     for (const el of fadedElsRef.current) {
@@ -495,7 +497,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
     const eng = engineRef.current;
     if (!eng) return false;
     if (eng.AudioEngine.isPlaying()) {
-      const nextOn = !metroOn;
+      const nextOn = !metroOnRef.current;
       if (!remoteCallRef.current && window.MusikkSync?.isController?.()) {
         window.MusikkSync.sightAction(nextOn ? "startMetro" : "stopMetro");
       }
@@ -521,7 +523,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
     }
     startMetroInternal();
     return true;
-  }, [clearFadedMeasures, metroOn, startMetroInternal]);
+  }, [clearFadedMeasures, startMetroInternal]);
 
   const cycleSubdiv = useCallback(() => {
     const next: 1 | 2 | 4 = subdivRef.current === 1 ? 2 : subdivRef.current === 2 ? 4 : 1;
@@ -931,9 +933,6 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
       setTempo: (bpm: number) => setTempo(bpm, false),
     };
     window.MalletSight = api;
-    return () => {
-      stopAll();
-    };
   }, [
     again,
     generate,
@@ -949,6 +948,13 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
     togglePlay,
     updateSettings,
   ]);
+
+  // Stop audio only when Bladlesing actually unmounts (leaving the tab)
+  useEffect(() => {
+    return () => {
+      stopAll();
+    };
+  }, [stopAll]);
 
   const state: BladlesingControllerState = {
     ready: Boolean(engine),
