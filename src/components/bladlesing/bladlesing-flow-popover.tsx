@@ -58,7 +58,7 @@ export function BladlesingFlowPopover({
                 <FastForward className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden="true" />
                 <span>
                   <span className="block text-xs font-semibold text-fg">Automatisk neste etyde</span>
-                  <span className="block text-[11px] text-muted">Lager og spiller ny når etyden slutter</span>
+                  <span className="block text-[11px] text-muted">Laster ny etyde med en gang og teller ned før start</span>
                 </span>
               </span>
               <input
@@ -70,22 +70,25 @@ export function BladlesingFlowPopover({
             </label>
             {settings.flowAutoNext ? (
               <div className="mt-2.5 flex items-center justify-between border-t border-line pt-2">
-                <span className="text-[11px] font-medium text-muted">Pause mellom etyder</span>
+                <span className="text-[11px] font-medium text-muted">Lesetid før start</span>
                 <div className="flex gap-1">
-                  {[2, 3, 5].map((sec) => (
-                    <button
-                      key={sec}
-                      type="button"
-                      onClick={() => onUpdate({ flowAutoNextDelay: sec })}
-                      className={
-                        settings.flowAutoNextDelay === sec
-                          ? "rounded-md bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-fg"
-                          : "rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
-                      }
-                    >
-                      {sec}s
-                    </button>
-                  ))}
+                  {[10, 20, 30].map((sec) => {
+                    const current = [10, 20, 30].includes(settings.flowAutoNextDelay) ? settings.flowAutoNextDelay : 10;
+                    return (
+                      <button
+                        key={sec}
+                        type="button"
+                        onClick={() => onUpdate({ flowAutoNextDelay: sec })}
+                        className={
+                          current === sec
+                            ? "rounded-md bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-fg"
+                            : "rounded-md border border-line bg-header px-2 py-0.5 text-[11px] font-medium text-muted hover:text-fg"
+                        }
+                      >
+                        {sec}s
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}

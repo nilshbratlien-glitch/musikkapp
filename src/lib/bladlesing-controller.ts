@@ -131,6 +131,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
   const metroBeforePlayRef = useRef(false);
   const practiceBeatRef = useRef(0);
   const autoNextTimerRef = useRef<number | null>(null);
+  const autoNextModeRef = useRef<"play" | "metro" | null>(null);
   const fadedElsRef = useRef<Element[]>([]);
 
   settingsRef.current = settings;
@@ -168,6 +169,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
       window.clearInterval(autoNextTimerRef.current);
       autoNextTimerRef.current = null;
     }
+    autoNextModeRef.current = null;
     setAutoNextLeft(null);
   }, []);
 
@@ -344,17 +346,17 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
         clearFadedMeasures();
         eng.ScoreRenderer.clearBeat();
         if (settingsRef.current.flowAutoNext && !remoteCallRef.current) {
-          const delay = Math.max(2, Math.min(5, settingsRef.current.flowAutoNextDelay || 3));
+          generate();
+          const raw = settingsRef.current.flowAutoNextDelay;
+          const delay = [10, 20, 30].includes(raw) ? raw : 10;
           let left = delay;
+          autoNextModeRef.current = "metro";
           setAutoNextLeft(left);
           autoNextTimerRef.current = window.setInterval(() => {
             left -= 1;
             if (left <= 0) {
               cancelAutoNext();
-              generate();
-              window.setTimeout(() => {
-                startMetroInternal();
-              }, 120);
+              startMetroInternal();
             } else {
               setAutoNextLeft(left);
             }
@@ -424,19 +426,19 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
             setMetroLabel("Metronom");
           }
 
-          // Sight-Reading Flow Mode: auto-advance to next etude
+          // Sight-Reading Flow Mode: immediately load next etude, then count down scan time before auto-starting
           if (settingsRef.current.flowAutoNext && !remoteCallRef.current) {
-            const delay = Math.max(2, Math.min(5, settingsRef.current.flowAutoNextDelay || 3));
+            generate();
+            const raw = settingsRef.current.flowAutoNextDelay;
+            const delay = [10, 20, 30].includes(raw) ? raw : 10;
             let left = delay;
+            autoNextModeRef.current = "play";
             setAutoNextLeft(left);
             autoNextTimerRef.current = window.setInterval(() => {
               left -= 1;
               if (left <= 0) {
                 cancelAutoNext();
-                generate();
-                window.setTimeout(() => {
-                  startPlayInternal(false);
-                }, 120);
+                startPlayInternal(false);
               } else {
                 setAutoNextLeft(left);
               }
@@ -451,6 +453,16 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
     },
     [cancelAutoNext, clearFadedMeasures, fadeCompletedMeasures, generate, getMetroSpec, startMetroInternal],
   );
+
+  const startAutoNextNow = useCallback(() => {
+    const mode = autoNextModeRef.current;
+    cancelAutoNext();
+    if (mode === "metro") {
+      startMetroInternal();
+    } else if (mode === "play") {
+      startPlayInternal(false);
+    }
+  }, [cancelAutoNext, startMetroInternal, startPlayInternal]);
 
   const togglePlay = useCallback(() => {
     const eng = engineRef.current;
@@ -973,6 +985,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
       setDuetViewPart,
       toggleDuetPaired,
       cancelAutoNext,
+      startAutoNextNow,
       stopAll,
       resetDefaults: () => {
         const next = profileRef.current === "trumpet" ? { ...DEFAULTS, instrumentId: "trumpet", clef: "treble", mallets: 1, texture: "melody", showSticking: true, rangeLow: 60, rangeHigh: 72, tempo: 76 } : { ...DEFAULTS };

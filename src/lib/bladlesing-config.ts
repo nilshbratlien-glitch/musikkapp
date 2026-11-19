@@ -159,7 +159,7 @@ export const DEFAULTS: BladlesingSettings = {
   duetAllowChords: true,
   flowCountIn: true,
   flowAutoNext: false,
-  flowAutoNextDelay: 3,
+  flowAutoNextDelay: 10,
   flowDisappearing: false,
 };
 

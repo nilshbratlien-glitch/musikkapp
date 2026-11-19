@@ -18,6 +18,7 @@ export function BladlesingScoreStage({
   onSwipeNext,
   onSwipeAgain,
   onCancelAutoNext,
+  onStartAutoNextNow,
   onSetDuetViewPart,
   onToggleDuetPaired,
   onUpdateSettings,
@@ -37,6 +38,7 @@ export function BladlesingScoreStage({
   onSwipeNext: () => void;
   onSwipeAgain: () => void;
   onCancelAutoNext: () => void;
+  onStartAutoNextNow: () => void;
   onSetDuetViewPart: (part: DuetViewPart) => void;
   onToggleDuetPaired: () => void;
   onUpdateSettings: (patch: Partial<BladlesingSettings>, opts?: { regenerate?: boolean }) => void;
@@ -127,7 +129,14 @@ export function BladlesingScoreStage({
             </span>
           ) : autoNextLeft != null ? (
             <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[rgb(var(--color-accent-rgb)/0.4)] bg-[rgb(var(--color-accent-rgb)/0.1)] px-2.5 py-0.5 text-xs font-semibold text-accent tabular-nums">
-              <span>Neste etyde om {autoNextLeft}s</span>
+              <span>Les gjennom · starter om {autoNextLeft}s</span>
+              <button
+                type="button"
+                onClick={onStartAutoNextNow}
+                className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-fg"
+              >
+                Start nå
+              </button>
               <button
                 type="button"
                 onClick={onCancelAutoNext}

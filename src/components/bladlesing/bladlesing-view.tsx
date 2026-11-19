@@ -220,6 +220,7 @@ export function BladlesingView() {
         onSwipeNext={() => actions.generate()}
         onSwipeAgain={() => actions.again()}
         onCancelAutoNext={actions.cancelAutoNext}
+        onStartAutoNextNow={actions.startAutoNextNow}
         onSetDuetViewPart={actions.setDuetViewPart}
         onToggleDuetPaired={actions.toggleDuetPaired}
         onUpdateSettings={actions.updateSettings}
