@@ -364,4 +364,15 @@ html[data-theme="light"] .staff-card {
   transition: opacity 320ms ease;
 }
 
+.dual-range-input::-webkit-slider-thumb {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.dual-range-input::-moz-range-thumb {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+
 
