@@ -21,7 +21,7 @@ import {
 } from "@/lib/bladlesing-engine";
 import { activeBlockColor, resumeFromBladlesing } from "@/lib/plan-clock";
 import { getProfile, getProfileVersion, subscribeProfile, type InstrumentProfile } from "@/lib/profile";
-import { getState as getPulseState, subscribe as subscribePulse } from "@/lib/pulse";
+import { getState as getPulseState, subscribe as subscribePulse, unlock as unlockPulse } from "@/lib/pulse";
 import { isDuetViewPaired, setDuetViewPaired, subscribeDuetViewPaired } from "@/lib/sync/bridge";
 
 export interface BladlesingControllerState {
@@ -306,6 +306,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
       typeof eng.AudioEngine.scoreMusicClicks === "function"
         ? eng.AudioEngine.scoreMusicClicks(scoreRef.current, spec.beats)
         : 0;
+    unlockPulse();
     eng.AudioEngine.setClicks(true);
     eng.AudioEngine.ac();
     setMetroOn(true);
@@ -379,6 +380,8 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
       resumeFromBladlesing();
 
       metroBeforePlayRef.current = eng.AudioEngine.isMetro();
+      eng.AudioEngine.stopMetronome();
+      unlockPulse();
       const s = settingsRef.current;
       const spec = getMetroSpec(s, sc);
       setBeatsPerBar(spec.beats);
@@ -387,7 +390,8 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
       const countInBars = s.flowCountIn ? 1 : 0;
       const clicksOn = metroBeforePlayRef.current || countInBars > 0;
       setPlaying(true);
-      if (metroBeforePlayRef.current) setMetroOn(true);
+      setMetroOn(clicksOn);
+      if (clicksOn) setMetroLabel("Metronom");
 
       eng.AudioEngine.playAlong(sc, {
         quarterBpm: s.tempo,
