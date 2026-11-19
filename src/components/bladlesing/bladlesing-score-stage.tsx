@@ -101,8 +101,8 @@ export function BladlesingScoreStage({
   }
 
   return (
-    <main className="stage relative min-h-0 flex-1 overflow-y-auto bg-bg px-3 pt-5 pb-3 md:px-5 md:pb-4">
-      {/* Reserved 20px top slot so showing the yield status never shifts the score down */}
+    <div className="stage relative min-h-0 flex-1 overflow-y-auto bg-bg px-3 pt-6 pb-3 md:px-5 md:pb-4">
+      {/* Reserved 24px top slot so showing the yield status never shifts the score down */}
       <p
         id="pulseNote"
         role="status"
@@ -169,6 +169,6 @@ export function BladlesingScoreStage({
           <div id="score" ref={scoreHostRef} className="w-full" />
         </div>
       </div>
-    </main>
+    </div>
   );
 }

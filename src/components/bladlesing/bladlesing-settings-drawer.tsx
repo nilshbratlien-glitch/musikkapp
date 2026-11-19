@@ -150,7 +150,7 @@ function PillSwitch({
           type="checkbox"
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
-          className="peer sr-only"
+          className="peer sr-only sr-only-select"
         />
         <span className="h-5 w-9 rounded-full border border-line bg-bg transition-colors peer-checked:border-accent peer-checked:bg-accent" />
         <span className="pointer-events-none absolute left-0.5 size-4 rounded-full bg-muted transition-transform peer-checked:translate-x-4 peer-checked:bg-accent-fg" />
