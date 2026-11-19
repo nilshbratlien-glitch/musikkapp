@@ -528,7 +528,7 @@ export function Oveplan() {
                 }}
                 className={
                   on
-                    ? "metro-press min-h-10 rounded-xl bg-accent px-3.5 text-xs font-bold tracking-wide text-bg uppercase"
+                    ? "metro-press min-h-10 rounded-xl bg-accent px-3.5 text-xs font-bold tracking-wide text-accent-fg uppercase"
                     : done
                       ? "metro-press min-h-10 rounded-xl border border-line bg-header/70 px-3 text-xs font-semibold tracking-wide text-muted uppercase line-through opacity-45"
                       : "metro-press min-h-10 rounded-xl border border-line bg-header px-3 text-xs font-semibold tracking-wide text-muted uppercase hover:border-accent/50 hover:text-fg"
@@ -569,7 +569,7 @@ export function Oveplan() {
           onClick={togglePlanClock}
           className={
             cur.activeId
-              ? "metro-press min-h-12 rounded-xl bg-fg text-base font-bold text-bg"
+              ? "metro-press min-h-12 rounded-xl bg-fg text-base font-bold text-surface"
               : "metro-press col-span-2 min-h-13 rounded-xl bg-accent text-base font-bold text-accent-fg shadow-sm"
           }
         >
@@ -634,7 +634,7 @@ export function Oveplan() {
             onClick={togglePlanMetro}
             className={
               cur.metroRunning
-                ? "metro-press min-h-10 rounded-xl bg-accent px-4 text-sm font-bold text-bg"
+                ? "metro-press min-h-10 rounded-xl bg-accent px-4 text-sm font-bold text-accent-fg"
                 : "metro-press min-h-10 rounded-xl border border-line bg-header px-4 text-sm font-semibold text-fg"
             }
           >
@@ -657,7 +657,7 @@ export function Oveplan() {
               key={index}
               className={
                 isBeat
-                  ? `metro-badge is-active flex items-center justify-center rounded-full bg-accent font-extrabold text-bg ${isDownbeat ? "size-8 text-xs ring-2 ring-accent/40" : "size-7 text-[11px]"}`
+                  ? `metro-badge is-active flex items-center justify-center rounded-full bg-accent font-extrabold text-accent-fg ${isDownbeat ? "size-8 text-xs ring-2 ring-accent/40" : "size-7 text-[11px]"}`
                   : `metro-badge flex items-center justify-center rounded-full bg-surface font-bold text-muted ${isDownbeat ? "size-8 border border-accent/50 text-xs text-fg" : "size-7 border border-line text-[11px]"}`
               }
             >
@@ -723,7 +723,7 @@ export function Oveplan() {
                   onClick={() => setPlanMeter(beat, cur.store.sub)}
                   className={
                     active
-                      ? "metro-press min-h-9 rounded-lg bg-accent text-xs font-bold text-bg"
+                      ? "metro-press min-h-9 rounded-lg bg-accent text-xs font-bold text-accent-fg"
                       : "metro-press min-h-9 rounded-lg border border-line bg-header text-xs font-semibold text-muted hover:text-fg"
                   }
                 >
@@ -753,7 +753,7 @@ export function Oveplan() {
                   onClick={() => setPlanMeter(cur.store.beats, sub.value)}
                   className={
                     active
-                      ? "metro-press min-h-9 rounded-lg bg-accent px-2 text-xs font-bold text-bg"
+                      ? "metro-press min-h-9 rounded-lg bg-accent px-2 text-xs font-bold text-accent-fg"
                       : "metro-press min-h-9 rounded-lg border border-line bg-header px-2 text-xs font-semibold text-muted hover:text-fg"
                   }
                 >
@@ -782,7 +782,7 @@ export function Oveplan() {
               }}
               className={
                 duetViewPaired
-                  ? "metro-press min-h-8 rounded-lg bg-accent px-2.5 text-xs font-semibold text-bg"
+                  ? "metro-press min-h-8 rounded-lg bg-accent px-2.5 text-xs font-semibold text-accent-fg"
                   : "metro-press min-h-8 rounded-lg border border-line bg-surface px-2.5 text-xs font-semibold text-muted"
               }
             >
@@ -803,7 +803,7 @@ export function Oveplan() {
                 resumeFromBladlesing();
                 syncSightAction("togglePlay");
               }}
-              className="metro-press min-h-11 rounded-xl bg-accent px-3 text-sm font-semibold text-bg"
+              className="metro-press min-h-11 rounded-xl bg-accent px-3 text-sm font-semibold text-accent-fg"
             >
               Spill / Stopp
             </button>
@@ -843,7 +843,7 @@ export function Oveplan() {
                   }}
                   className={
                     pairedPart === part.id
-                      ? "metro-press min-h-9 rounded-lg bg-accent px-2 text-xs font-semibold text-bg"
+                      ? "metro-press min-h-9 rounded-lg bg-accent px-2 text-xs font-semibold text-accent-fg"
                       : "metro-press min-h-9 rounded-lg border border-line bg-surface px-2 text-xs font-semibold text-fg"
                   }
                 >
@@ -883,7 +883,7 @@ export function Oveplan() {
             cur.logNote = "";
             redraw();
           }}
-          className="metro-press min-h-10 rounded-xl bg-accent px-3.5 text-xs font-bold text-bg"
+          className="metro-press min-h-10 rounded-xl bg-accent px-3.5 text-xs font-bold text-accent-fg"
         >
           Lagre
         </button>

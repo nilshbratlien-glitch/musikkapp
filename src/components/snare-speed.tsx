@@ -148,8 +148,8 @@ export function SnareSpeed() {
               key={`${stick}-${index}`}
               className={
                 playing && index === active
-                  ? "metro-badge is-active flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-accent px-3 py-2 text-center text-2xl font-bold text-bg md:min-h-16 md:min-w-16 md:text-3xl"
-                  : "metro-badge flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-line/60 bg-header px-3 py-2 text-center text-2xl font-semibold md:min-h-16 md:min-w-16 md:text-3xl"
+                  ? "metro-badge is-active flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-accent px-3 py-2 text-center text-2xl font-bold text-accent-fg md:min-h-16 md:min-w-16 md:text-3xl"
+                  : "metro-badge flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-line bg-surface px-3 py-2 text-center text-2xl font-semibold md:min-h-16 md:min-w-16 md:text-3xl"
               }
             >
               {stick}
@@ -161,7 +161,7 @@ export function SnareSpeed() {
             type="button"
             onClick={start}
             disabled={playing}
-            className="metro-press min-h-14 rounded-xl bg-accent text-base font-semibold text-bg disabled:opacity-50 md:min-h-16 md:text-lg"
+            className="metro-press min-h-14 rounded-xl bg-accent text-base font-semibold text-accent-fg disabled:border disabled:border-line disabled:bg-surface/60 disabled:text-muted md:min-h-16 md:text-lg"
           >
             Start
           </button>
@@ -169,7 +169,7 @@ export function SnareSpeed() {
             type="button"
             onClick={stop}
             disabled={!playing}
-            className="metro-press min-h-14 rounded-xl bg-header text-base font-medium disabled:opacity-50 md:min-h-16 md:text-lg"
+            className="metro-press min-h-14 rounded-xl border border-line bg-surface text-base font-semibold text-fg disabled:bg-surface/60 disabled:text-muted md:min-h-16 md:text-lg"
           >
             Stopp
           </button>

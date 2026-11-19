@@ -198,7 +198,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
                   }}
                   className={
                     sync.audioActive
-                      ? "metro-press rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-bg"
+                      ? "metro-press rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-fg"
                       : "metro-press rounded-lg border border-line px-3 py-1.5 text-xs text-muted"
                   }
                 >
@@ -260,7 +260,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
                   <button
                     type="submit"
                     disabled={!roomInput.trim() || sync.connecting}
-                    className="metro-press min-h-11 rounded-xl bg-accent px-4 text-xs font-semibold text-bg disabled:opacity-40"
+                    className="metro-press min-h-11 rounded-xl bg-accent px-4 text-xs font-semibold text-accent-fg disabled:opacity-40"
                   >
                     {sync.connecting ? "Kobler til…" : "Bli med"}
                   </button>
@@ -330,7 +330,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
                     </div>
                     <button
                       type="submit"
-                      className="metro-press mt-1 min-h-8 w-full rounded-lg bg-accent px-3 text-xs font-semibold text-bg"
+                      className="metro-press mt-1 min-h-8 w-full rounded-lg bg-accent px-3 text-xs font-semibold text-accent-fg"
                     >
                       {configSaved ? "Lagret!" : "Lagre nøkler"}
                     </button>
