@@ -1,18 +1,18 @@
 #malletsight-root, #malletsight-root * { box-sizing: border-box; }
 #malletsight-root { height: 100%; min-height: 0; }
 #malletsight-root {
-  --bg: #14171c;
-  --bg2: #1c2129;
-  --panel: #232a34;
-  --line: #323b48;
-  --text: #eef1f5;
-  --muted: #9aa6b4;
-  --accent: #e0b15a;
-  --accent-dim: #8a6b2d;
+  --bg: #0f1218;
+  --bg2: #161c26;
+  --panel: #1c2331;
+  --line: #2a3447;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #3b82f6;
+  --accent-dim: #1d4ed8;
   --paper: #f4efe4;
   --ink: #1a1a1a;
-  --ok: #6fbf73;
-  --danger: #d16a6a;
+  --ok: #22c55e;
+  --danger: #ef4444;
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   --radius: 14px;
   --tap: 44px;

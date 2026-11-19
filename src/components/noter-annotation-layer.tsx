@@ -442,7 +442,7 @@ function AlignmentReticle({
         y1={centerY}
         x2={ANNOTATION_VIEWBOX_SIZE}
         y2={centerY}
-        stroke="#e0b15a"
+        stroke="var(--color-accent)"
         strokeWidth={1.2}
         strokeOpacity={0.45}
         strokeDasharray="6 6"
@@ -452,7 +452,7 @@ function AlignmentReticle({
         y1={0}
         x2={centerX}
         y2={ANNOTATION_VIEWBOX_SIZE}
-        stroke="#e0b15a"
+        stroke="var(--color-accent)"
         strokeWidth={1.2}
         strokeOpacity={0.45}
         strokeDasharray="6 6"
@@ -464,11 +464,11 @@ function AlignmentReticle({
         height={Math.max(12, (maxY - minY) * ANNOTATION_VIEWBOX_SIZE)}
         rx={6}
         fill="rgb(var(--color-accent-rgb) / 0.1)"
-        stroke="#e0b15a"
+        stroke="var(--color-accent)"
         strokeWidth={2}
         strokeDasharray="5 4"
       />
-      <circle cx={centerX} cy={centerY} r={5} fill="none" stroke="#e0b15a" strokeWidth={2} />
+      <circle cx={centerX} cy={centerY} r={5} fill="none" stroke="var(--color-accent)" strokeWidth={2} />
     </g>
   );
 }
