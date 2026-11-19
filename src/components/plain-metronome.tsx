@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { METERS, SUBDIVISIONS, beatsInMeter, meterForBeats, type Meter, type Subdivision } from "@/lib/metronome";
+import {
+  METERS,
+  QUICK_TEMPOS,
+  SUBDIVISIONS,
+  beatsInMeter,
+  meterForBeats,
+  tempoMarking,
+  type Meter,
+  type Subdivision,
+} from "@/lib/metronome";
 import { BLOCK_COLOR, blockName, blockStyle, bpmFromTaps, TRUMPET_EXERCISES, type BlockId } from "@/lib/oveplan";
 import {
   getPlanClock,
