@@ -131,10 +131,11 @@ export function SnareSpeed() {
   }
 
   const best = bests[rudiment];
+  const shownPattern = playing && pattern.length > 0 ? pattern : RUDIMENTS[rudiment];
 
   return (
-    <section className="metro pb-4 md:grid md:grid-cols-[1.05fr_0.95fr] md:items-start md:gap-5 lg:gap-6">
-      <div className="space-y-4 md:space-y-5">
+    <section className="metro pb-4 md:grid md:grid-cols-[1.05fr_0.95fr] md:items-stretch md:gap-5 lg:gap-6">
+      <div className="space-y-4 md:flex md:flex-col md:justify-between md:space-y-5">
         <div className="metro-hero rounded-card px-4 py-7 md:px-6 md:py-12">
           <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums md:text-[9rem] lg:text-[10.5rem]">
             {displayBpm}
@@ -142,13 +143,13 @@ export function SnareSpeed() {
           <p className="mt-3 min-h-5 text-center text-sm text-muted md:mt-4 md:text-base">{status}</p>
         </div>
         <div className="flex min-h-12 flex-wrap items-center justify-center gap-2 md:min-h-16 md:gap-3">
-          {pattern.map((stick, index) => (
+          {shownPattern.map((stick, index) => (
             <span
               key={`${stick}-${index}`}
               className={
-                index === active
+                playing && index === active
                   ? "metro-badge is-active flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-accent px-3 py-2 text-center text-2xl font-bold text-bg md:min-h-16 md:min-w-16 md:text-3xl"
-                  : "metro-badge flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-header px-3 py-2 text-center text-2xl font-semibold md:min-h-16 md:min-w-16 md:text-3xl"
+                  : "metro-badge flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-line/60 bg-header px-3 py-2 text-center text-2xl font-semibold md:min-h-16 md:min-w-16 md:text-3xl"
               }
             >
               {stick}

@@ -183,8 +183,8 @@ export function PlainMetronome() {
   const block = (clock.activeId ?? "twomallet") as BlockId;
 
   return (
-    <div className="md:grid md:grid-cols-[1.05fr_0.95fr] md:items-start md:gap-5 lg:gap-6">
-      <div className="space-y-4 md:space-y-5">
+    <div className="md:grid md:grid-cols-[1.05fr_0.95fr] md:items-stretch md:gap-5 lg:gap-6">
+      <div className="space-y-4 md:flex md:flex-col md:justify-between md:space-y-5">
         <div className="metro-hero rounded-card px-4 py-7 md:px-6 md:py-12">
           <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums md:text-[9rem] lg:text-[10.5rem]">
             {shownBpm}
@@ -218,7 +218,7 @@ export function PlainMetronome() {
                 className={
                   isBeat
                     ? `metro-badge is-active flex size-10 items-center justify-center rounded-2xl bg-accent text-sm font-bold text-bg tabular-nums md:h-14 md:w-auto md:max-w-20 md:flex-1 md:text-lg ${isDownbeat ? "ring-2 ring-accent/40" : ""}`
-                    : `metro-badge flex size-10 items-center justify-center rounded-2xl bg-header text-sm font-semibold text-muted tabular-nums md:h-14 md:w-auto md:max-w-20 md:flex-1 md:text-lg ${isDownbeat ? "border border-line" : ""}`
+                    : `metro-badge flex size-10 items-center justify-center rounded-2xl bg-header text-sm font-semibold tabular-nums md:h-14 md:w-auto md:max-w-20 md:flex-1 md:text-lg ${isDownbeat ? "border border-accent/40 text-fg" : "border border-line/60 text-muted"}`
                 }
               >
                 {index + 1}
