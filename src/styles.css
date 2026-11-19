@@ -73,11 +73,11 @@
     --color-ok: #15803d;
     --color-no: #dc2626;
     --color-no-rgb: 220 38 38;
-    --color-twomallet: #0891b2;
+    --color-twomallet: #0e7490;
     --color-fourmallet: #4f46e5;
     --color-srf: var(--color-accent);
     --color-rep: #7c3aed;
-    --color-twomallet-rgb: 8 145 178;
+    --color-twomallet-rgb: 14 116 144;
     --color-fourmallet-rgb: 79 70 229;
     --color-accent-rgb: 37 99 235;
     --color-rep-rgb: 124 58 237;

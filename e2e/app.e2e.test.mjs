@@ -521,11 +521,15 @@ describe("layout", () => {
       assert.ok(note.size >= 13, `the status line is at least 13px, got ${note.size}`);
       assert.equal(note.clipped, false, "the status line fits on one line");
       assert.equal(note.clear, true, "the status line does not overlap the meta line or the score");
-      assert.equal(
-        await page.locator("#pulseNote").evaluate((el) => getComputedStyle(el).color),
-        "rgb(126, 224, 214)",
-        "the status line uses the 2-mallet colour",
-      );
+      const pulseColor = await page.locator("#pulseNote").evaluate((el) => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--color-twomallet)";
+        document.body.appendChild(probe);
+        const expected = getComputedStyle(probe).color;
+        probe.remove();
+        return { actual: getComputedStyle(el).color, expected };
+      });
+      assert.equal(pulseColor.actual, pulseColor.expected, "the status line uses the 2-mallet colour");
       assert.deepEqual(await overflowOf(), [0, 0], "Bladlesing with the status line overflows");
       await shot(`bladlesing-yielded-${width}x${height}`);
     });

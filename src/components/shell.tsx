@@ -123,8 +123,8 @@ export function PlanHeaderTimer({ showStart = false }: { showStart?: boolean }) 
       style={blockStyle(clock.activeId as BlockId)}
       className={
         paused
-          ? "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-line px-2 text-sm font-semibold text-muted"
-          : "metro-press flex min-h-10 max-w-40 items-center gap-1.5 rounded-lg border border-[var(--block)] bg-[rgb(var(--block-rgb)/0.1)] px-2 text-sm font-semibold text-[var(--block)]"
+          ? "metro-press flex min-h-10 max-w-32 items-center gap-1.5 rounded-lg border border-line px-2 text-xs font-semibold text-muted sm:max-w-40 sm:text-sm"
+          : "metro-press flex min-h-10 max-w-32 items-center gap-1.5 rounded-lg border border-[var(--block)] bg-[rgb(var(--block-rgb)/0.1)] px-2 text-xs font-semibold text-[var(--block)] sm:max-w-40 sm:text-sm"
       }
     >
       <Icon className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden="true" />
@@ -315,15 +315,15 @@ export function Shell() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
-      <header className="shrink-0 border-b border-line bg-[rgb(var(--color-chrome-rgb)/0.88)] px-4 py-2.5 backdrop-blur-md md:landscape:py-2">
-        <div className="flex items-center justify-between gap-3">
+      <header className="shrink-0 border-b border-line bg-[rgb(var(--color-chrome-rgb)/0.88)] px-3 py-2.5 backdrop-blur-md sm:px-4 md:landscape:py-2">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
           <div className="min-w-0 md:landscape:flex md:landscape:items-baseline md:landscape:gap-3">
-            <p className="truncate text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
-            <p className="truncate text-sm text-muted">
+            <p className="truncate text-lg leading-tight font-semibold tracking-tight sm:text-xl">Musikkapp</p>
+            <p className="truncate text-xs text-muted sm:text-sm">
               {tool.label} · {profileMeta.label}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <PlanHeaderTimer showStart={tool.id === "noter"} />
             <button
               type="button"
@@ -333,10 +333,10 @@ export function Shell() {
               }}
               aria-label={`Bytt instrument (nå: ${profileMeta.label})`}
               title={`Aktiv profil: ${profileMeta.label} — trykk for å bytte mellom Køller og Trompet`}
-              className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-header px-2.5 text-xs font-semibold text-fg hover:border-accent/60"
+              className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-header px-2 text-xs font-semibold text-fg hover:border-accent/60 sm:px-2.5"
             >
               <span aria-hidden="true" className="text-base leading-none">{profileMeta.emoji}</span>
-              <span>{profileMeta.label}</span>
+              <span className="hidden sm:inline">{profileMeta.label}</span>
             </button>
             <button
               type="button"
@@ -346,7 +346,7 @@ export function Shell() {
               }}
               aria-label={`Tema: ${themeLabel} — trykk for å bytte`}
               title={`Tema: ${themeLabel} (System / Lys / Mørk)`}
-              className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-header px-2.5 text-xs font-medium text-muted hover:border-accent/60 hover:text-fg"
+              className="metro-press flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-header px-2 text-xs font-medium text-muted hover:border-accent/60 hover:text-fg sm:px-2.5"
             >
               <ThemeIcon className="size-3.5 shrink-0" aria-hidden="true" />
               <span className="hidden sm:inline">{themeLabel}</span>
