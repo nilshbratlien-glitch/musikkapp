@@ -133,32 +133,34 @@ export function SnareSpeed() {
   const best = bests[rudiment];
 
   return (
-    <section className="metro pb-4 md:grid md:grid-cols-[0.9fr_1.1fr] md:items-start md:gap-5">
-      <div className="space-y-4">
-        <div className="metro-hero rounded-card px-4 py-8 md:py-10">
-          <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums md:text-9xl">{displayBpm}</p>
-          <p className="mt-3 min-h-5 text-center text-sm text-muted">{status}</p>
+    <section className="metro pb-4 md:grid md:grid-cols-[1.05fr_0.95fr] md:items-start md:gap-5 lg:gap-6">
+      <div className="space-y-4 md:space-y-5">
+        <div className="metro-hero rounded-card px-4 py-7 md:px-6 md:py-12">
+          <p className="text-center text-8xl leading-none font-bold tracking-tight tabular-nums md:text-[9rem] lg:text-[10.5rem]">
+            {displayBpm}
+          </p>
+          <p className="mt-3 min-h-5 text-center text-sm text-muted md:mt-4 md:text-base">{status}</p>
         </div>
-        <div className="flex min-h-12 flex-wrap items-center justify-center gap-2">
+        <div className="flex min-h-12 flex-wrap items-center justify-center gap-2 md:min-h-16 md:gap-3">
           {pattern.map((stick, index) => (
             <span
               key={`${stick}-${index}`}
               className={
                 index === active
-                  ? "metro-badge is-active min-w-12 rounded-lg bg-accent px-3 py-2 text-center text-2xl font-semibold text-bg"
-                  : "metro-badge min-w-12 rounded-lg bg-header px-3 py-2 text-center text-2xl font-semibold"
+                  ? "metro-badge is-active flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-accent px-3 py-2 text-center text-2xl font-bold text-bg md:min-h-16 md:min-w-16 md:text-3xl"
+                  : "metro-badge flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-header px-3 py-2 text-center text-2xl font-semibold md:min-h-16 md:min-w-16 md:text-3xl"
               }
             >
               {stick}
             </span>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5 md:gap-3">
           <button
             type="button"
             onClick={start}
             disabled={playing}
-            className="metro-press min-h-14 rounded-xl bg-accent text-base font-semibold text-bg disabled:opacity-50"
+            className="metro-press min-h-14 rounded-xl bg-accent text-base font-semibold text-bg disabled:opacity-50 md:min-h-16 md:text-lg"
           >
             Start
           </button>
@@ -166,138 +168,149 @@ export function SnareSpeed() {
             type="button"
             onClick={stop}
             disabled={!playing}
-            className="metro-press min-h-14 rounded-xl bg-header text-base font-medium disabled:opacity-50"
+            className="metro-press min-h-14 rounded-xl bg-header text-base font-medium disabled:opacity-50 md:min-h-16 md:text-lg"
           >
             Stopp
           </button>
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 rounded-card border border-line bg-surface p-4 shadow-[0_12px_28px_rgba(0,0,0,0.28)] md:mt-0">
-        <label className="flex items-center justify-between gap-3 text-sm">
-          Rudiment
-          <select
-            value={rudiment}
-            onChange={(event) => setRudiment(event.target.value as RudimentId)}
-            className="metro-field min-h-11 max-w-[58%] rounded-md border border-line bg-header px-2 text-fg"
-          >
-            {RUDIMENT_LABELS.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center justify-between gap-3 text-sm">
-          <span>Start-BPM</span>
-          <span className="flex items-center gap-1">
-            <button
-              type="button"
-              aria-label="Reduser Start-BPM"
-              onClick={() => setStartBpm((v) => Math.max(40, v - 5))}
-              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+      <div className="mt-4 space-y-4 md:mt-0">
+        <div className="grid gap-3 rounded-card border border-line bg-surface p-4 shadow-[0_12px_28px_rgba(0,0,0,0.28)] md:p-5">
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-medium text-muted">Rudiment</span>
+            <select
+              value={rudiment}
+              onChange={(event) => setRudiment(event.target.value as RudimentId)}
+              className="metro-field min-h-11 max-w-[62%] rounded-md border border-line bg-header px-2.5 text-fg md:min-h-12"
             >
-              −
-            </button>
-            <input
-              type="number"
-              min={40}
-              max={300}
-              value={startBpm}
-              onChange={(event) => setStartBpm(Number(event.target.value))}
-              className="metro-field min-h-11 w-20 rounded-md border border-line bg-header px-2 text-center font-semibold text-fg tabular-nums"
-            />
-            <button
-              type="button"
-              aria-label="Øk Start-BPM"
-              onClick={() => setStartBpm((v) => Math.min(300, v + 5))}
-              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
-            >
-              +
-            </button>
-          </span>
-        </label>
-        <label className="flex items-center justify-between gap-3 text-sm">
-          <span>Økning</span>
-          <span className="flex items-center gap-1">
-            <button
-              type="button"
-              aria-label="Reduser økning"
-              onClick={() => setInc((v) => Math.max(1, v - 1))}
-              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
-            >
-              −
-            </button>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={inc}
-              onChange={(event) => setInc(Number(event.target.value))}
-              className="metro-field min-h-11 w-20 rounded-md border border-line bg-header px-2 text-center font-semibold text-fg tabular-nums"
-            />
-            <button
-              type="button"
-              aria-label="Øk økning"
-              onClick={() => setInc((v) => Math.min(10, v + 1))}
-              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
-            >
-              +
-            </button>
-          </span>
-        </label>
-        <label className="flex items-center justify-between gap-3 text-sm">
-          <span>Takter per steg</span>
-          <span className="flex items-center gap-1">
-            <button
-              type="button"
-              aria-label="Færre takter per steg"
-              onClick={() => setBars((v) => Math.max(1, v - 1))}
-              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
-            >
-              −
-            </button>
-            <input
-              type="number"
-              min={1}
-              max={32}
-              value={bars}
-              onChange={(event) => setBars(Number(event.target.value))}
-              className="metro-field min-h-11 w-20 rounded-md border border-line bg-header px-2 text-center font-semibold text-fg tabular-nums"
-            />
-            <button
-              type="button"
-              aria-label="Flere takter per steg"
-              onClick={() => setBars((v) => Math.min(32, v + 1))}
-              className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
-            >
-              +
-            </button>
-          </span>
-        </label>
-        <label className="flex items-center justify-between gap-3 text-sm">
-          Underdeling
-          <select
-            value={sub}
-            onChange={(event) => setSub(Number(event.target.value))}
-            className="metro-field min-h-11 max-w-[58%] rounded-md border border-line bg-header px-2 text-fg"
-          >
-            <option value={4}>Fjerdedel</option>
-            <option value={8}>Åttendel</option>
-            <option value={16}>Sekstendel</option>
-          </select>
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={markClean} className="metro-press min-h-12 rounded-lg bg-header font-medium">
-            Merk ren
-          </button>
-          <button type="button" onClick={markBroke} className="metro-press min-h-12 rounded-lg bg-header font-medium">
-            Merk brutt
-          </button>
+              {RUDIMENT_LABELS.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5 rounded-xl border border-line/70 bg-header/40 p-3 text-sm">
+              <span className="text-xs font-medium text-muted">Start-BPM</span>
+              <span className="flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  aria-label="Reduser Start-BPM"
+                  onClick={() => setStartBpm((v) => Math.max(40, v - 5))}
+                  className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={40}
+                  max={300}
+                  value={startBpm}
+                  onChange={(event) => setStartBpm(Number(event.target.value))}
+                  className="metro-field min-h-11 w-20 rounded-md border border-line bg-header px-2 text-center font-semibold text-fg tabular-nums"
+                />
+                <button
+                  type="button"
+                  aria-label="Øk Start-BPM"
+                  onClick={() => setStartBpm((v) => Math.min(300, v + 5))}
+                  className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+                >
+                  +
+                </button>
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-1.5 rounded-xl border border-line/70 bg-header/40 p-3 text-sm">
+              <span className="text-xs font-medium text-muted">Økning</span>
+              <span className="flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  aria-label="Reduser økning"
+                  onClick={() => setInc((v) => Math.max(1, v - 1))}
+                  className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={inc}
+                  onChange={(event) => setInc(Number(event.target.value))}
+                  className="metro-field min-h-11 w-20 rounded-md border border-line bg-header px-2 text-center font-semibold text-fg tabular-nums"
+                />
+                <button
+                  type="button"
+                  aria-label="Øk økning"
+                  onClick={() => setInc((v) => Math.min(10, v + 1))}
+                  className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+                >
+                  +
+                </button>
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-1.5 rounded-xl border border-line/70 bg-header/40 p-3 text-sm">
+              <span className="text-xs font-medium text-muted">Takter per steg</span>
+              <span className="flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  aria-label="Færre takter per steg"
+                  onClick={() => setBars((v) => Math.max(1, v - 1))}
+                  className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={32}
+                  value={bars}
+                  onChange={(event) => setBars(Number(event.target.value))}
+                  className="metro-field min-h-11 w-20 rounded-md border border-line bg-header px-2 text-center font-semibold text-fg tabular-nums"
+                />
+                <button
+                  type="button"
+                  aria-label="Flere takter per steg"
+                  onClick={() => setBars((v) => Math.min(32, v + 1))}
+                  className="metro-press flex size-11 items-center justify-center rounded-md border border-line bg-header text-base font-semibold"
+                >
+                  +
+                </button>
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-1.5 rounded-xl border border-line/70 bg-header/40 p-3 text-sm">
+              <span className="text-xs font-medium text-muted">Underdeling</span>
+              <select
+                value={sub}
+                onChange={(event) => setSub(Number(event.target.value))}
+                className="metro-field min-h-11 w-full rounded-md border border-line bg-header px-2.5 text-fg"
+              >
+                <option value={4}>Fjerdedel</option>
+                <option value={8}>Åttendel</option>
+                <option value={16}>Sekstendel</option>
+              </select>
+            </label>
+          </div>
         </div>
-        <p className="text-center text-sm text-muted">
-          {best ? `Beste (${rudiment}): ${best} BPM` : "Beste: —"}
-        </p>
+
+        <div className="grid gap-3 rounded-card border border-line bg-surface p-4 md:p-5">
+          <div className="grid grid-cols-2 gap-2.5">
+            <button type="button" onClick={markClean} className="metro-press min-h-12 rounded-lg border border-line bg-header font-medium md:min-h-14">
+              Merk ren
+            </button>
+            <button type="button" onClick={markBroke} className="metro-press min-h-12 rounded-lg border border-line bg-header font-medium md:min-h-14">
+              Merk brutt
+            </button>
+          </div>
+          <p className="text-center text-sm text-muted">
+            {best ? `Beste (${rudiment}): ${best} BPM` : "Beste: —"}
+          </p>
+        </div>
       </div>
     </section>
   );

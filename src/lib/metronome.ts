@@ -105,3 +105,20 @@ export function clickStep(tick: number, beats: number, sub: number) {
 export function nextClick(tick: number, meter: Meter, subdivision: Subdivision) {
   return clickStep(tick, beatsInMeter(meter), subdivision);
 }
+
+export const QUICK_TEMPOS = [60, 72, 80, 92, 104, 120, 138, 160] as const;
+
+/** Traditional Italian tempo marking for a BPM value. */
+export function tempoMarking(bpm: number): string {
+  if (bpm < 45) return "Larghissimo";
+  if (bpm < 60) return "Largo";
+  if (bpm < 66) return "Larghetto";
+  if (bpm < 76) return "Adagio";
+  if (bpm < 108) return "Andante";
+  if (bpm < 120) return "Moderato";
+  if (bpm < 156) return "Allegro";
+  if (bpm < 176) return "Vivace";
+  if (bpm < 200) return "Presto";
+  return "Prestissimo";
+}
+
