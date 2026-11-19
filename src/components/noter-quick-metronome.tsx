@@ -41,7 +41,7 @@ export function NoterMetronomeButton({
       aria-label="Hurtig-metronom og stemmegaffel"
       style={
         metroRunning || tunerActive
-          ? { backgroundColor: "rgba(224, 177, 90, 0.15)" }
+          ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" }
           : undefined
       }
       className={
@@ -104,10 +104,10 @@ export function NoterQuickMetronomeBar({
           <button
             type="button"
             onClick={onTogglePlayback}
-            style={metroRunning ? undefined : { backgroundColor: "rgba(224, 177, 90, 0.15)" }}
+            style={metroRunning ? undefined : { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" }}
             className={
               metroRunning
-                ? "metro-press flex min-h-11 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-sm font-bold text-[#1a1408]"
+                ? "metro-press flex min-h-11 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-sm font-bold text-accent-fg"
                 : "metro-press flex min-h-11 items-center gap-1.5 rounded-lg border border-accent px-3.5 text-sm font-semibold text-accent"
             }
           >
@@ -164,7 +164,7 @@ export function NoterQuickMetronomeBar({
             value={bpm}
             onChange={(e) => onUpdateBpm(Number(e.target.value))}
             aria-label="BPM-skyveknapp"
-            className="h-2 w-full accent-[#e0b15a]"
+            className="h-2 w-full accent-[var(--color-accent)]"
           />
           <button
             type="button"
@@ -193,7 +193,7 @@ export function NoterQuickMetronomeBar({
                 aria-pressed={tunerA4 === hz}
                 style={
                   tunerA4 === hz
-                    ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                    ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.18)" }
                     : undefined
                 }
                 className={
@@ -218,7 +218,7 @@ export function NoterQuickMetronomeBar({
                 onClick={() => onToggleTunerNote(note.id)}
                 aria-pressed={active}
                 aria-label={`Referansetone ${note.label}`}
-                style={active ? { backgroundColor: "rgba(224, 177, 90, 0.2)" } : undefined}
+                style={active ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.2)" } : undefined}
                 className={
                   active
                     ? "metro-press min-h-10 min-w-10 rounded-lg border border-accent px-3 text-sm font-bold text-accent"

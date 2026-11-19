@@ -2,12 +2,15 @@
 
 @theme {
   --color-bg: #12151b;
+  --color-chrome: #161a22;
   --color-header: #161a22;
   --color-surface: #1c222c;
   --color-line: #2a3140;
   --color-fg: #f4f6f8;
   --color-muted: #9aa3b0;
   --color-accent: #e0b15a;
+  --color-accent-fg: #1a1408;
+  --color-on-block: #12151b;
   --color-ok: #4e9a6b;
   --color-no: #c0483f;
   --color-twomallet: #7ee0d6;
@@ -20,6 +23,22 @@
 
 @layer base {
   :root {
+    color-scheme: dark;
+    --color-bg: #12151b;
+    --color-chrome: #161a22;
+    --color-chrome-rgb: 22 26 34;
+    --color-header: #161a22;
+    --color-surface: #1c222c;
+    --color-line: #2a3140;
+    --color-fg: #f4f6f8;
+    --color-muted: #9aa3b0;
+    --color-accent: #e0b15a;
+    --color-accent-fg: #1a1408;
+    --color-accent-shadow: #8a6a2e;
+    --color-on-block: #12151b;
+    --color-ok: #4e9a6b;
+    --color-no: #c0483f;
+    --color-no-rgb: 192 72 63;
     --color-twomallet: #7ee0d6;
     --color-fourmallet: #8aa4ff;
     --color-srf: var(--color-accent);
@@ -29,6 +48,45 @@
     --color-fourmallet-rgb: 138 164 255;
     --color-accent-rgb: 224 177 90;
     --color-rep-rgb: 232 155 109;
+    --color-scrim: rgb(0 0 0 / 0.72);
+    --color-stage: #0f1217;
+    --color-paper: #f3efe6;
+    --shadow-card: 0 10px 28px rgb(0 0 0 / 0.22);
+    --shadow-hero: 0 10px 28px rgb(0 0 0 / 0.24);
+    --shadow-paper: 0 8px 28px rgb(0 0 0 / 0.32);
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+    --color-bg: #f8fafc;
+    --color-chrome: #ffffff;
+    --color-chrome-rgb: 255 255 255;
+    --color-header: #f1f5f9;
+    --color-surface: #ffffff;
+    --color-line: #e2e8f0;
+    --color-fg: #0f172a;
+    --color-muted: #526071;
+    --color-accent: #b45309;
+    --color-accent-fg: #ffffff;
+    --color-accent-shadow: #78350f;
+    --color-on-block: #ffffff;
+    --color-ok: #15803d;
+    --color-no: #dc2626;
+    --color-no-rgb: 220 38 38;
+    --color-twomallet: #0d9488;
+    --color-fourmallet: #4f46e5;
+    --color-srf: var(--color-accent);
+    --color-rep: #c2410c;
+    --color-twomallet-rgb: 13 148 136;
+    --color-fourmallet-rgb: 79 70 229;
+    --color-accent-rgb: 180 83 9;
+    --color-rep-rgb: 194 65 12;
+    --color-scrim: rgb(15 23 42 / 0.42);
+    --color-stage: #e2e8f0;
+    --color-paper: #ffffff;
+    --shadow-card: 0 1px 3px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.05);
+    --shadow-hero: 0 1px 3px rgb(15 23 42 / 0.06), 0 10px 28px rgb(15 23 42 / 0.07);
+    --shadow-paper: 0 1px 3px rgb(15 23 42 / 0.08), 0 10px 28px rgb(15 23 42 / 0.08);
   }
 
   button:not(:disabled),
@@ -58,10 +116,16 @@
 
 .metro-hero {
   background:
-    radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--color-accent) 18%, transparent), transparent 68%),
-    var(--color-header);
+    radial-gradient(ellipse at 50% 35%, rgb(var(--color-accent-rgb) / 0.16), transparent 68%),
+    var(--color-surface);
   border: 1px solid var(--color-line);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+  box-shadow: var(--shadow-card);
+}
+
+html[data-theme="light"] .metro-hero {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgb(var(--color-accent-rgb) / 0.09), transparent 68%),
+    var(--color-surface);
 }
 
 .plan-hero {
@@ -74,7 +138,18 @@
     var(--color-surface);
   border-radius: var(--radius-card);
   border: 1px solid rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.35);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 0.24);
+  box-shadow: var(--shadow-hero);
+}
+
+html[data-theme="light"] .plan-hero {
+  background:
+    radial-gradient(
+      ellipse at 50% 20%,
+      rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.1),
+      transparent 70%
+    ),
+    var(--color-surface);
+  border-color: rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.28);
 }
 
 .oveplan-card {
@@ -83,7 +158,13 @@
   border: 1px solid var(--color-line);
   background: var(--color-surface);
   box-shadow: inset 4px 0 0 var(--block, var(--color-accent));
-  transition: border-color 150ms ease, background-color 150ms ease, opacity 150ms ease;
+  transition: border-color 150ms ease, background-color 150ms ease, opacity 150ms ease, box-shadow 150ms ease;
+}
+
+html[data-theme="light"] .oveplan-card {
+  box-shadow:
+    inset 4px 0 0 var(--block, var(--color-accent)),
+    0 1px 2px rgb(15 23 42 / 0.04);
 }
 
 .oveplan-card.is-active {
@@ -93,6 +174,16 @@
       90deg,
       rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.14) 0%,
       rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.04) 100%
+    ),
+    var(--color-surface);
+}
+
+html[data-theme="light"] .oveplan-card.is-active {
+  background:
+    linear-gradient(
+      90deg,
+      rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.09) 0%,
+      rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.02) 100%
     ),
     var(--color-surface);
 }
@@ -136,7 +227,7 @@
 
 .metro-badge.is-active {
   transform: scale(1.08);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  box-shadow: 0 0 16px rgb(var(--color-accent-rgb) / 0.5);
 }
 
 .metro-press {
@@ -147,6 +238,10 @@
   filter: brightness(1.08);
 }
 
+html[data-theme="light"] .metro-press:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
 .metro-press:active:not(:disabled) {
   transform: scale(0.97);
 }
@@ -154,13 +249,18 @@
 .metro-field:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-accent) 22%, transparent);
+  box-shadow: 0 6px 16px rgb(var(--color-accent-rgb) / 0.2);
 }
 
 .staff-card {
-  background: #f3efe6;
+  background: var(--color-paper);
+  border: 1px solid transparent;
   border-radius: var(--radius-card);
-  box-shadow: 0 8px 28px rgb(0 0 0 / 0.32);
+  box-shadow: var(--shadow-paper);
+}
+
+html[data-theme="light"] .staff-card {
+  border-color: var(--color-line);
 }
 
 .answer-row {
@@ -178,9 +278,9 @@
   min-height: 3.25rem;
   border-radius: 0.75rem;
   background: var(--color-accent);
-  color: #2a1206;
+  color: var(--color-accent-fg);
   font-weight: 700;
-  box-shadow: 0 3px 0 #8a6a2e;
+  box-shadow: 0 3px 0 var(--color-accent-shadow);
   transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
@@ -212,3 +312,4 @@
   border-radius: 999px;
   background: currentColor;
 }
+

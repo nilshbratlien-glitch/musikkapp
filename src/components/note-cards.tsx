@@ -469,7 +469,7 @@ export function NoteCards() {
                       clearContinue();
                       nextCard();
                     }}
-                    className="metro-press min-h-12 w-full rounded-xl bg-accent text-base font-bold text-[#1a1408] md:min-h-14 md:text-lg"
+                    className="metro-press min-h-12 w-full rounded-xl bg-accent text-base font-bold text-accent-fg md:min-h-14 md:text-lg"
                   >
                     Neste kort
                   </button>

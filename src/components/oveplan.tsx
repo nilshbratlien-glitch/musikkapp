@@ -350,8 +350,8 @@ export function Oveplan() {
                 }}
                 className={
                   isCurrent
-                    ? "flex h-full min-w-0 items-center justify-center truncate rounded-lg px-2 text-[11px] font-extrabold text-[#12151b] ring-2 ring-fg transition-all"
-                    : "flex h-full min-w-0 items-center justify-center truncate rounded-lg px-2 text-[11px] font-bold text-[#12151b] transition-all"
+                    ? "flex h-full min-w-0 items-center justify-center truncate rounded-lg px-2 text-[11px] font-extrabold text-on-block ring-2 ring-fg transition-all"
+                    : "flex h-full min-w-0 items-center justify-center truncate rounded-lg px-2 text-[11px] font-bold text-on-block transition-all"
                 }
                 title={`${blockName(item.id)}: ${item.mins} min`}
               >
@@ -570,7 +570,7 @@ export function Oveplan() {
           className={
             cur.activeId
               ? "metro-press min-h-12 rounded-xl bg-fg text-base font-bold text-bg"
-              : "metro-press col-span-2 min-h-13 rounded-xl bg-accent text-base font-bold text-[#1a1408] shadow-sm"
+              : "metro-press col-span-2 min-h-13 rounded-xl bg-accent text-base font-bold text-accent-fg shadow-sm"
           }
         >
           {cur.startLabel}

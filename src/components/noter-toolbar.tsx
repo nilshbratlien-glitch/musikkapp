@@ -147,7 +147,7 @@ export function NoterToolbar({
     <div
       role="toolbar"
       aria-label="Annoteringsverktøy"
-      style={{ backgroundColor: "rgba(22, 26, 34, 0.95)" }}
+      style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.95)" }}
       className="relative z-20 flex shrink-0 flex-col gap-2 border-b border-line px-3 py-2 md:landscape:py-1.5 xl:flex-row xl:items-center xl:justify-between"
     >
       {/* Primary row: tools + undo/redo + visibility + stylus-only */}
@@ -162,7 +162,7 @@ export function NoterToolbar({
                 type="button"
                 onClick={() => onSelectTool(opt.id)}
                 aria-pressed={active}
-                style={active ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+                style={active ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" } : undefined}
                 className={
                   active
                     ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2.5 text-xs font-semibold text-accent"
@@ -207,7 +207,7 @@ export function NoterToolbar({
             title={annotationsVisible ? "Skjul annoteringer" : "Vis annoteringer"}
             style={
               annotationsVisible
-                ? { backgroundColor: "rgba(224, 177, 90, 0.12)" }
+                ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.12)" }
                 : undefined
             }
             className={
@@ -232,7 +232,7 @@ export function NoterToolbar({
             aria-pressed={stylusOnly}
             aria-label="Kun penn"
             title="Kun penn (ignorer fingerberøring)"
-            style={stylusOnly ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+            style={stylusOnly ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" } : undefined}
             className={
               stylusOnly
                 ? "metro-press flex min-h-10 items-center gap-1.5 rounded-lg border border-accent px-2.5 text-xs font-semibold text-accent"
@@ -256,7 +256,7 @@ export function NoterToolbar({
                 aria-pressed={pencilThickness === "thin"}
                 style={
                   pencilThickness === "thin"
-                    ? { backgroundColor: "rgba(224, 177, 90, 0.15)" }
+                    ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" }
                     : undefined
                 }
                 className={
@@ -273,7 +273,7 @@ export function NoterToolbar({
                 aria-pressed={pencilThickness === "thick"}
                 style={
                   pencilThickness === "thick"
-                    ? { backgroundColor: "rgba(224, 177, 90, 0.15)" }
+                    ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" }
                     : undefined
                 }
                 className={
@@ -309,7 +309,7 @@ export function NoterToolbar({
                       onClick={() => onSelectWhiteoutSize(opt.id)}
                       aria-pressed={selected}
                       style={
-                        selected ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined
+                        selected ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" } : undefined
                       }
                       className={
                         selected
@@ -378,7 +378,7 @@ export function NoterToolbar({
                   >
                     <span
                       aria-hidden="true"
-                      style={{ backgroundColor: hex, borderColor: "rgba(255, 255, 255, 0.25)" }}
+                      style={{ backgroundColor: hex, borderColor: "var(--color-line)" }}
                       className="size-6 rounded-full border"
                     />
                   </button>
@@ -413,7 +413,7 @@ export function NoterToolbar({
                     }
                     aria-pressed={selected}
                     aria-label={`${tool === "stamp" ? "Stempelstørrelse" : "Tekststørrelse"} ${opt.label}`}
-                    style={selected ? { backgroundColor: "rgba(224, 177, 90, 0.15)" } : undefined}
+                    style={selected ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.15)" } : undefined}
                     className={
                       selected
                         ? "metro-press min-h-9 min-w-9 rounded-md px-2 text-xs font-bold text-accent"
@@ -451,7 +451,7 @@ export function NoterToolbar({
                 <div
                   role="dialog"
                   aria-label="Velg musikalsk stempel"
-                  style={{ backgroundColor: "rgba(22, 26, 34, 0.98)" }}
+                  style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.98)" }}
                   className="absolute left-0 top-full z-30 mt-1.5 max-h-[60vh] w-72 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-line p-3 shadow-2xl"
                 >
                   <div className="flex flex-col gap-3">
@@ -480,7 +480,7 @@ export function NoterToolbar({
                                   title={def.label}
                                   style={
                                     selected
-                                      ? { backgroundColor: "rgba(224, 177, 90, 0.18)" }
+                                      ? { backgroundColor: "rgb(var(--color-accent-rgb) / 0.18)" }
                                       : undefined
                                   }
                                   className={

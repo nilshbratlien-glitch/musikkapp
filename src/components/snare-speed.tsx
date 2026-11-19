@@ -177,7 +177,7 @@ export function SnareSpeed() {
       </div>
 
       <div className="mt-4 space-y-4 md:mt-0">
-        <div className="grid gap-3 rounded-card border border-line bg-surface p-4 shadow-[0_12px_28px_rgba(0,0,0,0.28)] md:p-5">
+        <div className="grid gap-3 rounded-card border border-line bg-surface p-4 shadow-[var(--shadow-card)] md:p-5">
           <label className="flex items-center justify-between gap-3 text-sm">
             <span className="font-medium text-muted">Rudiment</span>
             <select

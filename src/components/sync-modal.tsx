@@ -123,7 +123,7 @@ export function SyncModal({ open, onClose }: SyncModalProps) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="sync-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-scrim)] p-4 backdrop-blur-xs"
     >
       <div className="flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-line bg-surface text-fg shadow-2xl">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">

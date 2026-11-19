@@ -319,23 +319,19 @@
 }
 
 #malletsight-root {
-  --bg: #12151b;
-  --bg2: #161a22;
-  --panel: #1c222c;
-  --line: #2a3140;
-  --text: #f4f6f8;
-  --muted: #9aa3b0;
-  --accent: #e0b15a;
+  --bg: var(--color-bg, #12151b);
+  --bg2: var(--color-header, #161a22);
+  --panel: var(--color-surface, #1c222c);
+  --line: var(--color-line, #2a3140);
+  --text: var(--color-fg, #f4f6f8);
+  --muted: var(--color-muted, #9aa3b0);
+  --accent: var(--color-accent, #e0b15a);
+  --accent-fg: var(--color-accent-fg, #1b1408);
+  --ok: var(--color-ok, #6fbf73);
+  --danger: var(--color-no, #d16a6a);
+  --paper: var(--color-paper, #f3efe6);
+  --shadow: var(--shadow-paper, 0 8px 28px rgb(0 0 0 / 0.32));
   --radius: 1.15rem;
-  --color-bg: var(--bg);
-  --color-header: var(--bg2);
-  --color-surface: var(--panel);
-  --color-line: var(--line);
-  --color-fg: var(--text);
-  --color-muted: var(--muted);
-  --color-accent: var(--accent);
-  --radius-card: var(--radius);
-  --paper: #f3efe6;
   font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -349,8 +345,8 @@
 #malletsight-root .brand { display: none; }
 
 #malletsight-root .paper {
-  border-radius: var(--radius-card);
-  box-shadow: 0 8px 28px rgb(0 0 0 / 0.32);
+  border-radius: var(--radius-card, var(--radius));
+  box-shadow: var(--shadow);
 }
 
 #malletsight-root .settings-grid {
@@ -947,4 +943,107 @@
     gap: 16px;
   }
 }
+
+/* Light mode (Cool Minimalist Slate) overrides */
+html[data-theme="light"] #malletsight-root .stage {
+  background:
+    radial-gradient(1200px 380px at 50% -10%, rgb(148 163 184 / 0.16) 0%, transparent 55%),
+    var(--bg);
+}
+
+html[data-theme="light"] #malletsight-root .paper {
+  background: #ffffff;
+  border: 1px solid var(--line);
+}
+
+html[data-theme="light"] #malletsight-root .btn.primary {
+  color: var(--accent-fg);
+}
+
+html[data-theme="light"] #malletsight-root .btn.on,
+html[data-theme="light"] #malletsight-root .duet-toolbar .chip.active {
+  background: rgb(21 128 61 / 0.12);
+  border-color: var(--ok);
+  color: #15803d;
+}
+
+html[data-theme="light"] #malletsight-root .chip.on,
+html[data-theme="light"] #malletsight-root .preset-pill.on,
+html[data-theme="light"] #malletsight-root .seg-btn.active {
+  background: rgb(var(--color-accent-rgb, 180 83 9) / 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+html[data-theme="light"] #malletsight-root .settings-btn.active {
+  background: rgb(var(--color-accent-rgb, 180 83 9) / 0.1);
+}
+
+html[data-theme="light"] #malletsight-root .tempo-pad,
+html[data-theme="light"] #malletsight-root .level-step {
+  background: var(--bg2);
+}
+
+html[data-theme="light"] #malletsight-root .beat-lamps span {
+  background: #cbd5e1;
+  box-shadow: inset 0 0 0 1px #94a3b8;
+}
+
+html[data-theme="light"] #malletsight-root .beat-lamps span.on {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgb(var(--color-accent-rgb, 180 83 9) / 0.45);
+}
+
+html[data-theme="light"] #malletsight-root .beat-lamps span.down {
+  background: #0f172a;
+  box-shadow: 0 0 8px rgb(15 23 42 / 0.3);
+}
+
+html[data-theme="light"] #malletsight-root .cmd-header {
+  background: rgb(255 255 255 / 0.94);
+}
+
+html[data-theme="light"] #malletsight-root .settings-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.06), 0 6px 18px rgb(15 23 42 / 0.04);
+}
+
+html[data-theme="light"] #malletsight-root .preset-pill,
+html[data-theme="light"] #malletsight-root .range-badge {
+  background: var(--bg2);
+}
+
+html[data-theme="light"] #malletsight-root .dual-range-fill {
+  background: rgb(var(--color-accent-rgb, 180 83 9) / 0.35);
+}
+
+html[data-theme="light"] #malletsight-root .toggle input[type="checkbox"] {
+  background: #cbd5e1;
+  border-color: #cbd5e1;
+}
+
+html[data-theme="light"] #malletsight-root .toggle input[type="checkbox"]::after {
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.2);
+}
+
+html[data-theme="light"] #malletsight-root .toggle input[type="checkbox"]:checked::after {
+  background: #ffffff;
+}
+
+html[data-theme="light"] #malletsight-root input[type="range"]::-webkit-slider-thumb {
+  border-color: #ffffff;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.3);
+}
+
+html[data-theme="light"] #malletsight-root input[type="range"]::-moz-range-thumb {
+  border-color: #ffffff;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.3);
+}
+
+html[data-theme="light"] #malletsight-root .scrim {
+  background: var(--color-scrim, rgb(15 23 42 / 0.42));
+}
+
 

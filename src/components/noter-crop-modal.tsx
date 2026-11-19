@@ -148,12 +148,12 @@ export function NoterCropModal({
       role="dialog"
       aria-modal="true"
       aria-label={`Manuell beskjæring av side ${pageNumber}`}
-      style={{ backgroundColor: "rgba(10, 13, 18, 0.85)" }}
+      style={{ backgroundColor: "var(--color-scrim)" }}
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
       onClick={saving ? undefined : onClose}
     >
       <div
-        style={{ backgroundColor: "rgba(22, 26, 34, 0.98)" }}
+        style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.98)" }}
         className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-t-2xl border border-line shadow-2xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -351,7 +351,7 @@ export function NoterCropModal({
                 style={{ touchAction: "none" }}
                 className="absolute -top-4 -left-4 flex size-8 cursor-nwse-resize items-center justify-center"
               >
-                <span className="size-4 rounded-full border-2 border-[#1a1408] bg-accent shadow" />
+                <span className="size-4 rounded-full border-2 border-accent-fg bg-accent shadow" />
               </button>
               <button
                 type="button"
@@ -363,7 +363,7 @@ export function NoterCropModal({
                 style={{ touchAction: "none" }}
                 className="absolute -top-4 -right-4 flex size-8 cursor-nesw-resize items-center justify-center"
               >
-                <span className="size-4 rounded-full border-2 border-[#1a1408] bg-accent shadow" />
+                <span className="size-4 rounded-full border-2 border-accent-fg bg-accent shadow" />
               </button>
               <button
                 type="button"
@@ -375,7 +375,7 @@ export function NoterCropModal({
                 style={{ touchAction: "none" }}
                 className="absolute -bottom-4 -left-4 flex size-8 cursor-nesw-resize items-center justify-center"
               >
-                <span className="size-4 rounded-full border-2 border-[#1a1408] bg-accent shadow" />
+                <span className="size-4 rounded-full border-2 border-accent-fg bg-accent shadow" />
               </button>
               <button
                 type="button"
@@ -387,7 +387,7 @@ export function NoterCropModal({
                 style={{ touchAction: "none" }}
                 className="absolute -right-4 -bottom-4 flex size-8 cursor-nwse-resize items-center justify-center"
               >
-                <span className="size-4 rounded-full border-2 border-[#1a1408] bg-accent shadow" />
+                <span className="size-4 rounded-full border-2 border-accent-fg bg-accent shadow" />
               </button>
             </div>
           </div>
@@ -401,7 +401,7 @@ export function NoterCropModal({
                 type="checkbox"
                 checked={applyAll}
                 onChange={(e) => setApplyAll(e.target.checked)}
-                className="size-4 accent-[#e0b15a]"
+                className="size-4 accent-[var(--color-accent)]"
               />
               <span>Bruk på alle {pageCount} sider</span>
             </label>
@@ -422,7 +422,7 @@ export function NoterCropModal({
               type="button"
               disabled={saving}
               onClick={() => void handleSave()}
-              className="metro-press flex min-h-11 items-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-[#1a1408] disabled:opacity-40"
+              className="metro-press flex min-h-11 items-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-accent-fg disabled:opacity-40"
             >
               <Crop className="size-4" aria-hidden="true" />
               <span>{saving ? "Lagrer…" : "Lagre beskjæring"}</span>
