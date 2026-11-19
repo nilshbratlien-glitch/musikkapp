@@ -136,6 +136,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
   const metroOnRef = useRef(false);
   const practiceBeatRef = useRef(0);
   const autoNextTimerRef = useRef<number | null>(null);
+  const autoNextSwapTimerRef = useRef<number | null>(null);
   const autoNextModeRef = useRef<"play" | "metro" | null>(null);
   const fadedElsRef = useRef<Element[]>([]);
 
@@ -171,6 +172,10 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
   }, []);
 
   const cancelAutoNext = useCallback(() => {
+    if (autoNextSwapTimerRef.current != null) {
+      window.clearTimeout(autoNextSwapTimerRef.current);
+      autoNextSwapTimerRef.current = null;
+    }
     if (autoNextTimerRef.current != null) {
       window.clearInterval(autoNextTimerRef.current);
       autoNextTimerRef.current = null;
@@ -364,21 +369,25 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
         eng.ScoreRenderer.clearBeat();
         recordCompletedEtude();
         if (settingsRef.current.flowAutoNext && !remoteCallRef.current) {
-          generate();
-          const raw = settingsRef.current.flowAutoNextDelay;
-          const delay = [10, 20, 30].includes(raw) ? raw : 10;
-          let left = delay;
-          autoNextModeRef.current = "metro";
-          setAutoNextLeft(left);
-          autoNextTimerRef.current = window.setInterval(() => {
-            left -= 1;
-            if (left <= 0) {
-              cancelAutoNext();
-              startMetroInternal();
-            } else {
-              setAutoNextLeft(left);
-            }
-          }, 1000);
+          autoNextSwapTimerRef.current = window.setTimeout(() => {
+            autoNextSwapTimerRef.current = null;
+            if (!settingsRef.current.flowAutoNext || remoteCallRef.current) return;
+            generate();
+            const raw = settingsRef.current.flowAutoNextDelay;
+            const delay = [10, 20, 30].includes(raw) ? raw : 10;
+            let left = delay;
+            autoNextModeRef.current = "metro";
+            setAutoNextLeft(left);
+            autoNextTimerRef.current = window.setInterval(() => {
+              left -= 1;
+              if (left <= 0) {
+                cancelAutoNext();
+                startMetroInternal();
+              } else {
+                setAutoNextLeft(left);
+              }
+            }, 1000);
+          }, 2000);
         }
       },
     });
@@ -448,23 +457,27 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
             setMetroLabel("Metronom");
           }
 
-          // Sight-Reading Flow Mode: immediately load next etude, then count down scan time before auto-starting
+          // Sight-Reading Flow Mode: 2s breath, then load next etude and count down scan time before auto-starting
           if (settingsRef.current.flowAutoNext && !remoteCallRef.current) {
-            generate();
-            const raw = settingsRef.current.flowAutoNextDelay;
-            const delay = [10, 20, 30].includes(raw) ? raw : 10;
-            let left = delay;
-            autoNextModeRef.current = "play";
-            setAutoNextLeft(left);
-            autoNextTimerRef.current = window.setInterval(() => {
-              left -= 1;
-              if (left <= 0) {
-                cancelAutoNext();
-                startPlayInternal(false);
-              } else {
-                setAutoNextLeft(left);
-              }
-            }, 1000);
+            autoNextSwapTimerRef.current = window.setTimeout(() => {
+              autoNextSwapTimerRef.current = null;
+              if (!settingsRef.current.flowAutoNext || remoteCallRef.current) return;
+              generate();
+              const raw = settingsRef.current.flowAutoNextDelay;
+              const delay = [10, 20, 30].includes(raw) ? raw : 10;
+              let left = delay;
+              autoNextModeRef.current = "play";
+              setAutoNextLeft(left);
+              autoNextTimerRef.current = window.setInterval(() => {
+                left -= 1;
+                if (left <= 0) {
+                  cancelAutoNext();
+                  startPlayInternal(false);
+                } else {
+                  setAutoNextLeft(left);
+                }
+              }, 1000);
+            }, 2000);
           }
         },
       });

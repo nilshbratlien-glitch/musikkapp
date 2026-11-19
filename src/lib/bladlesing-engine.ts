@@ -19,9 +19,9 @@ export interface InstrumentDef {
 export interface KeyDef {
   id: string;
   name: string;
-  mode: "major" | "minor";
-  sharps?: number;
-  flats?: number;
+  mode: "major" | "harmonic" | "minor";
+  fifths: number;
+  flats?: boolean;
 }
 
 export interface TimeSigDef {

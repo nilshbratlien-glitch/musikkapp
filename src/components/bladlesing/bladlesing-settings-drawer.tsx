@@ -260,8 +260,15 @@ export function BladlesingSettingsDrawer({
 
   const durations = T?.DURATIONS ?? [];
   const restDurations = durations.filter((d) => !d.group);
-  const majorKeys = (T?.KEYS ?? []).filter((k) => k.mode === "major");
-  const minorKeys = (T?.KEYS ?? []).filter((k) => k.mode !== "major");
+  const fifthsPos = (fifths: number) => ((fifths % 12) + 12) % 12;
+  const majorKeys = (T?.KEYS ?? [])
+    .filter((k) => k.mode === "major")
+    .slice()
+    .sort((a, b) => fifthsPos(a.fifths) - fifthsPos(b.fifths));
+  const minorKeys = (T?.KEYS ?? [])
+    .filter((k) => k.mode !== "major")
+    .slice()
+    .sort((a, b) => fifthsPos(a.fifths) - fifthsPos(b.fifths));
   const textureOpts = textureOptionsForMallets(settings.mallets);
 
   const levelHintText =
