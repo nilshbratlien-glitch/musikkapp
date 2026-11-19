@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { commitBest, nextClick, nextPulse, onClick, recordBest, secondsPerNote, type ClickState } from "./metronome.ts";
+import { commitBest, nextClick, nextPulse, onClick, recordBest, secondsPerNote, tempoMarking, type ClickState } from "./metronome.ts";
 
 describe("snare-speed metronome", () => {
   it("steps BPM after the configured number of bars", () => {
@@ -69,5 +69,17 @@ describe("snare-speed metronome", () => {
     assert.equal(nextBeat.downbeat, true);
     assert.equal(nextClick(8, "4/4", 2).accent, true);
     assert.equal(nextClick(3, "3/4", 3).beatIndex, 1);
+  });
+
+  it("maps BPM ranges to traditional Italian tempo markings", () => {
+    assert.equal(tempoMarking(40), "Larghissimo");
+    assert.equal(tempoMarking(52), "Largo");
+    assert.equal(tempoMarking(72), "Adagio");
+    assert.equal(tempoMarking(80), "Andante");
+    assert.equal(tempoMarking(112), "Moderato");
+    assert.equal(tempoMarking(132), "Allegro");
+    assert.equal(tempoMarking(168), "Vivace");
+    assert.equal(tempoMarking(184), "Presto");
+    assert.equal(tempoMarking(220), "Prestissimo");
   });
 });

@@ -33,7 +33,7 @@ export function Metronom() {
 
   return (
     <section className="pb-4">
-      <div className="mb-4 grid grid-cols-2 gap-1.5">
+      <div className="mb-4 grid grid-cols-2 gap-1.5 md:max-w-md">
         <button
           type="button"
           onClick={() => choose("metro")}
