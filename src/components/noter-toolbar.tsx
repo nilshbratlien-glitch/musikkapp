@@ -147,8 +147,8 @@ export function NoterToolbar({
     <div
       role="toolbar"
       aria-label="Annoteringsverktøy"
-      style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.95)" }}
-      className="relative z-20 flex shrink-0 flex-col gap-2 border-b border-line px-3 py-2 md:landscape:py-1.5 xl:flex-row xl:items-center xl:justify-between"
+      style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.88)" }}
+      className="relative z-20 flex shrink-0 flex-col gap-2 border-b border-line px-3 py-2 backdrop-blur-md md:landscape:py-1.5 xl:flex-row xl:items-center xl:justify-between"
     >
       {/* Primary row: tools + undo/redo + visibility + stylus-only */}
       <div className="flex flex-wrap items-center justify-between gap-1.5 xl:flex-1">

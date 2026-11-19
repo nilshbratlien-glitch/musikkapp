@@ -944,11 +944,9 @@
   }
 }
 
-/* Light mode (Cool Minimalist Slate) overrides */
+/* Light mode (Cool Minimalist Slate + Cobalt) overrides */
 html[data-theme="light"] #malletsight-root .stage {
-  background:
-    radial-gradient(1200px 380px at 50% -10%, rgb(148 163 184 / 0.16) 0%, transparent 55%),
-    var(--bg);
+  background: var(--bg);
 }
 
 html[data-theme="light"] #malletsight-root .paper {
@@ -970,13 +968,13 @@ html[data-theme="light"] #malletsight-root .duet-toolbar .chip.active {
 html[data-theme="light"] #malletsight-root .chip.on,
 html[data-theme="light"] #malletsight-root .preset-pill.on,
 html[data-theme="light"] #malletsight-root .seg-btn.active {
-  background: rgb(var(--color-accent-rgb, 180 83 9) / 0.12);
+  background: rgb(var(--color-accent-rgb, 37 99 235) / 0.11);
   border-color: var(--accent);
   color: var(--accent);
 }
 
 html[data-theme="light"] #malletsight-root .settings-btn.active {
-  background: rgb(var(--color-accent-rgb, 180 83 9) / 0.1);
+  background: rgb(var(--color-accent-rgb, 37 99 235) / 0.09);
 }
 
 html[data-theme="light"] #malletsight-root .tempo-pad,
@@ -991,7 +989,7 @@ html[data-theme="light"] #malletsight-root .beat-lamps span {
 
 html[data-theme="light"] #malletsight-root .beat-lamps span.on {
   background: var(--accent);
-  box-shadow: 0 0 8px rgb(var(--color-accent-rgb, 180 83 9) / 0.45);
+  box-shadow: 0 0 8px rgb(var(--color-accent-rgb, 37 99 235) / 0.45);
 }
 
 html[data-theme="light"] #malletsight-root .beat-lamps span.down {
@@ -1000,13 +998,15 @@ html[data-theme="light"] #malletsight-root .beat-lamps span.down {
 }
 
 html[data-theme="light"] #malletsight-root .cmd-header {
-  background: rgb(255 255 255 / 0.94);
+  background: rgb(255 255 255 / 0.88);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 }
 
 html[data-theme="light"] #malletsight-root .settings-card {
   background: #ffffff;
   border: 1px solid var(--line);
-  box-shadow: 0 1px 3px rgb(15 23 42 / 0.06), 0 6px 18px rgb(15 23 42 / 0.04);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
 }
 
 html[data-theme="light"] #malletsight-root .preset-pill,
@@ -1015,7 +1015,7 @@ html[data-theme="light"] #malletsight-root .range-badge {
 }
 
 html[data-theme="light"] #malletsight-root .dual-range-fill {
-  background: rgb(var(--color-accent-rgb, 180 83 9) / 0.35);
+  background: rgb(var(--color-accent-rgb, 37 99 235) / 0.32);
 }
 
 html[data-theme="light"] #malletsight-root .toggle input[type="checkbox"] {
@@ -1034,16 +1034,16 @@ html[data-theme="light"] #malletsight-root .toggle input[type="checkbox"]:checke
 
 html[data-theme="light"] #malletsight-root input[type="range"]::-webkit-slider-thumb {
   border-color: #ffffff;
-  box-shadow: 0 1px 4px rgb(15 23 42 / 0.3);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.25);
 }
 
 html[data-theme="light"] #malletsight-root input[type="range"]::-moz-range-thumb {
   border-color: #ffffff;
-  box-shadow: 0 1px 4px rgb(15 23 42 / 0.3);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.25);
 }
 
 html[data-theme="light"] #malletsight-root .scrim {
-  background: var(--color-scrim, rgb(15 23 42 / 0.42));
+  background: var(--color-scrim, rgb(15 23 42 / 0.38));
 }
 
 

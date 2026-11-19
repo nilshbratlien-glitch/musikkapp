@@ -2,7 +2,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import { getProfile, getProfileVersion, subscribeProfile } from "@/lib/profile";
 import "@/lib/pulse";
 
-const ASSET_VER = "v31";
+const ASSET_VER = "v32";
 const SCRIPTS = [
   `/malletsight/abcjs.js?${ASSET_VER}`,
   `/malletsight/theory.js?${ASSET_VER}`,

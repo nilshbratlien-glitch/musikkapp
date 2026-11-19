@@ -58,35 +58,35 @@
 
   html[data-theme="light"] {
     color-scheme: light;
-    --color-bg: #f8fafc;
+    --color-bg: #f1f5f9;
     --color-chrome: #ffffff;
     --color-chrome-rgb: 255 255 255;
-    --color-header: #f1f5f9;
+    --color-header: #f8fafc;
     --color-surface: #ffffff;
     --color-line: #e2e8f0;
     --color-fg: #0f172a;
-    --color-muted: #526071;
-    --color-accent: #b45309;
+    --color-muted: #475569;
+    --color-accent: #2563eb;
     --color-accent-fg: #ffffff;
-    --color-accent-shadow: #78350f;
+    --color-accent-shadow: #1d4ed8;
     --color-on-block: #ffffff;
     --color-ok: #15803d;
     --color-no: #dc2626;
     --color-no-rgb: 220 38 38;
-    --color-twomallet: #0d9488;
+    --color-twomallet: #0891b2;
     --color-fourmallet: #4f46e5;
     --color-srf: var(--color-accent);
-    --color-rep: #c2410c;
-    --color-twomallet-rgb: 13 148 136;
+    --color-rep: #7c3aed;
+    --color-twomallet-rgb: 8 145 178;
     --color-fourmallet-rgb: 79 70 229;
-    --color-accent-rgb: 180 83 9;
-    --color-rep-rgb: 194 65 12;
-    --color-scrim: rgb(15 23 42 / 0.42);
+    --color-accent-rgb: 37 99 235;
+    --color-rep-rgb: 124 58 237;
+    --color-scrim: rgb(15 23 42 / 0.38);
     --color-stage: #e2e8f0;
     --color-paper: #ffffff;
-    --shadow-card: 0 1px 3px rgb(15 23 42 / 0.06), 0 8px 24px rgb(15 23 42 / 0.05);
-    --shadow-hero: 0 1px 3px rgb(15 23 42 / 0.06), 0 10px 28px rgb(15 23 42 / 0.07);
-    --shadow-paper: 0 1px 3px rgb(15 23 42 / 0.08), 0 10px 28px rgb(15 23 42 / 0.08);
+    --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05);
+    --shadow-hero: 0 1px 3px rgb(15 23 42 / 0.06), 0 4px 12px rgb(15 23 42 / 0.03);
+    --shadow-paper: 0 1px 3px rgb(15 23 42 / 0.06), 0 6px 16px rgb(15 23 42 / 0.05);
   }
 
   button:not(:disabled),
@@ -124,7 +124,7 @@
 
 html[data-theme="light"] .metro-hero {
   background:
-    radial-gradient(ellipse at 50% 30%, rgb(var(--color-accent-rgb) / 0.09), transparent 68%),
+    radial-gradient(ellipse at 50% 25%, rgb(var(--color-accent-rgb) / 0.06), transparent 68%),
     var(--color-surface);
 }
 
@@ -145,11 +145,11 @@ html[data-theme="light"] .plan-hero {
   background:
     radial-gradient(
       ellipse at 50% 20%,
-      rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.1),
+      rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.07),
       transparent 70%
     ),
     var(--color-surface);
-  border-color: rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.28);
+  border-color: rgb(var(--block-rgb, var(--color-accent-rgb)) / 0.24);
 }
 
 .oveplan-card {

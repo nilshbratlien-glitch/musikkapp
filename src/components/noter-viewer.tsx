@@ -1871,8 +1871,8 @@ export function NoterViewer({
       {/* Top HUD */}
       {hudVisible ? (
         <header
-          style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.95)" }}
-          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-xs md:landscape:py-1.5"
+          style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.88)" }}
+          className="z-20 flex shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-line px-3 py-2.5 backdrop-blur-md md:landscape:py-1.5"
         >
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -2399,8 +2399,8 @@ export function NoterViewer({
       {/* Bottom HUD */}
       {hudVisible ? (
         <footer
-          style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.95)" }}
-          className="z-20 flex shrink-0 items-center justify-between gap-2 border-t border-line px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur-xs md:landscape:py-1.5"
+          style={{ backgroundColor: "rgb(var(--color-chrome-rgb) / 0.88)" }}
+          className="z-20 flex shrink-0 items-center justify-between gap-2 border-t border-line px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] backdrop-blur-md md:landscape:py-1.5"
         >
           <div className="flex items-center gap-1.5">
             <button

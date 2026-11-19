@@ -315,7 +315,7 @@ export function Shell() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-bg text-fg">
-      <header className="shrink-0 border-b border-line bg-chrome px-4 py-2.5 md:landscape:py-2">
+      <header className="shrink-0 border-b border-line bg-[rgb(var(--color-chrome-rgb)/0.88)] px-4 py-2.5 backdrop-blur-md md:landscape:py-2">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 md:landscape:flex md:landscape:items-baseline md:landscape:gap-3">
             <p className="truncate text-xl leading-tight font-semibold tracking-tight">Musikkapp</p>
@@ -414,7 +414,7 @@ export function Shell() {
       <div className="flex min-h-0 flex-1 flex-col md:landscape:flex-row">
         <nav
           aria-label="Verktøy"
-          className="order-last shrink-0 border-t border-line bg-chrome pb-[env(safe-area-inset-bottom)] md:landscape:order-first md:landscape:w-22 md:landscape:border-t-0 md:landscape:border-r md:landscape:py-3 md:landscape:pb-3"
+          className="order-last shrink-0 border-t border-line bg-[rgb(var(--color-chrome-rgb)/0.88)] pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:landscape:order-first md:landscape:w-22 md:landscape:border-t-0 md:landscape:border-r md:landscape:py-3 md:landscape:pb-3"
         >
           <ul className="grid grid-cols-5 md:landscape:flex md:landscape:h-full md:landscape:flex-col md:landscape:justify-start md:landscape:gap-2 md:landscape:px-2">
             {TOOLS.map((item) => {
