@@ -434,7 +434,7 @@ export function Shell() {
             className={
               sheet
                 ? "h-full min-h-0"
-                : tool.id === "oveplan" || tool.id === "metronom"
+                : tool.id === "oveplan" || tool.id === "metronom" || tool.id === "notekort"
                   ? "mx-auto w-full max-w-7xl"
                   : "mx-auto w-full max-w-xl md:max-w-4xl lg:max-w-6xl"
             }

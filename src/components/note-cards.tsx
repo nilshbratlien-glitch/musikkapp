@@ -316,38 +316,40 @@ export function NoteCards() {
 
   return (
     <section className="pb-4">
-      <p className="mb-2 min-h-4 text-center text-xs tracking-wider text-muted uppercase">
-        {pool.length ? `${pool.length} noter` : ""}
-      </p>
-      <div className="mb-4 grid grid-cols-2 gap-1.5" role="tablist" aria-label="Notekort">
-        {(
-          [
-            ["drill", "Øv"],
-            ["deck", "Noter"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={cur.tab === id}
-            onClick={() => show(id)}
-            className={
-              cur.tab === id
-                ? "min-h-11 rounded-lg border border-accent bg-surface text-sm font-semibold"
-                : "min-h-11 rounded-lg border border-line text-sm text-muted"
-            }
-          >
-            {label}
-          </button>
-        ))}
+      <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="grid grid-cols-2 gap-1.5 md:w-full md:max-w-md" role="tablist" aria-label="Notekort">
+          {(
+            [
+              ["drill", "Øv"],
+              ["deck", "Noter"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={cur.tab === id}
+              onClick={() => show(id)}
+              className={
+                cur.tab === id
+                  ? "min-h-11 rounded-lg border border-accent bg-surface text-sm font-semibold"
+                  : "min-h-11 rounded-lg border border-line text-sm text-muted"
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="min-h-4 text-center text-xs tracking-wider text-muted uppercase md:text-right md:text-sm">
+          {pool.length ? `${pool.length} noter` : ""}
+        </p>
       </div>
 
       {cur.tab === "drill" ? (
         pool.length && card ? (
-          <div className="md:grid md:grid-cols-[1.05fr_0.95fr] md:items-center md:gap-6">
-            <div className="mx-auto w-full max-w-md md:max-w-lg">
-              <div className="mb-2.5 flex items-center justify-between text-sm text-muted">
+          <div className="md:grid md:grid-cols-[1.15fr_0.85fr] md:items-stretch md:gap-6 lg:gap-8">
+            <div className="mx-auto w-full max-w-md md:flex md:max-w-none md:flex-col md:justify-between md:rounded-card md:border md:border-line md:bg-surface/60 md:p-5 lg:p-6">
+              <div className="mb-2.5 flex items-center justify-between text-sm text-muted md:mb-4 md:text-base">
                 <p>
                   <b className="font-semibold text-fg">{cur.session.right}</b> riktig · {cur.session.wrong} feil
                   {total ? ` · ${Math.round((cur.session.right / total) * 100)}%` : ""}
@@ -358,106 +360,108 @@ export function NoteCards() {
                 </p>
               </div>
               <StaffCard clef={card[0] === "bass" ? "bass" : "treble"} idx={Number(card[1])} pool={pool} />
-              <p className="mt-2.5 text-center text-xs tracking-wider text-muted uppercase">
+              <p className="mt-2.5 text-center text-xs tracking-wider text-muted uppercase md:mt-4 md:text-sm">
                 {CLEFS[card[0] === "bass" ? "bass" : "treble"].label}
                 {isTrumpet ? " · B-trompet" : ""}
               </p>
             </div>
 
-            <div className="mt-3 space-y-3 md:mt-0">
-              {isTrumpet ? (
-                <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Øvingsmodus for trompet">
-                  {(
-                    [
-                      ["valves", "🎺 Ventilgrep (0, 1, 1-2…)"],
-                      ["names", "🎵 Notenavn (C–H)"],
-                    ] as const
-                  ).map(([m, label]) => (
-                    <button
-                      key={m}
-                      type="button"
-                      aria-pressed={activeMode === m}
-                      onClick={() => setDrillMode(m)}
-                      className={
-                        activeMode === m
-                          ? "min-h-11 rounded-lg bg-accent px-2 text-xs font-semibold text-bg"
-                          : "min-h-11 rounded-lg border border-line px-2 text-xs font-medium text-muted"
-                      }
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+            <div className="mt-3 space-y-3 md:mt-0 md:flex md:flex-col md:justify-between md:space-y-4 md:rounded-card md:border md:border-line md:bg-surface md:p-5 lg:p-6">
+              <div className="space-y-3 md:space-y-4">
+                {isTrumpet ? (
+                  <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Øvingsmodus for trompet">
+                    {(
+                      [
+                        ["valves", "🎺 Ventilgrep (0, 1, 1-2…)"],
+                        ["names", "🎵 Notenavn (C–H)"],
+                      ] as const
+                    ).map(([m, label]) => (
+                      <button
+                        key={m}
+                        type="button"
+                        aria-pressed={activeMode === m}
+                        onClick={() => setDrillMode(m)}
+                        className={
+                          activeMode === m
+                            ? "min-h-11 rounded-lg bg-accent px-2 text-xs font-semibold text-bg md:min-h-12 md:text-sm"
+                            : "min-h-11 rounded-lg border border-line px-2 text-xs font-medium text-muted md:min-h-12 md:text-sm"
+                        }
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
 
-              <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2">
-                <span className="text-xs font-medium text-muted">Neste kort etter svar</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={autoAdvance}
-                  onClick={() => {
-                    const next = !autoAdvance;
-                    setAutoAdvance(next);
-                    try {
-                      window.localStorage.setItem("musikkapp.notekortAutoAdvance", next ? "1" : "0");
-                    } catch {
-                      /* ignore */
+                <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-3 py-2 md:bg-header/50 md:px-4 md:py-2.5">
+                  <span className="text-xs font-medium text-muted md:text-sm">Neste kort etter svar</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={autoAdvance}
+                    onClick={() => {
+                      const next = !autoAdvance;
+                      setAutoAdvance(next);
+                      try {
+                        window.localStorage.setItem("musikkapp.notekortAutoAdvance", next ? "1" : "0");
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    className={
+                      autoAdvance
+                        ? "metro-press min-h-9 rounded-lg border border-accent bg-header px-3 text-xs font-semibold text-accent md:min-h-10 md:text-sm"
+                        : "metro-press min-h-9 rounded-lg border border-line bg-header px-3 text-xs font-semibold text-muted md:min-h-10 md:text-sm"
                     }
-                  }}
+                  >
+                    {autoAdvance ? "Auto-neste (0.8s)" : "Manuell"}
+                  </button>
+                </div>
+
+                <p
                   className={
-                    autoAdvance
-                      ? "metro-press min-h-9 rounded-lg border border-accent bg-header px-3 text-xs font-semibold text-accent"
-                      : "metro-press min-h-9 rounded-lg border border-line bg-header px-3 text-xs font-semibold text-muted"
+                    cur.session.kind === "ok"
+                      ? "min-h-8 text-center text-lg font-semibold text-ok md:text-xl"
+                      : cur.session.kind === "no"
+                        ? "min-h-8 text-center text-lg font-semibold text-no md:text-xl"
+                        : "min-h-8 text-center text-lg font-semibold md:text-xl"
                   }
                 >
-                  {autoAdvance ? "Auto-neste (0.8s)" : "Manuell"}
-                </button>
+                  {cur.session.feedback || "\u00a0"}
+                </p>
+
+                {activeMode === "valves" ? (
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-7 md:grid-cols-4 md:gap-2.5">
+                    {VALVE_COMBOS.map((combo) => (
+                      <button
+                        key={combo}
+                        type="button"
+                        disabled={cur.session.locked}
+                        onClick={() => answerValve(combo)}
+                        className="answer-key min-h-14 text-lg font-bold md:min-h-16 md:text-xl"
+                      >
+                        {combo}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="answer-row md:gap-2 md:p-3">
+                    {LETTERS.map((letter, index) => (
+                      <button
+                        key={letter}
+                        type="button"
+                        disabled={cur.session.locked}
+                        onClick={() => answer(index)}
+                        className="answer-key min-h-14 text-xl md:min-h-20 md:text-2xl"
+                      >
+                        {letter === "B" && cur.stored.lang === "no" ? "H" : letter}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <p
-                className={
-                  cur.session.kind === "ok"
-                    ? "min-h-8 text-center text-lg font-semibold text-ok"
-                    : cur.session.kind === "no"
-                      ? "min-h-8 text-center text-lg font-semibold text-no"
-                      : "min-h-8 text-center text-lg font-semibold"
-                }
-              >
-                {cur.session.feedback || "\u00a0"}
-              </p>
-
-              {activeMode === "valves" ? (
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-7 md:grid-cols-4">
-                  {VALVE_COMBOS.map((combo) => (
-                    <button
-                      key={combo}
-                      type="button"
-                      disabled={cur.session.locked}
-                      onClick={() => answerValve(combo)}
-                      className="answer-key min-h-14 text-lg font-bold"
-                    >
-                      {combo}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="answer-row">
-                  {LETTERS.map((letter, index) => (
-                    <button
-                      key={letter}
-                      type="button"
-                      disabled={cur.session.locked}
-                      onClick={() => answer(index)}
-                      className="answer-key min-h-14 text-xl md:min-h-16"
-                    >
-                      {letter === "B" && cur.stored.lang === "no" ? "H" : letter}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="min-h-12">
+              <div className="min-h-12 md:min-h-14">
                 {cur.session.locked ? (
                   <button
                     type="button"
@@ -465,7 +469,7 @@ export function NoteCards() {
                       clearContinue();
                       nextCard();
                     }}
-                    className="metro-press min-h-12 w-full rounded-xl bg-accent text-base font-bold text-[#1a1408]"
+                    className="metro-press min-h-12 w-full rounded-xl bg-accent text-base font-bold text-[#1a1408] md:min-h-14 md:text-lg"
                   >
                     Neste kort
                   </button>
@@ -480,7 +484,7 @@ export function NoteCards() {
           </div>
         )
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 md:items-start md:gap-4">
+        <div className="grid gap-3 md:grid-cols-[0.95fr_1.05fr] md:items-start md:gap-5">
           <div className="space-y-3">
             <div className="rounded-card border border-line bg-surface p-4">
               <h2 className="text-sm font-semibold">{isTrumpet ? "Trompet-register" : "Instrument"}</h2>
