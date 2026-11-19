@@ -5,14 +5,11 @@ const SHELL = [
   "/favicon.svg",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
-  "/malletsight/markup.html",
-  "/malletsight/app.css",
   "/malletsight/abcjs.js",
   "/malletsight/theory.js",
   "/malletsight/generator.js",
   "/malletsight/renderer.js",
   "/malletsight/audio.js",
-  "/malletsight/app.js",
 ];
 const PDFJS_CDN_PREFIX = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/";
 const PDF_LIB_CDN_PREFIX = "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/";
