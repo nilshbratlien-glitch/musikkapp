@@ -7,7 +7,9 @@ import {
   clampZoom,
   compactSyncSettings,
   detectLevelIndex,
+  incrementDailyEtudeCount,
   loadBladlesingSettings,
+  loadDailyEtudeCount,
   saveBladlesingSettings,
   type BladlesingSettings,
   type DuetViewPart,
@@ -42,6 +44,7 @@ export interface BladlesingControllerState {
   countInBeat: number | null;
   autoNextLeft: number | null;
   duetPaired: boolean;
+  dailyCount: number;
   practiceLine: string;
   levelIndex: number;
 }
@@ -118,6 +121,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
   const [yieldColor, setYieldColor] = useState<string | null>(() => activeBlockColor());
   const [countInBeat, setCountInBeat] = useState<number | null>(null);
   const [autoNextLeft, setAutoNextLeft] = useState<number | null>(null);
+  const [dailyCount, setDailyCount] = useState<number>(() => loadDailyEtudeCount());
 
   const engineRef = useRef<BladlesingEngine | null>(null);
   const settingsRef = useRef<BladlesingSettings>(settings);
@@ -205,6 +209,16 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
     setSettingsState(next);
     saveBladlesingSettings(profileRef.current, next);
   }, []);
+
+  const recordCompletedEtude = useCallback(() => {
+    setDailyCount(incrementDailyEtudeCount());
+    if (settingsRef.current.flowTempoRamp) {
+      const ramped = Math.min(160, settingsRef.current.tempo + 4);
+      if (ramped !== settingsRef.current.tempo) {
+        persistSettings({ ...settingsRef.current, tempo: ramped });
+      }
+    }
+  }, [persistSettings]);
 
   const stopPlaybackOnly = useCallback(() => {
     cancelAutoNext();
@@ -348,6 +362,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
         setActiveBeat(-1);
         clearFadedMeasures();
         eng.ScoreRenderer.clearBeat();
+        recordCompletedEtude();
         if (settingsRef.current.flowAutoNext && !remoteCallRef.current) {
           generate();
           const raw = settingsRef.current.flowAutoNextDelay;
@@ -367,7 +382,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
         }
       },
     });
-  }, [cancelAutoNext, clearFadedMeasures, fadeCompletedMeasures, generate, getMetroSpec]);
+  }, [cancelAutoNext, clearFadedMeasures, fadeCompletedMeasures, generate, getMetroSpec, recordCompletedEtude]);
 
   const startPlayInternal = useCallback(
     (forceGenerate = false) => {
@@ -425,6 +440,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
           setActiveBeat(-1);
           clearFadedMeasures();
           eng.ScoreRenderer.clearBeat();
+          recordCompletedEtude();
           if (metroBeforePlayRef.current) {
             startMetroInternal();
           } else {
@@ -457,7 +473,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
       }
       return true;
     },
-    [cancelAutoNext, clearFadedMeasures, fadeCompletedMeasures, generate, getMetroSpec, startMetroInternal],
+    [cancelAutoNext, clearFadedMeasures, fadeCompletedMeasures, generate, getMetroSpec, recordCompletedEtude, startMetroInternal],
   );
 
   const startAutoNextNow = useCallback(() => {
@@ -949,6 +965,43 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
     updateSettings,
   ]);
 
+  // Keep tablet screen awake while Bladlesing is open on a music stand
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    let sentinel: { release: () => Promise<void> } | null = null;
+    let disposed = false;
+
+    const acquire = () => {
+      if (disposed || document.visibilityState !== "visible") return;
+      const wl = (navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+      if (!wl) return;
+      void wl
+        .request("screen")
+        .then((s) => {
+          if (disposed) {
+            void s.release().catch(() => {});
+          } else {
+            sentinel = s;
+          }
+        })
+        .catch(() => {});
+    };
+
+    acquire();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") acquire();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      disposed = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (sentinel) {
+        void sentinel.release().catch(() => {});
+        sentinel = null;
+      }
+    };
+  }, []);
+
   // Stop audio only when Bladlesing actually unmounts (leaving the tab)
   useEffect(() => {
     return () => {
@@ -974,6 +1027,7 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
     countInBeat,
     autoNextLeft,
     duetPaired,
+    dailyCount,
     practiceLine: formatPracticeLine(engine, settings, score),
     levelIndex: detectLevelIndex(settings),
   };

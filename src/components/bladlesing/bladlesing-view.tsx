@@ -1,5 +1,7 @@
 import {
   Activity,
+  Maximize2,
+  Minimize2,
   Minus,
   Play,
   Plus,
@@ -11,7 +13,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BladlesingFlowPopover } from "@/components/bladlesing/bladlesing-flow-popover";
 import { BladlesingScoreStage } from "@/components/bladlesing/bladlesing-score-stage";
 import { BladlesingSettingsDrawer } from "@/components/bladlesing/bladlesing-settings-drawer";
@@ -23,13 +25,31 @@ export function BladlesingView() {
   const { state, actions } = useBladlesingController(scoreHostRef);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [flowOpen, setFlowOpen] = useState(false);
+  const [standMode, setStandMode] = useState(false);
+
+  useEffect(() => {
+    if (!standMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setStandMode(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [standMode]);
 
   const recipes = recipesForProfile(state.profile);
   const activeRecipeId = matchActiveRecipeId(state.settings, state.profile);
-  const flowActive = state.settings.flowAutoNext || state.settings.flowDisappearing;
+  const flowActive =
+    state.settings.flowAutoNext || state.settings.flowDisappearing || state.settings.flowTempoRamp;
 
   return (
-    <div id="malletsight-root" className="relative flex h-full min-h-0 flex-col overflow-hidden bg-bg text-fg">
+    <div
+      id="malletsight-root"
+      className={
+        standMode
+          ? "fixed inset-0 z-30 flex h-full min-h-0 flex-col overflow-hidden bg-bg text-fg"
+          : "relative flex h-full min-h-0 flex-col overflow-hidden bg-bg text-fg"
+      }
+    >
       {flowOpen ? (
         <div
           className="fixed inset-0 z-20"
@@ -168,6 +188,26 @@ export function BladlesingView() {
               </button>
             </div>
 
+            {/* Notestativ-modus (fullskjerm) */}
+            <button
+              type="button"
+              onClick={() => setStandMode((s) => !s)}
+              aria-pressed={standMode}
+              aria-label={standMode ? "Avslutt notestativ-modus" : "Notestativ-modus (fullskjerm)"}
+              title={standMode ? "Avslutt fullskjerm (Esc)" : "Notestativ-modus (fullskjerm)"}
+              className={
+                standMode
+                  ? "metro-press hidden size-9 items-center justify-center rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] text-accent sm:inline-flex"
+                  : "metro-press hidden size-9 items-center justify-center rounded-xl border border-line bg-header text-muted hover:text-fg sm:inline-flex"
+              }
+            >
+              {standMode ? (
+                <Minimize2 className="size-3.5" aria-hidden="true" />
+              ) : (
+                <Maximize2 className="size-3.5" aria-hidden="true" />
+              )}
+            </button>
+
             {/* Settings button */}
             <button
               id="btnSettings"
@@ -182,25 +222,27 @@ export function BladlesingView() {
         </div>
 
         {/* Mobile Quick Practice Recipes strip */}
-        <div className="flex items-center gap-1.5 overflow-x-auto border-t border-line px-2.5 py-1.5 md:hidden">
-          {recipes.map((recipe) => {
-            const active = activeRecipeId === recipe.id;
-            return (
-              <button
-                key={recipe.id}
-                type="button"
-                onClick={() => actions.applyRecipe(recipe)}
-                className={
-                  active
-                    ? "metro-press min-h-7 shrink-0 rounded-full border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2.5 text-[11px] font-semibold text-accent"
-                    : "metro-press min-h-7 shrink-0 rounded-full border border-line bg-header px-2.5 text-[11px] font-medium text-muted"
-                }
-              >
-                {recipe.label}
-              </button>
-            );
-          })}
-        </div>
+        {!standMode ? (
+          <div className="flex items-center gap-1.5 overflow-x-auto border-t border-line px-2.5 py-1.5 md:hidden">
+            {recipes.map((recipe) => {
+              const active = activeRecipeId === recipe.id;
+              return (
+                <button
+                  key={recipe.id}
+                  type="button"
+                  onClick={() => actions.applyRecipe(recipe)}
+                  className={
+                    active
+                      ? "metro-press min-h-7 shrink-0 rounded-full border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] px-2.5 text-[11px] font-semibold text-accent"
+                      : "metro-press min-h-7 shrink-0 rounded-full border border-line bg-header px-2.5 text-[11px] font-medium text-muted"
+                  }
+                >
+                  {recipe.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       {/* Main score stage */}
@@ -216,6 +258,7 @@ export function BladlesingView() {
         beatsPerBar={state.beatsPerBar}
         autoNextLeft={state.autoNextLeft}
         duetPaired={state.duetPaired}
+        dailyCount={state.dailyCount}
         onZoomChange={actions.setZoom}
         onSwipeNext={() => actions.generate()}
         onSwipeAgain={() => actions.again()}

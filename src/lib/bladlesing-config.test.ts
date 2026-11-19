@@ -12,7 +12,9 @@ import {
   clampZoom,
   compactSyncSettings,
   detectLevelIndex,
+  incrementDailyEtudeCount,
   loadBladlesingSettings,
+  loadDailyEtudeCount,
   matchActiveRecipeId,
   saveBladlesingSettings,
 } from "./bladlesing-config.ts";
@@ -57,11 +59,13 @@ describe("bladlesing config, levels & recipes", () => {
     assert.equal(mallets.instrumentId, "mar50");
     assert.equal(mallets.flowCountIn, true);
     assert.equal(mallets.flowAutoNext, false);
+    assert.equal(mallets.flowTempoRamp, false);
 
-    saveBladlesingSettings("mallets", { ...mallets, tempo: 108, flowDisappearing: true });
+    saveBladlesingSettings("mallets", { ...mallets, tempo: 108, flowDisappearing: true, flowTempoRamp: true });
     const reloaded = loadBladlesingSettings("mallets");
     assert.equal(reloaded.tempo, 108);
     assert.equal(reloaded.flowDisappearing, true);
+    assert.equal(reloaded.flowTempoRamp, true);
 
     const trumpet = loadBladlesingSettings("trumpet");
     assert.equal(trumpet.instrumentId, "trumpet");
@@ -93,9 +97,16 @@ describe("bladlesing config, levels & recipes", () => {
   });
 
   it("omits local-only fields (zoom, flow, duet mute/view) from compactSyncSettings", () => {
-    const sync = compactSyncSettings({ ...DEFAULTS, zoom: 1.4, flowAutoNext: true, duetViewPart: "trumpet" });
+    const sync = compactSyncSettings({
+      ...DEFAULTS,
+      zoom: 1.4,
+      flowAutoNext: true,
+      flowTempoRamp: true,
+      duetViewPart: "trumpet",
+    });
     assert.equal("zoom" in sync, false);
     assert.equal("flowAutoNext" in sync, false);
+    assert.equal("flowTempoRamp" in sync, false);
     assert.equal("duetViewPart" in sync, false);
     assert.equal(sync.instrumentId, "mar50");
   });
@@ -104,5 +115,13 @@ describe("bladlesing config, levels & recipes", () => {
     assert.equal(clampZoom(0.2), 0.7);
     assert.equal(clampZoom(2.5), 1.6);
     assert.equal(clampZoom(1.156), 1.16);
+  });
+
+  it("tracks completed etude count per calendar day and resets on a new day", () => {
+    assert.equal(loadDailyEtudeCount("2026-11-19"), 0);
+    assert.equal(incrementDailyEtudeCount("2026-11-19"), 1);
+    assert.equal(incrementDailyEtudeCount("2026-11-19"), 2);
+    assert.equal(loadDailyEtudeCount("2026-11-19"), 2);
+    assert.equal(loadDailyEtudeCount("2026-11-20"), 0);
   });
 });

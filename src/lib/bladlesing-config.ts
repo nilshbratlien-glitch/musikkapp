@@ -66,6 +66,8 @@ export interface BladlesingSettings {
   flowAutoNextDelay: number;
   /** Sight-Reading Flow Mode ("Les forover"): fade out measures as playback enters them. */
   flowDisappearing: boolean;
+  /** Sight-Reading Flow Mode: increase tempo by +4 BPM after each completed etude (max 160). */
+  flowTempoRamp: boolean;
 }
 
 export interface LevelPreset {
@@ -100,6 +102,7 @@ export const LOCAL_ONLY_SETTING_KEYS = new Set<keyof BladlesingSettings>([
   "flowAutoNext",
   "flowAutoNextDelay",
   "flowDisappearing",
+  "flowTempoRamp",
 ]);
 
 export const DEFAULTS: BladlesingSettings = {
@@ -161,6 +164,7 @@ export const DEFAULTS: BladlesingSettings = {
   flowAutoNext: false,
   flowAutoNextDelay: 10,
   flowDisappearing: false,
+  flowTempoRamp: false,
 };
 
 export const TRUMPET_DEFAULTS: BladlesingSettings = {
@@ -542,4 +546,43 @@ export function saveBladlesingSettings(profile: InstrumentProfile, settings: Bla
 
 export function clampZoom(zoom: number): number {
   return Math.round(Math.min(1.6, Math.max(0.7, zoom)) * 100) / 100;
+}
+
+const DAILY_ETUDE_KEY = "musikkapp.bladlesing.daily";
+
+function todayIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function loadDailyEtudeCount(dateKey: string = todayIso()): number {
+  const storage = browserStorage();
+  if (!storage) return 0;
+  try {
+    const raw = storage.getItem(DAILY_ETUDE_KEY);
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw) as { date?: string; count?: number };
+    if (parsed.date === dateKey && typeof parsed.count === "number" && parsed.count >= 0) {
+      return Math.floor(parsed.count);
+    }
+  } catch {
+    /* ignore */
+  }
+  return 0;
+}
+
+export function incrementDailyEtudeCount(dateKey: string = todayIso()): number {
+  const next = loadDailyEtudeCount(dateKey) + 1;
+  const storage = browserStorage();
+  if (storage) {
+    try {
+      storage.setItem(DAILY_ETUDE_KEY, JSON.stringify({ date: dateKey, count: next }));
+    } catch {
+      /* ignore */
+    }
+  }
+  return next;
 }

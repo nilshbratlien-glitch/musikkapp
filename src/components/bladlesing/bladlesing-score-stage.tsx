@@ -14,6 +14,7 @@ export function BladlesingScoreStage({
   beatsPerBar,
   autoNextLeft,
   duetPaired,
+  dailyCount,
   onZoomChange,
   onSwipeNext,
   onSwipeAgain,
@@ -34,6 +35,7 @@ export function BladlesingScoreStage({
   beatsPerBar: number;
   autoNextLeft: number | null;
   duetPaired: boolean;
+  dailyCount: number;
   onZoomChange: (zoom: number) => void;
   onSwipeNext: () => void;
   onSwipeAgain: () => void;
@@ -123,33 +125,43 @@ export function BladlesingScoreStage({
           >
             {practiceLine}
           </p>
-          {countInBeat != null ? (
-            <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold text-accent-fg tabular-nums">
-              Opptelling {countInBeat}/{beatsPerBar}
-            </span>
-          ) : autoNextLeft != null ? (
-            <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[rgb(var(--color-accent-rgb)/0.4)] bg-[rgb(var(--color-accent-rgb)/0.1)] px-2.5 py-0.5 text-xs font-semibold text-accent tabular-nums">
-              <span>Les gjennom · starter om {autoNextLeft}s</span>
-              <button
-                type="button"
-                onClick={onStartAutoNextNow}
-                className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-fg"
+          <div className="flex shrink-0 items-center gap-1.5">
+            {countInBeat != null ? (
+              <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 text-xs font-bold text-accent-fg tabular-nums">
+                Opptelling {countInBeat}/{beatsPerBar}
+              </span>
+            ) : autoNextLeft != null ? (
+              <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[rgb(var(--color-accent-rgb)/0.4)] bg-[rgb(var(--color-accent-rgb)/0.1)] px-2.5 py-0.5 text-xs font-semibold text-accent tabular-nums">
+                <span>Les gjennom · starter om {autoNextLeft}s</span>
+                <button
+                  type="button"
+                  onClick={onStartAutoNextNow}
+                  className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-accent-fg"
+                >
+                  Start nå
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancelAutoNext}
+                  className="underline decoration-accent underline-offset-2 hover:text-fg"
+                >
+                  Avbryt
+                </button>
+              </span>
+            ) : gestureHint ? (
+              <span className="shrink-0 rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs font-semibold text-fg">
+                {gestureHint}
+              </span>
+            ) : null}
+            {dailyCount > 0 ? (
+              <span
+                title="Fullførte etyder i dag"
+                className="shrink-0 rounded-full border border-line bg-surface px-2.5 py-0.5 text-[11px] font-semibold text-muted tabular-nums"
               >
-                Start nå
-              </button>
-              <button
-                type="button"
-                onClick={onCancelAutoNext}
-                className="underline decoration-accent underline-offset-2 hover:text-fg"
-              >
-                Avbryt
-              </button>
-            </span>
-          ) : gestureHint ? (
-            <span className="shrink-0 rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs font-semibold text-fg">
-              {gestureHint}
-            </span>
-          ) : null}
+                {dailyCount} {dailyCount === 1 ? "etyde" : "etyder"} i dag
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <BladlesingDuetBar
