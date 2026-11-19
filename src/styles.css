@@ -313,3 +313,55 @@ html[data-theme="light"] .staff-card {
   background: currentColor;
 }
 
+/* Bladlesing (abcjs SVG notation + accessible hidden selects + Les forover fade) */
+.sr-only-select {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.bladlesing-paper .score-inner {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.bladlesing-paper .score-inner svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.bladlesing-paper .score-meta {
+  font-size: 12px;
+  color: #5c564c;
+  padding: 6px 10px 0;
+  letter-spacing: 0.02em;
+}
+
+.bladlesing-paper .abc-wrap .abcjs-title {
+  font-size: 14px !important;
+  fill: #5c564c !important;
+}
+
+.bladlesing-paper .beat-hot,
+.bladlesing-paper .beat-hot * {
+  fill: #d6452e !important;
+  stroke: #d6452e !important;
+}
+
+.bladlesing-paper .beat-cursor {
+  pointer-events: none;
+}
+
+.bladlesing-paper .measure-faded {
+  opacity: 0.08;
+  transition: opacity 320ms ease;
+}
+
+

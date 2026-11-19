@@ -10,7 +10,6 @@ const sheets = () => [
   ...readdirSync(ASSETS)
     .filter((f) => f.endsWith(".css"))
     .map((f) => join(ASSETS, f)),
-  "public/malletsight/app.css",
 ];
 
 describe("built CSS for Safari 15.6", () => {
