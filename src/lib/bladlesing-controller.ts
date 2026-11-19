@@ -761,7 +761,16 @@ export function useBladlesingController(scoreHostRef: React.RefObject<HTMLDivEle
         updateSettings({ duetEnabled: Boolean(on) }, { regenerate: true });
         return true;
       },
-      generate: () => generate(),
+      generate: () => {
+        const sel = document.querySelector<HTMLSelectElement>("#measures");
+        if (sel) {
+          const val = Number(sel.value);
+          if (Number.isFinite(val) && val > 0 && val !== settingsRef.current.measures) {
+            return generate({ customSettings: { ...settingsRef.current, measures: val } });
+          }
+        }
+        return generate();
+      },
       getScore: () => scoreRef.current,
       getTempo: () => settingsRef.current.tempo,
       getSeed: () => seedRef.current,

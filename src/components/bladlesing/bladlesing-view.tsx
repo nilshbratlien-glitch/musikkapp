@@ -63,8 +63,8 @@ export function BladlesingView() {
               }
               className={
                 state.settings.duetEnabled
-                  ? "on metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok md:hidden"
-                  : "metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg md:hidden"
+                  ? "on metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-ok bg-ok/15 px-2.5 text-xs font-semibold text-ok"
+                  : "metro-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl border border-line bg-header px-2.5 text-xs font-medium text-muted hover:text-fg"
               }
             >
               <Users className="size-3.5" aria-hidden="true" />

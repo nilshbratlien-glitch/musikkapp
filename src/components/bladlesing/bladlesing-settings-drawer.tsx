@@ -115,8 +115,8 @@ function SegPills({
             onClick={() => onChange(val)}
             className={
               active
-                ? "metro-press min-h-8 flex-1 rounded-lg border border-accent bg-accent/12 px-2 text-xs font-semibold whitespace-nowrap text-accent"
-                : "metro-press min-h-8 flex-1 rounded-lg border border-line bg-header px-2 text-xs font-medium whitespace-nowrap text-muted hover:text-fg"
+                ? "metro-press min-h-8 flex-1 rounded-lg border border-accent bg-accent/12 px-2 py-1 text-center text-xs leading-tight font-semibold text-accent"
+                : "metro-press min-h-8 flex-1 rounded-lg border border-line bg-header px-2 py-1 text-center text-xs leading-tight font-medium text-muted hover:text-fg"
             }
           >
             {label}
@@ -141,9 +141,9 @@ function PillSwitch({
   return (
     <label
       htmlFor={id}
-      className="flex min-h-9 cursor-pointer items-center justify-between gap-2 rounded-lg border border-line bg-header px-2.5 py-1 transition hover:border-accent/40"
+      className="flex min-h-9 cursor-pointer items-center justify-between gap-2 rounded-lg border border-line bg-header px-2.5 py-1.5 transition hover:border-accent/40"
     >
-      <span className="truncate text-xs font-medium text-fg">{label}</span>
+      <span className="text-xs leading-tight font-medium text-fg">{label}</span>
       <span className="relative inline-flex shrink-0 items-center">
         <input
           id={id}
@@ -918,7 +918,7 @@ export function BladlesingSettingsDrawer({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2.5">
                     <div className="space-y-1">
                       <label htmlFor="rolls" className="block text-xs font-medium text-muted">
                         Virvler
