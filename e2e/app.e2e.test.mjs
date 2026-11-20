@@ -2351,11 +2351,24 @@ describe("Lenovo tablet Pro suite", () => {
     await viewer.getByRole("button", { name: "Bekreft", exact: true }).click();
     await viewer.getByText("Subito pp").waitFor({ state: "visible" });
 
-    // Stylus handwriting box: touchAction auto, quick-expression chip, and tap-outside auto-commit
+    // Stylus handwriting box: touchAction auto on input AND all ancestors, quick-expression chip, and tap-outside auto-commit
     await page.mouse.click(box.x + box.width * 0.2, box.y + box.height * 0.2);
     await textInput.waitFor({ state: "visible" });
-    const inputTouchAction = await textInput.evaluate((el) => getComputedStyle(el).touchAction);
-    assert.equal(inputTouchAction, "auto", "text input allows OS Direct Stylus Handwriting");
+    const blockedTouchActions = await textInput.evaluate((el) => {
+      const blocked = [];
+      let cur = el;
+      while (cur) {
+        const ta = getComputedStyle(cur).touchAction;
+        if (ta === "none") blocked.push(cur.tagName);
+        cur = cur.parentElement;
+      }
+      return blocked;
+    });
+    assert.deepEqual(
+      blockedTouchActions,
+      [],
+      "no ancestor of Tekstnotat may have touch-action: none while open (blocks Android Direct Stylus Handwriting)",
+    );
     await viewer.getByRole("button", { name: "rit.", exact: true }).click();
     assert.equal(await textInput.inputValue(), "rit.");
     await page.mouse.click(box.x + box.width * 0.9, box.y + box.height * 0.9);

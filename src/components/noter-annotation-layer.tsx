@@ -69,6 +69,7 @@ export type NoterAnnotationLayerProps = {
   onDeleteJumpLink?: (id: string) => void;
   onActivateJumpLink?: (link: JumpLink) => void;
   onViewDragActiveChange?: (active: boolean) => void;
+  onTextDraftOpenChange?: (pageNumber: number, open: boolean) => void;
 };
 
 type TextDraft = {
@@ -541,6 +542,7 @@ export function NoterAnnotationLayer({
   onDeleteJumpLink,
   onActivateJumpLink,
   onViewDragActiveChange,
+  onTextDraftOpenChange,
 }: NoterAnnotationLayerProps) {
   const [draftStroke, setDraftStroke] = useState<StrokeAnnotation | null>(null);
   const [erasedIds, setErasedIds] = useState<Set<string>>(() => new Set());
@@ -637,6 +639,14 @@ export function NoterAnnotationLayer({
     setTextDraft(null);
     setLinkDraft(null);
   }, [pageNumber]);
+
+  const isTextDraftOpen = textDraft !== null;
+  useEffect(() => {
+    onTextDraftOpenChange?.(pageNumber, isTextDraftOpen);
+    return () => {
+      onTextDraftOpenChange?.(pageNumber, false);
+    };
+  }, [pageNumber, isTextDraftOpen, onTextDraftOpenChange]);
 
   const normRegion = normalizeCropRect(region);
   const viewBox = getAnnotationSvgViewBox(normRegion);
@@ -1290,11 +1300,11 @@ export function NoterAnnotationLayer({
       }}
       style={{
         touchAction: textDraft ? "auto" : "none",
-        WebkitTouchCallout: "none",
+        WebkitTouchCallout: textDraft ? "default" : "none",
         width: width > 0 ? `${width}px` : undefined,
         height: height > 0 ? `${height}px` : undefined,
       }}
-      className="absolute inset-0 z-10 select-none"
+      className={textDraft ? "absolute inset-0 z-10 select-text" : "absolute inset-0 z-10 select-none"}
     >
       <CommittedAnnotationsSvg
         items={items}
