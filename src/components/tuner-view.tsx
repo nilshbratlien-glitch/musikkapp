@@ -99,6 +99,7 @@ export function TunerView() {
   profileRef.current = profile;
 
   const micCtxRef = useRef<AudioContext | null>(null);
+  const micSessionRef = useRef(0);
   const streamRef = useRef<MediaStream | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -288,6 +289,7 @@ export function TunerView() {
   }, []);
 
   const stopMic = useCallback(() => {
+    micSessionRef.current += 1;
     const hadMic = Boolean(streamRef.current || micCtxRef.current || rafRef.current !== null);
     if (rafRef.current !== null) {
       window.cancelAnimationFrame(rafRef.current);
@@ -321,6 +323,12 @@ export function TunerView() {
       void toClose.close().catch(() => {});
     }
     if (hadMic) {
+      try {
+        const nav = navigator as Navigator & { audioSession?: { type: string } };
+        if (nav.audioSession) nav.audioSession.type = "playback";
+      } catch {
+        /* ignore */
+      }
       // Android/iOS switches hardware audio routing back from capture to media mode after closing mic.
       // Marking the shared playback AudioContext stale ensures the next sound tap gets a fresh media route.
       markAudioRouteStale();
@@ -343,21 +351,64 @@ export function TunerView() {
       setMicError("Kunne ikke starte lydmotoren.");
       return;
     }
+
+    // Stop any playing drone before opening the mic so Bluetooth doesn't collide between A2DP and HFP.
+    stopTunerDrone();
+    setActiveDroneMidi(null);
+
+    const session = ++micSessionRef.current;
     try {
+      // Prefer the tablet's built-in microphone over a Bluetooth headset mic so Bluetooth stays in media mode.
+      let preferredDeviceId: string | undefined;
+      if (typeof navigator.mediaDevices.enumerateDevices === "function") {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const inputs = devices.filter((d) => d.kind === "audioinput" && d.deviceId && d.deviceId !== "default");
+          const isBluetooth = (label: string) => /bluetooth|headset|hands-free|handsfree|airpods|buds|sco|hfp/i.test(label);
+          const builtin = inputs.find((d) => d.label && !isBluetooth(d.label));
+          if (builtin) preferredDeviceId = builtin.deviceId;
+        } catch {
+          /* ignore */
+        }
+      }
+
+      const audioConstraints: MediaTrackConstraints = {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        channelCount: 1,
+        ...(preferredDeviceId ? { deviceId: { ideal: preferredDeviceId } } : {}),
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+      if (session !== micSessionRef.current) {
+        for (const track of stream.getTracks()) {
+          try {
+            track.stop();
+          } catch {
+            /* ignore */
+          }
+        }
+        return;
+      }
+
       // Dedicated capture-only AudioContext so mic lifecycle never disrupts shared playback audio.
       const micCtx = new AudioCtx();
       micCtxRef.current = micCtx;
       if (micCtx.state !== "running") {
         await micCtx.resume().catch(() => {});
       }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      if (session !== micSessionRef.current) {
+        for (const track of stream.getTracks()) {
+          try {
+            track.stop();
+          } catch {
+            /* ignore */
+          }
+        }
+        void micCtx.close().catch(() => {});
+        return;
+      }
 
       const source = micCtx.createMediaStreamSource(stream);
       const analyser = micCtx.createAnalyser();
@@ -376,7 +427,7 @@ export function TunerView() {
       const tick = () => {
         const an = analyserRef.current;
         const cap = micCtxRef.current;
-        if (!an || !cap) return;
+        if (!an || !cap || session !== micSessionRef.current) return;
         an.getFloatTimeDomainData(buf);
         const now = performance.now();
 
@@ -416,14 +467,16 @@ export function TunerView() {
 
       rafRef.current = window.requestAnimationFrame(tick);
     } catch (err) {
-      stopMic();
-      const msg = err instanceof Error ? err.name : "";
-      if (msg === "NotAllowedError" || msg === "PermissionDeniedError") {
-        setMicError("Mikrofontilgang ble avslått. Gi tilgang til mikrofon i nettleseren og prøv igjen.");
-      } else if (msg === "NotFoundError") {
-        setMicError("Fant ingen mikrofon på denne enheten.");
-      } else {
-        setMicError("Kunne ikke åpne mikrofonen. Sjekk tilgang og prøv igjen.");
+      if (session === micSessionRef.current) {
+        stopMic();
+        const msg = err instanceof Error ? err.name : "";
+        if (msg === "NotAllowedError" || msg === "PermissionDeniedError") {
+          setMicError("Mikrofontilgang ble avslått. Gi tilgang til mikrofon i nettleseren og prøv igjen.");
+        } else if (msg === "NotFoundError") {
+          setMicError("Fant ingen mikrofon på denne enheten.");
+        } else {
+          setMicError("Kunne ikke åpne mikrofonen. Sjekk tilgang og prøv igjen.");
+        }
       }
     }
   }, [drawTrace, stopMic]);
@@ -451,11 +504,15 @@ export function TunerView() {
         setActiveDroneMidi(null);
         return;
       }
+      // Ensure mic capture is stopped before playing drone so Bluetooth stays on A2DP media audio.
+      if (streamRef.current || micCtxRef.current) {
+        stopMic();
+      }
       if (startTunerDrone(midi, settingsRef.current.a4Hz, settingsRef.current.droneWave)) {
         setActiveDroneMidi(midi);
       }
     },
-    [activeDroneMidi],
+    [activeDroneMidi, stopMic],
   );
 
   const handleStopDrone = useCallback(() => {

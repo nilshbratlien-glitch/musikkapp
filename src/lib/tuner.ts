@@ -1,5 +1,5 @@
 import { getProfile, type InstrumentProfile } from "./profile.ts";
-import { audio, unlock } from "./pulse.ts";
+import { audio, output, unlock } from "./pulse.ts";
 import { readToolStore, writeToolStore } from "./tools.ts";
 
 /** Norwegian chromatic pitch-class names (B = Bb, H = B natural). */
@@ -349,9 +349,16 @@ export function startTunerDrone(
   wave: DroneWave = "triangle",
 ): boolean {
   stopTunerDrone();
+  try {
+    const nav = globalThis.navigator as (Navigator & { audioSession?: { type: string } }) | undefined;
+    if (nav?.audioSession) nav.audioSession.type = "playback";
+  } catch {
+    /* ignore */
+  }
   const ctx = unlock() ?? audio();
   if (!ctx) return false;
   try {
+    const dest = output() ?? ctx.destination;
     const freq = midiToFrequency(concertMidi, a4Hz);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -373,7 +380,7 @@ export function startTunerDrone(
     const now = ctx.currentTime;
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(wave === "triangle" ? 0.16 : 0.2, now + 0.04);
-    gain.connect(ctx.destination);
+    gain.connect(dest);
     osc.start(now);
 
     const handle: ActiveDrone = { osc, filter, gain, midi: concertMidi };
