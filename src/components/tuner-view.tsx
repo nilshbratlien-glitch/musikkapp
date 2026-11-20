@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { getProfile, getProfileVersion, subscribeProfile } from "@/lib/profile";
-import { audio as getSharedAudioContext, unlock as unlockPulse } from "@/lib/pulse";
+import { markAudioRouteStale } from "@/lib/pulse";
 import {
   DEFAULT_A4_HZ,
   MAX_A4_HZ,
@@ -50,7 +50,9 @@ const QUICK_DRONE_NOTES: ReadonlyArray<{ label: string; midi: number }> = [
   { label: "F4", midi: 65 },
 ];
 
-const GAUGE_TICKS = [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50] as const;
+const GAUGE_TICKS: readonly number[] = [
+  -50, -45, -40, -35, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50,
+];
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -96,6 +98,7 @@ export function TunerView() {
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
+  const micCtxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -285,6 +288,7 @@ export function TunerView() {
   }, []);
 
   const stopMic = useCallback(() => {
+    const hadMic = Boolean(streamRef.current || micCtxRef.current || rafRef.current !== null);
     if (rafRef.current !== null) {
       window.cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -311,6 +315,16 @@ export function TunerView() {
       }
       streamRef.current = null;
     }
+    if (micCtxRef.current) {
+      const toClose = micCtxRef.current;
+      micCtxRef.current = null;
+      void toClose.close().catch(() => {});
+    }
+    if (hadMic) {
+      // Android/iOS switches hardware audio routing back from capture to media mode after closing mic.
+      // Marking the shared playback AudioContext stale ensures the next sound tap gets a fresh media route.
+      markAudioRouteStale();
+    }
     smootherRef.current.reset();
     setListening(false);
     setIsLiveSignal(false);
@@ -323,14 +337,18 @@ export function TunerView() {
       setMicError("Nettleseren støtter ikke mikrofontilgang i denne visningen.");
       return;
     }
+    const AudioCtx =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) {
+      setMicError("Kunne ikke starte lydmotoren.");
+      return;
+    }
     try {
-      const ctx = unlockPulse() ?? getSharedAudioContext();
-      if (!ctx) {
-        setMicError("Kunne ikke starte lydmotoren.");
-        return;
-      }
-      if (ctx.state !== "running") {
-        await ctx.resume().catch(() => {});
+      // Dedicated capture-only AudioContext so mic lifecycle never disrupts shared playback audio.
+      const micCtx = new AudioCtx();
+      micCtxRef.current = micCtx;
+      if (micCtx.state !== "running") {
+        await micCtx.resume().catch(() => {});
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -341,8 +359,8 @@ export function TunerView() {
         },
       });
 
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
+      const source = micCtx.createMediaStreamSource(stream);
+      const analyser = micCtx.createAnalyser();
       analyser.fftSize = 4096;
       analyser.smoothingTimeConstant = 0;
       source.connect(analyser);
@@ -357,7 +375,8 @@ export function TunerView() {
       const buf = new Float32Array(analyser.fftSize);
       const tick = () => {
         const an = analyserRef.current;
-        if (!an) return;
+        const cap = micCtxRef.current;
+        if (!an || !cap) return;
         an.getFloatTimeDomainData(buf);
         const now = performance.now();
 
@@ -366,7 +385,7 @@ export function TunerView() {
         const rms = Math.sqrt(sumSq / buf.length);
         setInputLevel(Math.min(1, rms * 6));
 
-        const detected = detectPitchYin(buf, ctx.sampleRate, {
+        const detected = detectPitchYin(buf, cap.sampleRate, {
           minHz: 32,
           maxHz: 2200,
           minRms: 0.012,

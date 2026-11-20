@@ -108,6 +108,20 @@ export function unlock() {
   return audio();
 }
 
+/**
+ * Mark the shared AudioContext as stale (e.g. after releasing a microphone capture stream
+ * when Android/iOS switches audio routing back from communication mode to media playback).
+ * The next user-gesture unlock() will cleanly renew the AudioContext on the fresh output route.
+ */
+export function markAudioRouteStale() {
+  if (!ctx) return;
+  if (state.running) {
+    void ctx.resume().catch(() => {});
+  } else {
+    spent = true;
+  }
+}
+
 function forget() {
   spent = false;
   ctx = null;
