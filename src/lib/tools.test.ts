@@ -55,7 +55,7 @@ describe("tool namespaces and routes", () => {
     assert.equal(toolForPath("/bladlesing").id, "bladlesing");
     assert.equal(toolForPath("/metronom").id, "metronom");
     assert.equal(toolForPath("/oveplan").id, "oveplan");
-    assert.equal(toolForPath("/notekort").id, "notekort");
+    assert.equal(toolForPath("/tuner").id, "tuner");
     assert.equal(toolForPath("/noter").id, "noter");
     assert.equal(toolForPath("/ukjent").id, "oveplan");
   });

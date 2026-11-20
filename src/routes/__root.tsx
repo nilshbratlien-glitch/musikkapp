@@ -13,7 +13,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
-      { name: "description", content: "Bladlesing, metronom, øveplan og notekort." },
+      { name: "description", content: "Bladlesing, metronom, øveplan, tuner og noter." },
       { name: "theme-color", content: "#0f1218" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
     ],

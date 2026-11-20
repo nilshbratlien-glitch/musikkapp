@@ -251,7 +251,7 @@ describe("plan clock sync", () => {
     await header().waitFor();
     const first = await headerSeconds();
     const began = Date.now();
-    for (const path of ["/metronom", "/bladlesing", "/notekort", "/", "/metronom"]) await tab(path);
+    for (const path of ["/metronom", "/bladlesing", "/tuner", "/", "/metronom"]) await tab(path);
     await page.waitForTimeout(Math.max(0, 4000 - (Date.now() - began)));
     const drop = first - (await headerSeconds());
     const elapsed = Math.round((Date.now() - began) / 1000);
@@ -265,9 +265,9 @@ describe("plan clock sync", () => {
     await tab("/");
     await page.getByRole("button", { name: "Fortsett", exact: true }).waitFor();
     await page.getByRole("button", { name: "Fortsett", exact: true }).click();
-    await tab("/notekort");
+    await tab("/tuner");
     await page.waitForTimeout(1500);
-    assert.ok((await headerSeconds()) < paused, "resumed from Øveplan, running in Notekort header");
+    assert.ok((await headerSeconds()) < paused, "resumed from Øveplan, running in Tuner header");
 
     await tab("/");
     await page.getByRole("button", { name: "Liste", exact: true }).click();
@@ -454,7 +454,7 @@ describe("layout", () => {
     it(`no horizontal overflow at ${width}x${height}`, async () => {
       await page.setViewportSize({ width, height });
       await open("/bladlesing");
-      for (const path of ["/bladlesing", "/metronom", "/", "/notekort", "/noter"]) {
+      for (const path of ["/bladlesing", "/metronom", "/", "/tuner", "/noter"]) {
         await tab(path);
         await page.waitForTimeout(path === "/bladlesing" ? 800 : 200);
         const overflow = await page.evaluate(() =>
@@ -2138,7 +2138,7 @@ describe("offline precache", () => {
     // Go offline and navigate to tabs that were NOT visited while online
     await page.context().setOffline(true);
     try {
-      for (const path of ["/noter", "/metronom", "/notekort", "/bladlesing", "/"]) {
+      for (const path of ["/noter", "/metronom", "/tuner", "/bladlesing", "/"]) {
         await tab(path);
       }
       const mp3Ok = await page.evaluate(async () => {
@@ -2412,7 +2412,7 @@ describe("Lenovo tablet Pro suite", () => {
 });
 
 describe("Tablet 16:10 GUX & GUI suite", () => {
-  it("renders landscape left nav rail without overflow, supports Metronom Tap Tempo & +/-5, Notekort Auto-neste toggle + Neste kort, and Noter 1x zoom reset pill", async () => {
+  it("renders landscape left nav rail without overflow, supports Metronom Tap Tempo & +/-5, Tuner calibration/transposition/drone, and Noter Øveplan start", async () => {
     const pageErrors = [];
     const consoleErrors = [];
     page.on("pageerror", (err) => pageErrors.push(err.message));
@@ -2435,7 +2435,7 @@ describe("Tablet 16:10 GUX & GUI suite", () => {
     // 1. Landscape left nav rail & zero horizontal overflow across all 5 routes
     const navBox = await page.locator('nav[aria-label="Verktøy"]').boundingBox();
     assert.ok(navBox && navBox.width <= 100 && navBox.height > 400, "nav renders as a left rail in 1280x800 landscape");
-    for (const path of ["/", "/metronom", "/bladlesing", "/notekort", "/noter"]) {
+    for (const path of ["/", "/metronom", "/bladlesing", "/tuner", "/noter"]) {
       await tab(path);
       const overflow = await page.evaluate(() =>
         [document.documentElement, document.querySelector("main")].map((el) => el.scrollWidth - el.clientWidth),
@@ -2457,24 +2457,26 @@ describe("Tablet 16:10 GUX & GUI suite", () => {
     const tappedBpm = Number(bpmText?.trim());
     assert.ok(tappedBpm >= 90 && tappedBpm <= 160, `Tap tempo updated BPM (${tappedBpm})`);
 
-    // 3. Notekort Auto-neste toggle -> Manuell -> explicit Neste kort
-    await tab("/notekort");
-    await page.getByRole("tab", { name: "Noter", exact: true }).click();
-    await page.getByRole("button", { name: "Klokkespill", exact: true }).click();
-    await page.getByRole("button", { name: "Lagre utvalget", exact: true }).click();
-    await page.getByRole("tab", { name: "Øv", exact: true }).click();
+    // 3. Tuner A4 calibration (442 default -> 440), transposition, and chromatic drone pad
+    await tab("/tuner");
+    assert.equal((await page.locator("[data-tuner-a4]").textContent())?.trim(), "442 Hz");
+    await page.getByRole("button", { name: "440", exact: true }).click();
+    assert.equal((await page.locator("[data-tuner-a4]").textContent())?.trim(), "440 Hz");
+    await page.getByRole("button", { name: "442", exact: true }).click();
+    assert.equal((await page.locator("[data-tuner-a4]").textContent())?.trim(), "442 Hz");
 
-    const autoSwitch = page.getByRole("switch");
-    await autoSwitch.waitFor({ state: "visible" });
-    assert.equal(await autoSwitch.getAttribute("aria-checked"), "true");
-    await autoSwitch.click();
-    assert.equal(await autoSwitch.getAttribute("aria-checked"), "false");
+    const transGroup = page.getByRole("group", { name: "Transponering" });
+    await transGroup.getByRole("button", { name: "B", exact: true }).click();
+    assert.equal(await transGroup.getByRole("button", { name: "B", exact: true }).getAttribute("aria-pressed"), "true");
 
-    await page.locator(".answer-key").first().click();
-    const nextCardBtn = page.getByRole("button", { name: "Neste kort", exact: true });
-    await nextCardBtn.waitFor({ state: "visible" });
-    await nextCardBtn.click();
-    await nextCardBtn.waitFor({ state: "detached" });
+    const droneA4 = page.locator('[data-drone-note="A4"]');
+    await droneA4.click();
+    assert.equal(await droneA4.getAttribute("aria-pressed"), "true");
+    const stopDroneBtn = page.getByRole("button", { name: "Stopp lyd", exact: true });
+    await stopDroneBtn.waitFor({ state: "visible" });
+    assert.equal(await liveContexts(), 1, "Tuner drone reuses the shared AudioContext");
+    await stopDroneBtn.click();
+    await stopDroneBtn.waitFor({ state: "detached" });
 
     // 4. Start & pause Øveplan directly from Noter tab
     await tab("/noter");
