@@ -668,15 +668,20 @@ export function NoterAnnotationLayer({
       if (ev.pointerId !== pointerId) return;
       clearPendingLongPress();
     };
+    const onWindowContextMenu = (ev: MouseEvent) => {
+      ev.preventDefault();
+    };
     const cleanupWindow = () => {
       window.removeEventListener("pointermove", onWindowMove);
       window.removeEventListener("pointerup", onWindowEnd);
       window.removeEventListener("pointercancel", onWindowEnd);
+      window.removeEventListener("contextmenu", onWindowContextMenu);
     };
 
     window.addEventListener("pointermove", onWindowMove);
     window.addEventListener("pointerup", onWindowEnd);
     window.addEventListener("pointercancel", onWindowEnd);
+    window.addEventListener("contextmenu", onWindowContextMenu);
 
     const timerId = window.setTimeout(() => {
       cleanupWindow();
@@ -738,14 +743,17 @@ export function NoterAnnotationLayer({
 
     const onWindowDragUp = (ev: PointerEvent) => finishDrag(ev, true);
     const onWindowDragCancel = (ev: PointerEvent) => finishDrag(ev, false);
+    const onWindowDragContextMenu = (ev: MouseEvent) => ev.preventDefault();
 
     window.addEventListener("pointermove", onWindowDragMove);
     window.addEventListener("pointerup", onWindowDragUp);
     window.addEventListener("pointercancel", onWindowDragCancel);
+    window.addEventListener("contextmenu", onWindowDragContextMenu);
     return () => {
       window.removeEventListener("pointermove", onWindowDragMove);
       window.removeEventListener("pointerup", onWindowDragUp);
       window.removeEventListener("pointercancel", onWindowDragCancel);
+      window.removeEventListener("contextmenu", onWindowDragContextMenu);
     };
   }, [
     isViewDragActive,
@@ -796,12 +804,13 @@ export function NoterAnnotationLayer({
         ref={viewLayerRef}
         data-testid={`annotation-layer-page-${pageNumber}`}
         onPointerDown={handleViewPointerDown}
+        onContextMenu={(e) => e.preventDefault()}
         style={
           width > 0 && height > 0
-            ? { width: `${width}px`, height: `${height}px`, touchAction: "none" }
-            : { touchAction: "none" }
+            ? { width: `${width}px`, height: `${height}px`, touchAction: "none", WebkitTouchCallout: "none" }
+            : { touchAction: "none", WebkitTouchCallout: "none" }
         }
-        className="pointer-events-auto absolute inset-0 z-10"
+        className="pointer-events-auto absolute inset-0 z-10 select-none"
       >
         {visible ? (
           <svg
@@ -839,6 +848,7 @@ export function NoterAnnotationLayer({
             <button
               key={link.id}
               type="button"
+              onContextMenu={(e) => e.preventDefault()}
               onClick={(e) => {
                 e.stopPropagation();
                 if (suppressedLinkClickIdRef.current === link.id) {
@@ -873,6 +883,7 @@ export function NoterAnnotationLayer({
                 left: `${leftPct}%`,
                 top: `${topPct}%`,
                 backgroundColor: "rgb(var(--color-chrome-rgb) / 0.92)",
+                WebkitTouchCallout: "none",
               }}
               aria-label={`Hopp til side ${link.targetPage}: ${link.label}`}
               className={
@@ -1250,12 +1261,17 @@ export function NoterAnnotationLayer({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
+      onContextMenu={(e) => {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag !== "INPUT" && tag !== "TEXTAREA") e.preventDefault();
+      }}
       style={{
         touchAction: "none",
+        WebkitTouchCallout: "none",
         width: width > 0 ? `${width}px` : undefined,
         height: height > 0 ? `${height}px` : undefined,
       }}
-      className="absolute inset-0 z-10"
+      className="absolute inset-0 z-10 select-none"
     >
       <CommittedAnnotationsSvg
         items={items}
