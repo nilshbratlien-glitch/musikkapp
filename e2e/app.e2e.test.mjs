@@ -2351,6 +2351,17 @@ describe("Lenovo tablet Pro suite", () => {
     await viewer.getByRole("button", { name: "Bekreft", exact: true }).click();
     await viewer.getByText("Subito pp").waitFor({ state: "visible" });
 
+    // Stylus handwriting box: touchAction auto, quick-expression chip, and tap-outside auto-commit
+    await page.mouse.click(box.x + box.width * 0.2, box.y + box.height * 0.2);
+    await textInput.waitFor({ state: "visible" });
+    const inputTouchAction = await textInput.evaluate((el) => getComputedStyle(el).touchAction);
+    assert.equal(inputTouchAction, "auto", "text input allows OS Direct Stylus Handwriting");
+    await viewer.getByRole("button", { name: "rit.", exact: true }).click();
+    assert.equal(await textInput.inputValue(), "rit.");
+    await page.mouse.click(box.x + box.width * 0.9, box.y + box.height * 0.9);
+    await textInput.waitFor({ state: "detached" });
+    await viewer.getByText("rit.").waitFor({ state: "visible" });
+
     // Switch back to Vis mode
     await viewer.getByRole("button", { name: "Vis", exact: true }).click();
 

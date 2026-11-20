@@ -1,4 +1,4 @@
-import { Link2, X } from "lucide-react";
+import { Link2, PenTool, X } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import type { JumpLink } from "@/lib/noter";
 import {
@@ -18,6 +18,18 @@ import {
   type StrokeAnnotation,
 } from "@/lib/noter-annotations";
 import { normalizeCropRect, type NormalizedRect } from "@/lib/noter-crop";
+
+const QUICK_TEXT_EXPRESSIONS = [
+  "rit.",
+  "a tempo",
+  "cresc.",
+  "dim.",
+  "sub. p",
+  "2. gang",
+  "H",
+  "V",
+  "obs!",
+] as const;
 
 export type AnnotationTool =
   | "view"
@@ -573,6 +585,7 @@ export function NoterAnnotationLayer({
     fontSize?: number;
   } | null>(null);
   const viewLayerRef = useRef<HTMLDivElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
   const viewDragRef = useRef<typeof viewDrag>(null);
   viewDragRef.current = viewDrag;
   const suppressedLinkClickIdRef = useRef<string | null>(null);
@@ -921,6 +934,54 @@ export function NoterAnnotationLayer({
     beforeEraseSnapshotRef.current = null;
   };
 
+  const commitTextDraft = () => {
+    if (!textDraft) return;
+    const trimmed = textDraft.value.trim();
+    if (textDraft.editingId) {
+      if (!trimmed) {
+        onCommitItems(
+          pageNumber,
+          items.filter((item) => item.id !== textDraft.editingId),
+        );
+      } else {
+        onCommitItems(
+          pageNumber,
+          items.map((item) =>
+            item.id === textDraft.editingId && item.kind === "text"
+              ? {
+                  ...item,
+                  text: trimmed,
+                  color: pencilColor,
+                  fontSize: textFontSize,
+                }
+              : item,
+          ),
+        );
+      }
+      setTextDraft(null);
+      return;
+    }
+    if (!trimmed) {
+      setTextDraft(null);
+      return;
+    }
+    const clampedX = Math.min(0.92, Math.max(0.02, textDraft.x));
+    const clampedY = Math.min(0.96, Math.max(0.03, textDraft.y));
+    onCommitItems(pageNumber, [
+      ...items,
+      {
+        id: createAnnotationId(),
+        kind: "text",
+        x: clampedX,
+        y: clampedY,
+        text: trimmed,
+        color: pencilColor,
+        fontSize: textDraft.fontSize ?? textFontSize,
+      },
+    ]);
+    setTextDraft(null);
+  };
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
 
@@ -932,6 +993,12 @@ export function NoterAnnotationLayer({
       e.pointerType === "touch" &&
       (stylusOnly || Date.now() - lastPenTimeRef.current < PALM_REJECTION_WINDOW_MS)
     ) {
+      return;
+    }
+
+    if (tool === "text" && textDraft !== null) {
+      e.stopPropagation();
+      commitTextDraft();
       return;
     }
 
@@ -1170,51 +1237,7 @@ export function NoterAnnotationLayer({
 
   const handleTextSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!textDraft) return;
-    const trimmed = textDraft.value.trim();
-    if (textDraft.editingId) {
-      if (!trimmed) {
-        onCommitItems(
-          pageNumber,
-          items.filter((item) => item.id !== textDraft.editingId),
-        );
-      } else {
-        onCommitItems(
-          pageNumber,
-          items.map((item) =>
-            item.id === textDraft.editingId && item.kind === "text"
-              ? {
-                  ...item,
-                  text: trimmed,
-                  color: pencilColor,
-                  fontSize: textFontSize,
-                }
-              : item,
-          ),
-        );
-      }
-      setTextDraft(null);
-      return;
-    }
-    if (!trimmed) {
-      setTextDraft(null);
-      return;
-    }
-    const clampedX = Math.min(0.92, Math.max(0.02, textDraft.x));
-    const clampedY = Math.min(0.96, Math.max(0.03, textDraft.y));
-    onCommitItems(pageNumber, [
-      ...items,
-      {
-        id: createAnnotationId(),
-        kind: "text",
-        x: clampedX,
-        y: clampedY,
-        text: trimmed,
-        color: pencilColor,
-        fontSize: textDraft.fontSize ?? textFontSize,
-      },
-    ]);
-    setTextDraft(null);
+    commitTextDraft();
   };
 
   const handleLinkSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -1266,7 +1289,7 @@ export function NoterAnnotationLayer({
         if (tag !== "INPUT" && tag !== "TEXTAREA") e.preventDefault();
       }}
       style={{
-        touchAction: "none",
+        touchAction: textDraft ? "auto" : "none",
         WebkitTouchCallout: "none",
         width: width > 0 ? `${width}px` : undefined,
         height: height > 0 ? `${height}px` : undefined,
@@ -1361,6 +1384,9 @@ export function NoterAnnotationLayer({
         <form
           onSubmit={handleTextSubmit}
           onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onPointerCancel={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               e.preventDefault();
@@ -1369,22 +1395,67 @@ export function NoterAnnotationLayer({
             }
           }}
           style={{
-            backgroundColor: "rgb(var(--color-chrome-rgb) / 0.96)",
-            left: `clamp(8px, ${leftPct}%, calc(100% - 216px))`,
-            top: `clamp(8px, ${topPct}%, calc(100% - 104px))`,
+            backgroundColor: "rgb(var(--color-chrome-rgb) / 0.97)",
+            touchAction: "auto",
+            WebkitTouchCallout: "default",
+            left: `clamp(8px, ${leftPct}%, max(8px, calc(100% - 328px)))`,
+            top: `clamp(8px, ${topPct}%, max(8px, calc(100% - 216px)))`,
           }}
-          className="absolute z-20 flex w-52 flex-col gap-2 rounded-xl border border-accent p-2.5 shadow-2xl"
+          className="absolute z-20 flex w-80 max-w-[calc(100%-16px)] select-text flex-col gap-2 rounded-xl border border-accent p-3 shadow-2xl"
         >
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-fg">
+              <PenTool className="size-3.5 text-accent" aria-hidden="true" />
+              Penn til tekst
+            </span>
+            <span className="text-[11px] text-muted">Skriv rett i feltet med penn</span>
+          </div>
+
           <input
+            ref={textInputRef}
             type="text"
             autoFocus
+            lang="nb"
+            autoCapitalize="sentences"
+            enterKeyHint="done"
             maxLength={80}
             value={textDraft.value}
             onChange={(e) => setTextDraft({ ...textDraft, value: e.target.value })}
-            placeholder="Skriv notat …"
+            placeholder="Skriv med penn eller tastatur …"
             aria-label="Tekstnotat"
-            className="w-full rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm text-fg placeholder:text-muted focus:border-accent focus:outline-none"
+            style={{
+              touchAction: "auto",
+              WebkitTouchCallout: "default",
+              borderColor: "rgb(var(--color-accent-rgb) / 0.55)",
+            }}
+            className="min-h-13 w-full select-text rounded-lg border-2 border-dashed bg-bg px-3 py-2 text-base text-fg placeholder:text-muted focus:outline-none"
           />
+
+          <div
+            className="flex flex-wrap gap-1"
+            role="group"
+            aria-label="Hurtiguttrykk for tekstnotat"
+          >
+            {QUICK_TEXT_EXPRESSIONS.map((expr) => (
+              <button
+                key={expr}
+                type="button"
+                onClick={() => {
+                  setTextDraft((prev) => {
+                    if (!prev) return prev;
+                    const trimmed = prev.value.trim();
+                    const next = trimmed ? `${trimmed} ${expr}` : expr;
+                    return { ...prev, value: next.slice(0, 80) };
+                  });
+                  textInputRef.current?.focus();
+                }}
+                className="metro-press min-h-8 rounded-md border border-line bg-surface px-2 text-xs font-medium text-fg hover:border-accent"
+              >
+                {expr}
+              </button>
+            ))}
+          </div>
+
           <div className="flex items-center justify-end gap-1.5">
             {textDraft.editingId ? (
               <button
