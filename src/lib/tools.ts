@@ -20,10 +20,10 @@ export const TOOLS = [
     body: "Øveplan for køller og trompet. Økter, tidtaking og lagrede planer kommer her.",
   },
   {
-    id: "notekort",
-    label: "Notekort",
-    to: "/notekort",
-    body: "Notekort for nøkler, register og ventilgrep. Kort, utvalg og treff kommer her.",
+    id: "tuner",
+    label: "Tuner",
+    to: "/tuner",
+    body: "Kromatisk mikrofon-tuner med intonasjonsgraf, transponering og referansetone.",
   },
   {
     id: "noter",

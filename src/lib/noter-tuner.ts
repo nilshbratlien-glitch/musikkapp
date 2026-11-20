@@ -1,4 +1,4 @@
-import { audio } from "./pulse.ts";
+import { audio, unlock } from "./pulse.ts";
 
 export type ReferenceNoteId = "A" | "Bb" | "C" | "F";
 
@@ -58,7 +58,7 @@ export function stopReferenceTone(): void {
 
 export function startReferenceTone(note: ReferenceNoteId, a4Hz = 440): boolean {
   stopReferenceTone();
-  const ctx = audio();
+  const ctx = unlock() ?? audio();
   if (!ctx) return false;
 
   try {

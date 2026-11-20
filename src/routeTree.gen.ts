@@ -12,9 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BladlesingRouteImport } from './routes/bladlesing'
 import { Route as MetronomRouteImport } from './routes/metronom'
-import { Route as NotekortRouteImport } from './routes/notekort'
 import { Route as NoterRouteImport } from './routes/noter'
 import { Route as OveplanRouteImport } from './routes/oveplan'
+import { Route as TunerRouteImport } from './routes/tuner'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -31,11 +31,6 @@ const MetronomRoute = MetronomRouteImport.update({
   path: '/metronom',
   getParentRoute: () => rootRouteImport,
 } as any)
-const NotekortRoute = NotekortRouteImport.update({
-  id: '/notekort',
-  path: '/notekort',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const NoterRoute = NoterRouteImport.update({
   id: '/noter',
   path: '/noter',
@@ -46,47 +41,52 @@ const OveplanRoute = OveplanRouteImport.update({
   path: '/oveplan',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TunerRoute = TunerRouteImport.update({
+  id: '/tuner',
+  path: '/tuner',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bladlesing': typeof BladlesingRoute
   '/metronom': typeof MetronomRoute
-  '/notekort': typeof NotekortRoute
   '/noter': typeof NoterRoute
   '/oveplan': typeof OveplanRoute
+  '/tuner': typeof TunerRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bladlesing': typeof BladlesingRoute
   '/metronom': typeof MetronomRoute
-  '/notekort': typeof NotekortRoute
   '/noter': typeof NoterRoute
   '/oveplan': typeof OveplanRoute
+  '/tuner': typeof TunerRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/bladlesing': typeof BladlesingRoute
   '/metronom': typeof MetronomRoute
-  '/notekort': typeof NotekortRoute
   '/noter': typeof NoterRoute
   '/oveplan': typeof OveplanRoute
+  '/tuner': typeof TunerRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/bladlesing' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
+  fullPaths: '/' | '/bladlesing' | '/metronom' | '/noter' | '/oveplan' | '/tuner'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/bladlesing' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
-  id: '__root__' | '/' | '/bladlesing' | '/metronom' | '/notekort' | '/noter' | '/oveplan'
+  to: '/' | '/bladlesing' | '/metronom' | '/noter' | '/oveplan' | '/tuner'
+  id: '__root__' | '/' | '/bladlesing' | '/metronom' | '/noter' | '/oveplan' | '/tuner'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BladlesingRoute: typeof BladlesingRoute
   MetronomRoute: typeof MetronomRoute
-  NotekortRoute: typeof NotekortRoute
   NoterRoute: typeof NoterRoute
   OveplanRoute: typeof OveplanRoute
+  TunerRoute: typeof TunerRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -112,13 +112,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MetronomRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/notekort': {
-      id: '/notekort'
-      path: '/notekort'
-      fullPath: '/notekort'
-      preLoaderRoute: typeof NotekortRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/noter': {
       id: '/noter'
       path: '/noter'
@@ -133,6 +126,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OveplanRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tuner': {
+      id: '/tuner'
+      path: '/tuner'
+      fullPath: '/tuner'
+      preLoaderRoute: typeof TunerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -140,9 +140,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BladlesingRoute: BladlesingRoute,
   MetronomRoute: MetronomRoute,
-  NotekortRoute: NotekortRoute,
   NoterRoute: NoterRoute,
   OveplanRoute: OveplanRoute,
+  TunerRoute: TunerRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

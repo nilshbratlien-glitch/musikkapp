@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { BookOpen, Drum, FileText, Monitor, Moon, Music, Pause, Piano, Play, Sun, Wifi } from "lucide-react";
+import { AudioWaveform, BookOpen, Drum, Monitor, Moon, Music, Pause, Piano, Play, Sun, Wifi } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { SyncModal } from "@/components/sync-modal";
 import { blockName, blockStyle, fmtClock, type BlockId } from "@/lib/oveplan";
@@ -39,7 +39,7 @@ const ICONS: Record<ToolId, typeof Music> = {
   bladlesing: Music,
   metronom: Drum,
   oveplan: Piano,
-  notekort: FileText,
+  tuner: AudioWaveform,
   noter: BookOpen,
 };
 
@@ -165,7 +165,7 @@ function InstrumentModal({
               Hva skal du øve på i dag?
             </h2>
             <p className="mt-1 text-sm text-muted">
-              Hver profil har sin egen øveplan, notekort og bladlesing.
+              Hver profil har sin egen øveplan, tuner og bladlesing.
             </p>
           </div>
           <button
@@ -462,9 +462,11 @@ export function Shell() {
             className={
               sheet
                 ? "h-full min-h-0"
-                : tool.id === "oveplan" || tool.id === "metronom" || tool.id === "notekort"
-                  ? "mx-auto w-full max-w-7xl"
-                  : "mx-auto w-full max-w-xl md:max-w-4xl lg:max-w-6xl"
+                : tool.id === "tuner"
+                  ? "w-full"
+                  : tool.id === "oveplan" || tool.id === "metronom"
+                    ? "mx-auto w-full max-w-7xl"
+                    : "mx-auto w-full max-w-xl md:max-w-4xl lg:max-w-6xl"
             }
           >
             <Outlet />
