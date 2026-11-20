@@ -2116,6 +2116,10 @@ export function NoterViewer({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onContextMenu={(e) => {
+          const tag = (e.target as HTMLElement | null)?.tagName;
+          if (tag !== "INPUT" && tag !== "TEXTAREA") e.preventDefault();
+        }}
         onPointerCancel={(e) => {
           activeTouchPointersRef.current.delete(e.pointerId);
           if (activeTouchPointersRef.current.size < 2) {
@@ -2128,7 +2132,7 @@ export function NoterViewer({
             pointerStartRef.current = null;
           }
         }}
-        style={{ touchAction: "none" }}
+        style={{ touchAction: "none", WebkitTouchCallout: "none" }}
         className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2 ${nightMode ? "bg-[#0f1217]" : "bg-[var(--color-stage)]"}`}
       >
         {loading ? (
