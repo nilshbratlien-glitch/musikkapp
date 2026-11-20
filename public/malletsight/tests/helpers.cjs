@@ -3,9 +3,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const root = path.join(__dirname, "..");
-const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
-const defaults = vm.runInNewContext("(" + app.match(/const DEFAULTS = (\{[\s\S]*?\n  \});/)[1] + ")");
-const levels = vm.runInNewContext("(" + app.match(/const LEVELS = (\[[\s\S]*?\n  \]);/)[1] + ")");
+const { defaults, levels } = JSON.parse(fs.readFileSync(path.join(root, "defaults.json"), "utf8"));
 
 function load(seed = 1) {
   const math = Object.create(Math);

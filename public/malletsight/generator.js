@@ -1632,7 +1632,10 @@
       } else if (lastBar) {
         const settled = settleEnding(rhythm, time.ticks, time.beatTicks, settings.endTonic !== false);
         if (settled && rhythmAllowed(settled, settings)) rhythm = settled;
-        else if (settings.endTonic !== false) {
+      }
+      if (lastBar && settings.endTonic !== false) {
+        const hasTonicCadence = rhythm.some((ev) => !ev.rest && ev.cadence === "tonic");
+        if (!hasTonicCadence) {
           const sounding = rhythm.map((ev, i) => ({ ev: ev, i: i })).filter((x) => !x.ev.rest);
           if (sounding.length) sounding[sounding.length - 1].ev.cadence = "tonic";
           if (sounding.length > 1) sounding[sounding.length - 2].ev.cadence = "approach";
@@ -1796,6 +1799,7 @@
           if (a.dur.ticks < T.TICKS.quarter || b.dur.ticks < T.TICKS.quarter) continue;
           if (!a.pitches.length || !b.pitches.length) continue;
           if (a.pitches.length > 2 || b.pitches.length > 2) continue;
+          if (lastBar && settings.endTonic !== false && i + 1 === events.length - 1) continue;
           const same =
             a.pitches.length === b.pitches.length &&
             a.pitches.every((p, j) => p === b.pitches[j]);
@@ -1811,8 +1815,13 @@
         const a = events[i];
         const b = events[i + 1];
         if (!a.syncTie || a.rest || b.rest || !a.pitches || !a.pitches.length) continue;
-        b.pitches = a.pitches.slice();
-        if (a.mallets) b.mallets = a.mallets.slice();
+        if (lastBar && settings.endTonic !== false && i + 1 === events.length - 1) {
+          a.pitches = b.pitches.slice();
+          if (b.mallets) a.mallets = b.mallets.slice();
+        } else {
+          b.pitches = a.pitches.slice();
+          if (a.mallets) b.mallets = a.mallets.slice();
+        }
         a.tie = true;
       }
 
