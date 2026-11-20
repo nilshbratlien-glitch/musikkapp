@@ -278,6 +278,10 @@ export function NoterViewer({
   const [annotationsVisible, setAnnotationsVisible] = useState(
     () => sheet.annotationsVisible ?? true,
   );
+  const [textDraftOpenPages, setTextDraftOpenPages] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  );
+  const textDraftOpen = textDraftOpenPages.size > 0;
   const [position, setPosition] = useState<HalfPagePosition>(() => {
     const initialTotal = Math.max(1, sheet.pageCount || 1);
     const initialSpread = !sheet.halfPageTurn && Boolean(sheet.twoPageSpread);
@@ -1519,6 +1523,17 @@ export function NoterViewer({
     }
   }, []);
 
+  const handleTextDraftOpenChange = useCallback((pageNum: number, open: boolean) => {
+    setTextDraftOpenPages((prev) => {
+      const has = prev.has(pageNum);
+      if (open === has) return prev;
+      const next = new Set(prev);
+      if (open) next.add(pageNum);
+      else next.delete(pageNum);
+      return next;
+    });
+  }, []);
+
   const handleActivateJumpLink = useCallback(
     (link: JumpLink) => {
       const fromPage = positionRef.current.page;
@@ -1866,7 +1881,7 @@ export function NoterViewer({
       role="dialog"
       aria-modal="true"
       aria-label={`Noteviser: ${sheet.title}`}
-      className={`fixed inset-0 z-50 flex flex-col text-fg select-none ${nightMode ? "bg-[#0f1217]" : "bg-[var(--color-stage)]"}`}
+      className={`fixed inset-0 z-50 flex flex-col text-fg ${textDraftOpen ? "select-text" : "select-none"} ${nightMode ? "bg-[#0f1217]" : "bg-[var(--color-stage)]"}`}
     >
       {/* Top HUD */}
       {hudVisible ? (
@@ -2132,7 +2147,10 @@ export function NoterViewer({
             pointerStartRef.current = null;
           }
         }}
-        style={{ touchAction: "none", WebkitTouchCallout: "none" }}
+        style={{
+          touchAction: textDraftOpen ? "auto" : "none",
+          WebkitTouchCallout: textDraftOpen ? "default" : "none",
+        }}
         className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-2 ${nightMode ? "bg-[#0f1217]" : "bg-[var(--color-stage)]"}`}
       >
         {loading ? (
@@ -2159,7 +2177,7 @@ export function NoterViewer({
 
         <div
           style={{
-            transform: `translate3d(${pan.x}px, ${pan.y}px, 0)`,
+            transform: pan.x !== 0 || pan.y !== 0 ? `translate3d(${pan.x}px, ${pan.y}px, 0)` : undefined,
             cursor: tool !== "view" ? "crosshair" : zoom > 1.05 ? "grab" : "default",
           }}
           className={loading || error ? "hidden" : "flex items-center justify-center"}
@@ -2198,6 +2216,7 @@ export function NoterViewer({
                   onDeleteJumpLink={handleDeleteJumpLink}
                   onActivateJumpLink={handleActivateJumpLink}
                   onViewDragActiveChange={handleViewDragActiveChange}
+                  onTextDraftOpenChange={handleTextDraftOpenChange}
                 />
               </div>
 
@@ -2241,6 +2260,7 @@ export function NoterViewer({
                   onDeleteJumpLink={handleDeleteJumpLink}
                   onActivateJumpLink={handleActivateJumpLink}
                   onViewDragActiveChange={handleViewDragActiveChange}
+                  onTextDraftOpenChange={handleTextDraftOpenChange}
                 />
               </div>
             </div>
@@ -2278,6 +2298,7 @@ export function NoterViewer({
                   onDeleteJumpLink={handleDeleteJumpLink}
                   onActivateJumpLink={handleActivateJumpLink}
                   onViewDragActiveChange={handleViewDragActiveChange}
+                  onTextDraftOpenChange={handleTextDraftOpenChange}
                 />
               </div>
               <div className="relative inline-block">
@@ -2312,6 +2333,7 @@ export function NoterViewer({
                   onDeleteJumpLink={handleDeleteJumpLink}
                   onActivateJumpLink={handleActivateJumpLink}
                   onViewDragActiveChange={handleViewDragActiveChange}
+                  onTextDraftOpenChange={handleTextDraftOpenChange}
                 />
               </div>
             </div>
@@ -2348,6 +2370,7 @@ export function NoterViewer({
                 onDeleteJumpLink={handleDeleteJumpLink}
                 onActivateJumpLink={handleActivateJumpLink}
                 onViewDragActiveChange={handleViewDragActiveChange}
+                onTextDraftOpenChange={handleTextDraftOpenChange}
               />
             </div>
           )}
