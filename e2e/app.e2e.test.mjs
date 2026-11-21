@@ -2496,11 +2496,32 @@ describe("Tablet 16:10 GUX & GUI suite", () => {
     const droneA4 = page.locator('[data-drone-note="A4"]');
     await droneA4.click();
     assert.equal(await droneA4.getAttribute("aria-pressed"), "true");
+    assert.ok(
+      ((await droneA4.textContent()) ?? "").includes("skr. H4"),
+      "transposed drone pad displays written Norwegian note sublabel",
+    );
     const stopDroneBtn = page.getByRole("button", { name: "Stopp lyd", exact: true });
     await stopDroneBtn.waitFor({ state: "visible" });
     assert.equal(await liveContexts(), 1, "Tuner drone reuses the shared AudioContext");
     await stopDroneBtn.click();
     await stopDroneBtn.waitFor({ state: "detached" });
+
+    // Octave 2 support (timpani / 5-octave marimba) & sensitivity toggle
+    const octaveGroup = page.getByRole("group", { name: "Drone-oktav" });
+    await octaveGroup.getByRole("button", { name: "2", exact: true }).click();
+    await page.locator('[data-drone-note="C2"]').waitFor({ state: "visible" });
+    await octaveGroup.getByRole("button", { name: "4", exact: true }).click();
+
+    const sensGroup = page.getByRole("group", { name: "Mikrofonfølsomhet" });
+    await sensGroup.getByRole("button", { name: "Korpssal", exact: true }).click();
+    assert.equal(
+      await sensGroup.getByRole("button", { name: "Korpssal", exact: true }).getAttribute("aria-pressed"),
+      "true",
+    );
+
+    // True Notestativ-modus fullscreen toggle
+    await page.getByRole("button", { name: "Notestativ-modus (fullskjerm)", exact: true }).click();
+    await page.getByRole("button", { name: "Avslutt notestativ-modus", exact: true }).click();
 
     // 4. Start & pause Øveplan directly from Noter tab
     await tab("/noter");

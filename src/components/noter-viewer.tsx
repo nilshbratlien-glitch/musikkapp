@@ -328,7 +328,7 @@ export function NoterViewer({
   const [trimModalOpen, setTrimModalOpen] = useState(false);
   const [jumpHistory, setJumpHistory] = useState<number[]>([]);
   const [tunerNote, setTunerNote] = useState<ReferenceNoteId | null>(null);
-  const [tunerA4, setTunerA4] = useState<440 | 442>(440);
+  const [tunerA4, setTunerA4] = useState<440 | 442>(442);
 
   // Fase 2 annotation & crop state
   const [tool, setTool] = useState<AnnotationTool>("view");

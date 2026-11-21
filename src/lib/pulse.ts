@@ -42,6 +42,7 @@ let ctx: AudioContext | null = null;
 let spent = false;
 let bus: GainNode | null = null;
 let clickBus: GainNode | null = null;
+let auxBus: GainNode | null = null;
 let clicksOn = true;
 let followerMode = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -127,6 +128,7 @@ function forget() {
   ctx = null;
   bus = null;
   clickBus = null;
+  auxBus = null;
 }
 
 /** Close the context and make a new one; nodes on the bus are rebuilt on next use. Only call it inside a user gesture. */
@@ -154,6 +156,21 @@ export function output() {
   return bus;
 }
 
+/**
+ * Independent auxiliary output bus for tuner drones and reference tones.
+ * Respects master mute and AudioContext renewal, but is not cut by metronome stop().
+ */
+export function auxOutput() {
+  const c = audio();
+  if (!c) return null;
+  if (!auxBus) {
+    auxBus = c.createGain();
+    auxBus.gain.value = masterMuted ? 0 : 1;
+    auxBus.connect(c.destination);
+  }
+  return auxBus;
+}
+
 function cut() {
   if (!bus || !ctx) return;
   try {
@@ -171,6 +188,9 @@ export function setMasterMuted(muted: boolean) {
   masterMuted = muted;
   if (bus && ctx) {
     bus.gain.setValueAtTime(muted ? 0 : 1, ctx.currentTime);
+  }
+  if (auxBus && ctx) {
+    auxBus.gain.setValueAtTime(muted ? 0 : 1, ctx.currentTime);
   }
 }
 

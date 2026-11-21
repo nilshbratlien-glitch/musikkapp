@@ -1,4 +1,4 @@
-import { audio, unlock } from "./pulse.ts";
+import { audio, auxOutput, unlock } from "./pulse.ts";
 
 export type ReferenceNoteId = "A" | "Bb" | "C" | "F";
 
@@ -8,15 +8,15 @@ export const REFERENCE_NOTES: ReadonlyArray<{
   semitonesFromA4: number;
 }> = [
   { id: "A", label: "A", semitonesFromA4: 0 },
-  { id: "Bb", label: "B♭", semitonesFromA4: 1 },
+  { id: "Bb", label: "B", semitonesFromA4: 1 },
   { id: "C", label: "C", semitonesFromA4: 3 },
   { id: "F", label: "F", semitonesFromA4: -4 },
 ];
 
 export const REFERENCE_A4_OPTIONS = [440, 442] as const;
 
-export function getReferenceFrequency(note: ReferenceNoteId, a4Hz = 440): number {
-  const safeA4 = Number.isFinite(a4Hz) && a4Hz >= 415 && a4Hz <= 466 ? a4Hz : 440;
+export function getReferenceFrequency(note: ReferenceNoteId, a4Hz = 442): number {
+  const safeA4 = Number.isFinite(a4Hz) && a4Hz >= 415 && a4Hz <= 466 ? a4Hz : 442;
   const def = REFERENCE_NOTES.find((n) => n.id === note) ?? REFERENCE_NOTES[0]!;
   return safeA4 * 2 ** (def.semitonesFromA4 / 12);
 }
@@ -44,7 +44,7 @@ export function stopReferenceTone(): void {
     const ctx = gain.context;
     const now = ctx.currentTime;
     gain.gain.cancelScheduledValues(now);
-    gain.gain.setValueAtTime(gain.gain.value, now);
+    gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
     osc.stop(now + 0.05);
   } catch {
@@ -56,12 +56,13 @@ export function stopReferenceTone(): void {
   }
 }
 
-export function startReferenceTone(note: ReferenceNoteId, a4Hz = 440): boolean {
+export function startReferenceTone(note: ReferenceNoteId, a4Hz = 442): boolean {
   stopReferenceTone();
   const ctx = unlock() ?? audio();
   if (!ctx) return false;
 
   try {
+    const dest = auxOutput() ?? ctx.destination;
     const freq = getReferenceFrequency(note, a4Hz);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -72,7 +73,7 @@ export function startReferenceTone(note: ReferenceNoteId, a4Hz = 440): boolean {
     gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.03);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(dest);
     osc.start(ctx.currentTime);
 
     activeOsc = osc;
