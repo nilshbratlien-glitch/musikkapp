@@ -39,7 +39,7 @@ export function Metronom() {
           onClick={() => choose("metro")}
           className={
             mode === "metro"
-              ? "min-h-10 rounded-lg border border-line/70 bg-surface font-semibold text-fg shadow-xs transition"
+              ? "min-h-10 rounded-lg border border-line bg-surface font-semibold text-fg shadow-xs transition"
               : "min-h-10 rounded-lg border border-transparent text-muted transition hover:text-fg"
           }
         >
@@ -50,7 +50,7 @@ export function Metronom() {
           onClick={() => choose("rudiment")}
           className={
             mode === "rudiment"
-              ? "min-h-10 rounded-lg border border-line/70 bg-surface font-semibold text-fg shadow-xs transition"
+              ? "min-h-10 rounded-lg border border-line bg-surface font-semibold text-fg shadow-xs transition"
               : "min-h-10 rounded-lg border border-transparent text-muted transition hover:text-fg"
           }
         >

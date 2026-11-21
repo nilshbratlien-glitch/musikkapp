@@ -1,4 +1,12 @@
-import { clickStep } from "./metronome.ts";
+import {
+  DEFAULT_CLICK_SOUND,
+  DEFAULT_CLICK_VOLUME,
+  clampClickVolume,
+  clickStep,
+  isBarMutedInGap,
+  type BeatAccent,
+  type ClickSound,
+} from "./metronome.ts";
 
 /**
  * The one metronome and sound core: a single AudioContext, a single output bus and
@@ -8,11 +16,16 @@ import { clickStep } from "./metronome.ts";
 export type PulseOwner = "metronom" | "snare" | "oveplan" | "bladlesing" | "noter";
 export type PulseStopReason = "stopped" | "replaced" | "stalled";
 export type PulseClick = { tick: number; time: number; accent: boolean; downbeat: boolean; beatIndex: number };
+export type PulseGap = { playBars: number; muteBars: number };
 export type PulseStart = {
   owner: PulseOwner;
   bpm: number;
   beats?: number;
   sub?: number;
+  /** Optional per-beat accent/mute pattern (length = beats). */
+  beatAccents?: readonly BeatAccent[];
+  /** Optional gap-trainer cycle (playBars bars audible, muteBars bars silent). */
+  gap?: PulseGap | null;
   /** AudioContext time of the first click; defaults to just after now. */
   at?: number;
   /** Stop scheduling clicks after this many; the owner keeps the bus until stop(). */
@@ -28,6 +41,8 @@ export type PulseState = {
   sub: number;
   /** Beat of the latest scheduled downbeat, -1 when stopped. */
   beat: number;
+  /** True while the current bar is muted by the gap trainer. */
+  gapMuted: boolean;
 };
 
 const LOOKAHEAD_MS = 25;
@@ -44,6 +59,8 @@ let bus: GainNode | null = null;
 let clickBus: GainNode | null = null;
 let auxBus: GainNode | null = null;
 let clicksOn = true;
+let clickSound: ClickSound = DEFAULT_CLICK_SOUND;
+let clickVolume = DEFAULT_CLICK_VOLUME;
 let followerMode = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let run: (PulseStart & {
@@ -57,7 +74,7 @@ let run: (PulseStart & {
   passAt?: number;
   resumed?: boolean;
 }) | null = null;
-let state: PulseState = { owner: null, running: false, bpm: 80, beats: 4, sub: 1, beat: -1 };
+let state: PulseState = { owner: null, running: false, bpm: 80, beats: 4, sub: 1, beat: -1, gapMuted: false };
 const listeners = new Set<() => void>();
 
 function emit(patch: Partial<PulseState>) {
@@ -150,7 +167,7 @@ export function output() {
     bus.gain.value = masterMuted ? 0 : 1;
     bus.connect(c.destination);
     clickBus = c.createGain();
-    clickBus.gain.value = clicksOn ? 1 : 0;
+    clickBus.gain.value = clicksOn ? clickVolume : 0;
     clickBus.connect(bus);
   }
   return bus;
@@ -202,18 +219,103 @@ export function setFollowerMode(on: boolean) {
 /** Mute or unmute clicks without touching other sound on the bus. */
 export function setClicks(on: boolean) {
   clicksOn = on;
-  if (clickBus && ctx) clickBus.gain.setValueAtTime(on ? 1 : 0, ctx.currentTime);
+  if (clickBus && ctx) clickBus.gain.setValueAtTime(on ? clickVolume : 0, ctx.currentTime);
 }
 
+export function setClickSound(sound: ClickSound) {
+  clickSound = sound;
+}
+
+export function getClickSound(): ClickSound {
+  return clickSound;
+}
+
+export function setClickVolume(volume: number) {
+  clickVolume = clampClickVolume(volume);
+  if (clickBus && ctx && clicksOn) {
+    clickBus.gain.setValueAtTime(clickVolume, ctx.currentTime);
+  }
+}
+
+export function getClickVolume(): number {
+  return clickVolume;
+}
+
+/** Single-oscillator click synthesis so every timbre stays lightweight and deterministic. */
 function click(c: AudioContext, time: number, kind: "accent" | "beat" | "sub") {
   output();
   const osc = c.createOscillator();
   const gain = c.createGain();
-  osc.connect(gain);
-  gain.connect(clickBus!);
+  const canFilter = typeof c.createBiquadFilter === "function";
+
+  if (clickSound === "woodblock") {
+    osc.type = "triangle";
+    const startHz = kind === "accent" ? 1480 : kind === "beat" ? 1040 : 780;
+    const endHz = kind === "accent" ? 840 : kind === "beat" ? 590 : 440;
+    osc.frequency.setValueAtTime(startHz, time);
+    osc.frequency.exponentialRampToValueAtTime(endHz, time + 0.018);
+    const amp = kind === "accent" ? 0.52 : kind === "beat" ? 0.34 : 0.16;
+    gain.gain.setValueAtTime(amp, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.034);
+    if (canFilter) {
+      const filter = c.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(startHz * 0.9, time);
+      filter.Q.value = 2.2;
+      osc.connect(filter);
+      filter.connect(gain);
+    } else {
+      osc.connect(gain);
+    }
+    gain.connect(clickBus!);
+    osc.start(time);
+    osc.stop(time + 0.042);
+    return;
+  }
+
+  if (clickSound === "rimshot") {
+    osc.type = "sawtooth";
+    const startHz = kind === "accent" ? 2100 : kind === "beat" ? 1580 : 1120;
+    const endHz = kind === "accent" ? 360 : kind === "beat" ? 290 : 220;
+    osc.frequency.setValueAtTime(startHz, time);
+    osc.frequency.exponentialRampToValueAtTime(endHz, time + 0.012);
+    const amp = kind === "accent" ? 0.42 : kind === "beat" ? 0.27 : 0.13;
+    gain.gain.setValueAtTime(amp, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.025);
+    if (canFilter) {
+      const filter = c.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.setValueAtTime(880, time);
+      osc.connect(filter);
+      filter.connect(gain);
+    } else {
+      osc.connect(gain);
+    }
+    gain.connect(clickBus!);
+    osc.start(time);
+    osc.stop(time + 0.032);
+    return;
+  }
+
+  if (clickSound === "soft") {
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(kind === "accent" ? 760 : kind === "beat" ? 540 : 420, time);
+    gain.gain.setValueAtTime(kind === "accent" ? 0.34 : kind === "beat" ? 0.2 : 0.09, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.036);
+    osc.connect(gain);
+    gain.connect(clickBus!);
+    osc.start(time);
+    osc.stop(time + 0.044);
+    return;
+  }
+
+  // Classic "beep" digital metronome click
+  osc.type = "sine";
   osc.frequency.value = kind === "accent" ? 1200 : kind === "beat" ? 800 : 640;
   gain.gain.setValueAtTime(kind === "accent" ? 0.35 : kind === "beat" ? 0.2 : 0.09, time);
   gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+  osc.connect(gain);
+  gain.connect(clickBus!);
   osc.start(time);
   osc.stop(time + 0.05);
 }
@@ -278,13 +380,23 @@ function loop() {
   }
   while (live.next < clockNow + AHEAD_S) {
     if (live.count != null && live.tick >= live.count) return;
+    const clicksPerBar = state.beats * state.sub;
+    const barIndex = clicksPerBar > 0 ? Math.floor(live.tick / clicksPerBar) : 0;
+    const barMuted = Boolean(live.gap && isBarMutedInGap(barIndex, live.gap.playBars, live.gap.muteBars));
     const step = clickStep(live.tick, state.beats, state.sub);
     const time = live.next;
-    if (runningAudio) {
-      click(c, time, step.accent ? "accent" : step.downbeat ? "beat" : "sub");
+    const beatMode: BeatAccent = live.beatAccents?.[step.beatIndex] ?? (step.accent ? "accent" : "normal");
+    if (runningAudio && !barMuted && beatMode !== "mute") {
+      click(c, time, step.downbeat ? (beatMode === "accent" ? "accent" : "beat") : "sub");
     }
-    if (step.downbeat) emit({ beat: step.beatIndex });
-    live.onClick?.({ tick: live.tick, time, accent: step.accent, downbeat: step.downbeat, beatIndex: step.beatIndex });
+    if (step.downbeat) emit({ beat: step.beatIndex, gapMuted: barMuted });
+    live.onClick?.({
+      tick: live.tick,
+      time,
+      accent: step.downbeat && beatMode === "accent",
+      downbeat: step.downbeat,
+      beatIndex: step.beatIndex,
+    });
     if (run !== live) return;
     live.tick = step.tick;
     live.next += 60 / state.bpm / state.sub;
@@ -304,7 +416,7 @@ export function start(opts: PulseStart) {
   run = { ...opts, next: opts.at ?? baseTime + 0.05, tick: 0, baseTime, wallStartMs };
   clicksOn = true;
   output();
-  emit({ owner: opts.owner, running: true, bpm: Math.max(1, opts.bpm), beats, sub, beat: -1 });
+  emit({ owner: opts.owner, running: true, bpm: Math.max(1, opts.bpm), beats, sub, beat: -1, gapMuted: false });
   loop();
   return true;
 }
@@ -318,13 +430,30 @@ export function stop(owner?: PulseOwner, reason: PulseStopReason = "stopped") {
   timer = null;
   run = null;
   cut();
-  emit({ owner: null, running: false, beat: -1 });
+  emit({ owner: null, running: false, beat: -1, gapMuted: false });
   live?.onStop?.(reason);
   return true;
 }
 
 export function setBpm(bpm: number) {
   if (bpm > 0 && bpm !== state.bpm) emit({ bpm });
+}
+
+/** Update per-beat accent/mute pattern live without restarting the bar. */
+export function setBeatAccents(accents: readonly BeatAccent[] | null) {
+  if (run) {
+    run.beatAccents = accents ?? undefined;
+  }
+}
+
+/** Update gap-trainer silent bar cycle live without restarting the metronome. */
+export function setGapTrainer(gap: PulseGap | null) {
+  if (run) {
+    run.gap = gap;
+  }
+  if (!gap && state.gapMuted) {
+    emit({ gapMuted: false });
+  }
 }
 
 /** Change meter without restarting the bar: the next click keeps its beat, modulo the new beat count. */
