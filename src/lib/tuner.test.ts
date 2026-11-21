@@ -3,10 +3,15 @@ import { afterEach, describe, it } from "node:test";
 import { setProfile } from "./profile.ts";
 import {
   DEFAULT_A4_HZ,
+  DEFAULT_DRONE_VOLUME,
   PitchSmoother,
   clampA4,
+  clampDroneVolume,
+  createYinWorkspace,
   detectPitchYin,
   freqToPitchReading,
+  getSensitivityMinRms,
+  getWrittenDroneLabel,
   loadTunerSettings,
   midiToFrequency,
   midiToNorwegianLabel,
@@ -62,12 +67,21 @@ describe("tuner DSP, Norwegian note names, transposition & settings", () => {
     setProfile("mallets");
   });
 
-  it("defaults to A4 = 442 Hz and clamps calibration within 435–448 Hz", () => {
+  it("defaults to A4 = 442 Hz and clamps calibration & volume cleanly", () => {
     assert.equal(DEFAULT_A4_HZ, 442);
+    assert.equal(DEFAULT_DRONE_VOLUME, 0.7);
     assert.equal(clampA4(442), 442);
     assert.equal(clampA4(400), 435);
     assert.equal(clampA4(500), 448);
     assert.equal(clampA4(Number.NaN), 442);
+
+    assert.equal(clampDroneVolume(0.75), 0.75);
+    assert.equal(clampDroneVolume(0), 0.1);
+    assert.equal(clampDroneVolume(2), 1);
+    assert.equal(clampDroneVolume(Number.NaN), 0.7);
+
+    assert.ok(getSensitivityMinRms("quiet") < getSensitivityMinRms("normal"));
+    assert.ok(getSensitivityMinRms("normal") < getSensitivityMinRms("loud"));
   });
 
   it("uses Norwegian note names (B for Bb, H for B natural)", () => {
@@ -77,21 +91,26 @@ describe("tuner DSP, Norwegian note names, transposition & settings", () => {
     assert.equal(midiToNorwegianLabel(71).full, "H4");
     assert.equal(midiToNorwegianLabel(58).full, "B3");
     assert.equal(midiToNorwegianLabel(59).full, "H3");
+    assert.equal(getWrittenDroneLabel(58, "Bb"), "C4");
+    assert.equal(getWrittenDroneLabel(65, "F"), "C5");
   });
 
-  it("detects synthetic pitches across marimba & trumpet range within 1.5 cents", () => {
+  it("detects synthetic pitches from C2 up to glockenspiel C8 with reusable workspace", () => {
     const sampleRate = 48000;
+    const workspace = createYinWorkspace(4096);
     const cases = [
       { label: "C2", hz: midiToFrequency(36, 442) },
       { label: "B3", hz: midiToFrequency(58, 442) },
       { label: "A4 (440)", hz: 440 },
       { label: "A4 (442)", hz: 442 },
       { label: "C6", hz: midiToFrequency(84, 442) },
+      { label: "G7", hz: midiToFrequency(103, 442) },
+      { label: "C8 (glockenspiel)", hz: midiToFrequency(108, 442) },
       { label: "A4 +17c", hz: 442 * 2 ** (17 / 1200) },
       { label: "E4 -23c", hz: midiToFrequency(64, 442) * 2 ** (-23 / 1200) },
     ];
     for (const c of cases) {
-      const result = detectPitchYin(makeTone(c.hz, sampleRate), sampleRate);
+      const result = detectPitchYin(makeTone(c.hz, sampleRate), sampleRate, { workspace });
       assert.ok(result, `expected pitch lock for ${c.label}`);
       const errCents = Math.abs(1200 * Math.log2(result.hz / c.hz));
       assert.ok(errCents < 1.5, `${c.label}: error ${errCents.toFixed(2)} cents (got ${result.hz.toFixed(2)} Hz)`);
@@ -134,28 +153,59 @@ describe("tuner DSP, Norwegian note names, transposition & settings", () => {
     assert.equal(inEb.concertLabel, "E♭4");
   });
 
-  it("smooths small jitter and snaps instantly on large note jumps", () => {
-    const smoother = new PitchSmoother(0.25, 80);
-    assert.equal(smoother.push(442), 442);
-    const nudged = smoother.push(444);
+  it("smooths small jitter in log-cents space and supports hysteresis against 1-frame octave glitches", () => {
+    const immediate = new PitchSmoother(0.25, 80);
+    assert.equal(immediate.push(442), 442);
+    const nudged = immediate.push(444);
     assert.ok(nudged > 442 && nudged < 444, "small deviation is smoothed");
-    const jumped = smoother.push(523.25);
-    assert.equal(jumped, 523.25, "large note jump snaps immediately");
+    const jumped = immediate.push(523.25);
+    assert.equal(jumped, 523.25, "default confirmFrames=1 snaps immediately");
+
+    const guarded = new PitchSmoother(0.28, 80, 2);
+    assert.equal(guarded.push(442), 442);
+    // Single-frame octave glitch should NOT snap
+    assert.equal(guarded.push(884), 442, "single-frame octave spike is ignored");
+    // Returning to A4 clears pending spike
+    const back = guarded.push(443);
+    assert.ok(back > 442 && back < 443.5);
+    // Two consecutive frames of a real note change (C5 = 523.25 Hz) snap cleanly
+    assert.ok(guarded.push(523.25) < 445, "first frame of jump waits for confirmation");
+    const confirmed = guarded.push(524.0);
+    assert.ok(confirmed > 522 && confirmed < 525, "second consistent frame locks onto new note");
   });
 
-  it("persists tuner settings per instrument profile (C for mallets, Bb for trumpet)", () => {
+  it("persists tuner settings per instrument profile (including octave 2, volume & sensitivity)", () => {
     Object.defineProperty(globalThis, "localStorage", { value: memoryStorage(), configurable: true });
     const malletDefault = loadTunerSettings("mallets");
     assert.equal(malletDefault.a4Hz, 442);
     assert.equal(malletDefault.transposition, "C");
+    assert.equal(malletDefault.droneVolume, 0.7);
+    assert.equal(malletDefault.sensitivity, "normal");
 
     const trumpetDefault = loadTunerSettings("trumpet");
     assert.equal(trumpetDefault.a4Hz, 442);
     assert.equal(trumpetDefault.transposition, "Bb");
 
-    saveTunerSettings({ a4Hz: 440, transposition: "Eb", droneOctave: 3, droneWave: "sine" }, "mallets");
+    saveTunerSettings(
+      {
+        a4Hz: 440,
+        transposition: "Eb",
+        droneOctave: 2,
+        droneWave: "sine",
+        droneVolume: 0.45,
+        sensitivity: "loud",
+      },
+      "mallets",
+    );
     const reloaded = loadTunerSettings("mallets");
-    assert.deepEqual(reloaded, { a4Hz: 440, transposition: "Eb", droneOctave: 3, droneWave: "sine" });
+    assert.deepEqual(reloaded, {
+      a4Hz: 440,
+      transposition: "Eb",
+      droneOctave: 2,
+      droneWave: "sine",
+      droneVolume: 0.45,
+      sensitivity: "loud",
+    });
     assert.equal(loadTunerSettings("trumpet").transposition, "Bb");
   });
 });

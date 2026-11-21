@@ -9,7 +9,7 @@ import {
   Square,
   Volume2,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { getProfile, getProfileVersion, subscribeProfile } from "@/lib/profile";
 import { markAudioRouteStale } from "@/lib/pulse";
 import {
@@ -18,19 +18,26 @@ import {
   MIN_A4_HZ,
   NOTE_NAMES_NB,
   PitchSmoother,
+  SENSITIVITY_OPTIONS,
   TRANSPOSITION_OPTIONS,
   clampA4,
+  clampDroneVolume,
+  createYinWorkspace,
   detectPitchYin,
   freqToPitchReading,
+  getSensitivityMinRms,
+  getWrittenDroneLabel,
   loadTunerSettings,
   midiToFrequency,
   midiToNorwegianLabel,
   saveTunerSettings,
+  setTunerDroneVolume,
   startTunerDrone,
   stopTunerDrone,
   updateTunerDronePitch,
+  type DroneOctave,
   type DroneWave,
-  type PitchReading,
+  type TunerSensitivity,
   type TunerSettings,
   type TunerTransposition,
 } from "@/lib/tuner";
@@ -38,10 +45,26 @@ import {
 interface TraceSample {
   t: number;
   cents: number | null;
+  midi: number | null;
+}
+
+interface ThemeColors {
+  line: string;
+  ok: string;
+  accent: string;
+  no: string;
+  muted: string;
 }
 
 const TRACE_WINDOW_MS = 6000;
 const HOLD_READING_MS = 1800;
+const DETECT_INTERVAL_MS = 33;
+const UI_COMMIT_INTERVAL_MS = 50;
+const STEADY_LOCK_MS = 600;
+const AVG_WINDOW_MS = 2000;
+const BT_ROUTE_SETTLE_MS = 220;
+
+const BLUETOOTH_MIC_RE = /bluetooth|headset|hands-free|handsfree|airpods|buds|sco|hfp/i;
 
 const QUICK_DRONE_NOTES: ReadonlyArray<{ label: string; midi: number }> = [
   { label: "A4", midi: 69 },
@@ -53,6 +76,26 @@ const QUICK_DRONE_NOTES: ReadonlyArray<{ label: string; midi: number }> = [
 const GAUGE_TICKS: readonly number[] = [
   -50, -45, -40, -35, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50,
 ];
+
+function readThemeColors(): ThemeColors {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return {
+      line: "#2a3447",
+      ok: "#22c55e",
+      accent: "#3b82f6",
+      no: "#ef4444",
+      muted: "#94a3b8",
+    };
+  }
+  const styles = getComputedStyle(document.documentElement);
+  return {
+    line: styles.getPropertyValue("--color-line").trim() || "#2a3447",
+    ok: styles.getPropertyValue("--color-ok").trim() || "#22c55e",
+    accent: styles.getPropertyValue("--color-accent").trim() || "#3b82f6",
+    no: styles.getPropertyValue("--color-no").trim() || "#ef4444",
+    muted: styles.getPropertyValue("--color-muted").trim() || "#94a3b8",
+  };
+}
 
 function polar(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
@@ -87,9 +130,11 @@ export function TunerView() {
   const [settings, setSettings] = useState<TunerSettings>(() => loadTunerSettings(profile));
   const [listening, setListening] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
-  const [reading, setReading] = useState<PitchReading | null>(null);
+  const [lastHz, setLastHz] = useState<number | null>(null);
   const [isLiveSignal, setIsLiveSignal] = useState(false);
   const [inputLevel, setInputLevel] = useState(0);
+  const [avgCents, setAvgCents] = useState<number | null>(null);
+  const [steadyInTune, setSteadyInTune] = useState(false);
   const [activeDroneMidi, setActiveDroneMidi] = useState<number | null>(null);
   const [standMode, setStandMode] = useState(false);
 
@@ -104,10 +149,22 @@ export function TunerView() {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
-  const smootherRef = useRef(new PitchSmoother(0.28, 80));
+  const pendingDroneTimerRef = useRef<number | null>(null);
+  const smootherRef = useRef(new PitchSmoother(0.28, 80, 2));
+  const yinWorkspaceRef = useRef(createYinWorkspace(4096));
   const lastLockAtRef = useRef<number>(0);
+  const lastDetectAtRef = useRef<number>(0);
+  const lastUiCommitAtRef = useRef<number>(0);
+  const inTuneSinceRef = useRef<number | null>(null);
   const traceRef = useRef<TraceSample[]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const themeColorsRef = useRef<ThemeColors>(readThemeColors());
+
+  // Derive current pitch reading reactively so changing A4 or transposition updates held readings immediately
+  const reading = useMemo(
+    () => (lastHz !== null ? freqToPitchReading(lastHz, settings.a4Hz, settings.transposition) : null),
+    [lastHz, settings.a4Hz, settings.transposition],
+  );
 
   // Reload profile-scoped tuner settings when switching between Slagverk & B-trompet
   useEffect(() => {
@@ -122,6 +179,7 @@ export function TunerView() {
         ...prev,
         ...patch,
         a4Hz: patch.a4Hz !== undefined ? clampA4(patch.a4Hz) : prev.a4Hz,
+        droneVolume: patch.droneVolume !== undefined ? clampDroneVolume(patch.droneVolume) : prev.droneVolume,
       };
       settingsRef.current = next;
       saveTunerSettings(next, profileRef.current);
@@ -136,15 +194,12 @@ export function TunerView() {
     }
   }, [activeDroneMidi, settings.a4Hz]);
 
-  // Escape key exits Notestativ-modus
+  // Keep active drone volume synced live while playing
   useEffect(() => {
-    if (!standMode) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setStandMode(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [standMode]);
+    if (activeDroneMidi !== null) {
+      setTunerDroneVolume(settings.droneVolume);
+    }
+  }, [activeDroneMidi, settings.droneVolume]);
 
   // Screen Wake Lock while Tuner microphone or fullscreen stand mode is active
   useEffect(() => {
@@ -207,12 +262,7 @@ export function TunerView() {
     const height = rect.height;
     ctx.clearRect(0, 0, width, height);
 
-    const styles = getComputedStyle(document.documentElement);
-    const lineCol = styles.getPropertyValue("--color-line").trim() || "#2a3447";
-    const okCol = styles.getPropertyValue("--color-ok").trim() || "#22c55e";
-    const accentCol = styles.getPropertyValue("--color-accent").trim() || "#3b82f6";
-    const noCol = styles.getPropertyValue("--color-no").trim() || "#ef4444";
-    const mutedCol = styles.getPropertyValue("--color-muted").trim() || "#94a3b8";
+    const { line: lineCol, ok: okCol, accent: accentCol, no: noCol, muted: mutedCol } = themeColorsRef.current;
 
     const yForCents = (c: number) => height / 2 - (Math.max(-50, Math.min(50, c)) / 50) * (height * 0.42);
 
@@ -247,7 +297,7 @@ export function TunerView() {
     ctx.fillText("0", width - 6, yForCents(0) - 3);
     ctx.fillText("-25¢", width - 6, yForCents(-25) + 11);
 
-    // Prune and plot live cents trace
+    // Prune and plot live cents trace (breaking polyline on silence gaps OR note changes)
     const cutoff = now - TRACE_WINDOW_MS;
     const samples = traceRef.current;
     while (samples.length > 0 && samples[0]!.t < cutoff) samples.shift();
@@ -260,6 +310,7 @@ export function TunerView() {
       const prev = samples[i - 1]!;
       const cur = samples[i]!;
       if (prev.cents === null || cur.cents === null) continue;
+      if (prev.midi !== cur.midi) continue;
       if (cur.t - prev.t > 260) continue;
       const x1 = ((prev.t - cutoff) / TRACE_WINDOW_MS) * width;
       const x2 = ((cur.t - cutoff) / TRACE_WINDOW_MS) * width;
@@ -286,6 +337,26 @@ export function TunerView() {
     }
 
     ctx.restore();
+  }, []);
+
+  // Keep cached CSS theme colors synced when light/dark theme switches
+  useEffect(() => {
+    const syncColors = () => {
+      themeColorsRef.current = readThemeColors();
+      drawTrace(performance.now());
+    };
+    syncColors();
+    if (typeof MutationObserver === "undefined") return;
+    const obs = new MutationObserver(syncColors);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, [drawTrace]);
+
+  const cancelPendingDrone = useCallback(() => {
+    if (pendingDroneTimerRef.current !== null) {
+      window.clearTimeout(pendingDroneTimerRef.current);
+      pendingDroneTimerRef.current = null;
+    }
   }, []);
 
   const stopMic = useCallback(() => {
@@ -334,9 +405,11 @@ export function TunerView() {
       markAudioRouteStale();
     }
     smootherRef.current.reset();
+    inTuneSinceRef.current = null;
     setListening(false);
     setIsLiveSignal(false);
     setInputLevel(0);
+    setSteadyInTune(false);
   }, []);
 
   const startMic = useCallback(async () => {
@@ -352,35 +425,37 @@ export function TunerView() {
       return;
     }
 
-    // Stop any playing drone before opening the mic so Bluetooth doesn't collide between A2DP and HFP.
+    // Stop any playing or queued drone before opening the mic so Bluetooth doesn't collide between A2DP and HFP.
+    cancelPendingDrone();
     stopTunerDrone();
     setActiveDroneMidi(null);
 
     const session = ++micSessionRef.current;
+    const findBuiltinMicId = async (): Promise<string | undefined> => {
+      if (typeof navigator.mediaDevices.enumerateDevices !== "function") return undefined;
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter((d) => d.kind === "audioinput" && d.deviceId && d.deviceId !== "default");
+        const builtin = inputs.find((d) => d.label && !BLUETOOTH_MIC_RE.test(d.label));
+        return builtin?.deviceId;
+      } catch {
+        return undefined;
+      }
+    };
+
+    const buildConstraints = (deviceId?: string): MediaTrackConstraints => ({
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      channelCount: 1,
+      ...(deviceId ? { deviceId: { ideal: deviceId } } : {}),
+    });
+
     try {
       // Prefer the tablet's built-in microphone over a Bluetooth headset mic so Bluetooth stays in media mode.
-      let preferredDeviceId: string | undefined;
-      if (typeof navigator.mediaDevices.enumerateDevices === "function") {
-        try {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          const inputs = devices.filter((d) => d.kind === "audioinput" && d.deviceId && d.deviceId !== "default");
-          const isBluetooth = (label: string) => /bluetooth|headset|hands-free|handsfree|airpods|buds|sco|hfp/i.test(label);
-          const builtin = inputs.find((d) => d.label && !isBluetooth(d.label));
-          if (builtin) preferredDeviceId = builtin.deviceId;
-        } catch {
-          /* ignore */
-        }
-      }
+      const preferredDeviceId = await findBuiltinMicId();
+      let stream = await navigator.mediaDevices.getUserMedia({ audio: buildConstraints(preferredDeviceId) });
 
-      const audioConstraints: MediaTrackConstraints = {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        channelCount: 1,
-        ...(preferredDeviceId ? { deviceId: { ideal: preferredDeviceId } } : {}),
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
       if (session !== micSessionRef.current) {
         for (const track of stream.getTracks()) {
           try {
@@ -390,6 +465,33 @@ export function TunerView() {
           }
         }
         return;
+      }
+
+      // On first-ever permission grant, device labels were empty before getUserMedia().
+      // If the OS grabbed a Bluetooth HFP mic, switch immediately to the built-in tablet mic.
+      const openedTrack = stream.getAudioTracks()[0];
+      if (!preferredDeviceId && openedTrack?.label && BLUETOOTH_MIC_RE.test(openedTrack.label)) {
+        const builtinAfterGrant = await findBuiltinMicId();
+        if (builtinAfterGrant) {
+          for (const track of stream.getTracks()) {
+            try {
+              track.stop();
+            } catch {
+              /* ignore */
+            }
+          }
+          stream = await navigator.mediaDevices.getUserMedia({ audio: buildConstraints(builtinAfterGrant) });
+          if (session !== micSessionRef.current) {
+            for (const track of stream.getTracks()) {
+              try {
+                track.stop();
+              } catch {
+                /* ignore */
+              }
+            }
+            return;
+          }
+        }
       }
 
       // Dedicated capture-only AudioContext so mic lifecycle never disrupts shared playback audio.
@@ -420,7 +522,12 @@ export function TunerView() {
       sourceRef.current = source;
       analyserRef.current = analyser;
       smootherRef.current.reset();
+      inTuneSinceRef.current = null;
+      lastDetectAtRef.current = 0;
+      lastUiCommitAtRef.current = 0;
       traceRef.current = [];
+      setAvgCents(null);
+      setSteadyInTune(false);
       setListening(true);
 
       const buf = new Float32Array(analyser.fftSize);
@@ -428,36 +535,84 @@ export function TunerView() {
         const an = analyserRef.current;
         const cap = micCtxRef.current;
         if (!an || !cap || session !== micSessionRef.current) return;
-        an.getFloatTimeDomainData(buf);
         const now = performance.now();
 
-        let sumSq = 0;
-        for (let i = 0; i < buf.length; i++) sumSq += buf[i]! * buf[i]!;
-        const rms = Math.sqrt(sumSq / buf.length);
-        setInputLevel(Math.min(1, rms * 6));
+        // Run YIN pitch estimation at ~30 Hz (a 4096-sample buffer is ~85 ms long) to save tablet CPU & battery.
+        if (now - lastDetectAtRef.current >= DETECT_INTERVAL_MS) {
+          lastDetectAtRef.current = now;
+          an.getFloatTimeDomainData(buf);
 
-        const detected = detectPitchYin(buf, cap.sampleRate, {
-          minHz: 32,
-          maxHz: 2200,
-          minRms: 0.012,
-          threshold: 0.15,
-        });
+          let sumSq = 0;
+          for (let i = 0; i < buf.length; i++) sumSq += buf[i]! * buf[i]!;
+          const rms = Math.sqrt(sumSq / buf.length);
+          const nextLevel = Math.min(1, rms * 6);
 
-        if (detected) {
-          const smoothedHz = smootherRef.current.push(detected.hz);
           const curSettings = settingsRef.current;
-          const nextReading = freqToPitchReading(smoothedHz, curSettings.a4Hz, curSettings.transposition);
-          if (nextReading) {
-            lastLockAtRef.current = now;
-            setReading(nextReading);
-            setIsLiveSignal(true);
-            traceRef.current.push({ t: now, cents: nextReading.cents });
+          const detected = detectPitchYin(buf, cap.sampleRate, {
+            minHz: 40,
+            maxHz: 4300,
+            minRms: getSensitivityMinRms(curSettings.sensitivity),
+            threshold: 0.15,
+            workspace: yinWorkspaceRef.current,
+          });
+
+          let nextHz: number | null = null;
+          let nextLive = false;
+          let nextAvg: number | null = null;
+          let nextSteady = false;
+
+          if (detected) {
+            const smoothedHz = smootherRef.current.push(detected.hz);
+            const nextReading = freqToPitchReading(smoothedHz, curSettings.a4Hz, curSettings.transposition);
+            if (nextReading) {
+              lastLockAtRef.current = now;
+              nextHz = smoothedHz;
+              nextLive = true;
+              traceRef.current.push({ t: now, cents: nextReading.cents, midi: nextReading.concertMidi });
+
+              if (nextReading.inTune) {
+                if (inTuneSinceRef.current === null) inTuneSinceRef.current = now;
+                nextSteady = now - inTuneSinceRef.current >= STEADY_LOCK_MS;
+              } else {
+                inTuneSinceRef.current = null;
+              }
+
+              // Rolling 2-second average cents for the currently held note
+              const avgCutoff = now - AVG_WINDOW_MS;
+              const samples = traceRef.current;
+              let sumCents = 0;
+              let countCents = 0;
+              for (let i = samples.length - 1; i >= 0; i--) {
+                const s = samples[i]!;
+                if (s.t < avgCutoff) break;
+                if (s.cents === null || s.midi !== nextReading.concertMidi) break;
+                sumCents += s.cents;
+                countCents += 1;
+              }
+              if (countCents >= 5) {
+                nextAvg = sumCents / countCents;
+              }
+            }
+          } else {
+            inTuneSinceRef.current = null;
+            traceRef.current.push({ t: now, cents: null, midi: null });
+            if (lastLockAtRef.current > 0 && now - lastLockAtRef.current > HOLD_READING_MS) {
+              smootherRef.current.reset();
+            }
           }
-        } else {
-          setIsLiveSignal(false);
-          traceRef.current.push({ t: now, cents: null });
-          if (lastLockAtRef.current > 0 && now - lastLockAtRef.current > HOLD_READING_MS) {
-            smootherRef.current.reset();
+
+          if (now - lastUiCommitAtRef.current >= UI_COMMIT_INTERVAL_MS) {
+            lastUiCommitAtRef.current = now;
+            setInputLevel(nextLevel);
+            if (nextHz !== null) {
+              setLastHz(nextHz);
+              setIsLiveSignal(true);
+              setAvgCents(nextAvg);
+              setSteadyInTune(nextSteady);
+            } else {
+              setIsLiveSignal(nextLive);
+              setSteadyInTune(false);
+            }
           }
         }
 
@@ -479,64 +634,127 @@ export function TunerView() {
         }
       }
     }
-  }, [drawTrace, stopMic]);
+  }, [cancelPendingDrone, drawTrace, stopMic]);
 
-  // Draw empty trace grid on mount & resize
+  // Keyboard shortcuts: Escape exits Notestativ-modus; Space toggles microphone
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && standMode) {
+        setStandMode(false);
+        return;
+      }
+      if (e.key === " " && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
+        e.preventDefault();
+        if (listening) stopMic();
+        else void startMic();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [listening, standMode, startMic, stopMic]);
+
+  // Stop active microphone when tab is backgrounded / tablet screen locks (prevents stuck Android BT HFP route)
+  useEffect(() => {
+    if (!listening) return;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stopMic();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [listening, stopMic]);
+
+  // Draw empty trace grid on mount, resize, and standMode toggle
   useEffect(() => {
     drawTrace(performance.now());
     const onResize = () => drawTrace(performance.now());
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [drawTrace]);
+  }, [drawTrace, standMode]);
 
   // Release microphone and drone cleanly when leaving /tuner
   useEffect(() => {
     return () => {
+      cancelPendingDrone();
       stopMic();
       stopTunerDrone();
     };
-  }, [stopMic]);
+  }, [cancelPendingDrone, stopMic]);
 
   const handleToggleDrone = useCallback(
     (midi: number) => {
+      cancelPendingDrone();
       if (activeDroneMidi === midi) {
         stopTunerDrone();
         setActiveDroneMidi(null);
         return;
       }
-      // Ensure mic capture is stopped before playing drone so Bluetooth stays on A2DP media audio.
-      if (streamRef.current || micCtxRef.current) {
+      // If mic capture is active, stop it first and let Android's Bluetooth HAL finish switching back to A2DP.
+      const hadActiveMic = Boolean(streamRef.current || micCtxRef.current);
+      if (hadActiveMic) {
         stopMic();
+        pendingDroneTimerRef.current = window.setTimeout(() => {
+          pendingDroneTimerRef.current = null;
+          if (
+            startTunerDrone(
+              midi,
+              settingsRef.current.a4Hz,
+              settingsRef.current.droneWave,
+              settingsRef.current.droneVolume,
+            )
+          ) {
+            setActiveDroneMidi(midi);
+          }
+        }, BT_ROUTE_SETTLE_MS);
+        return;
       }
-      if (startTunerDrone(midi, settingsRef.current.a4Hz, settingsRef.current.droneWave)) {
+      if (
+        startTunerDrone(
+          midi,
+          settingsRef.current.a4Hz,
+          settingsRef.current.droneWave,
+          settingsRef.current.droneVolume,
+        )
+      ) {
         setActiveDroneMidi(midi);
       }
     },
-    [activeDroneMidi, stopMic],
+    [activeDroneMidi, cancelPendingDrone, stopMic],
   );
 
   const handleStopDrone = useCallback(() => {
+    cancelPendingDrone();
     stopTunerDrone();
     setActiveDroneMidi(null);
-  }, []);
+  }, [cancelPendingDrone]);
 
   const handleWaveChange = useCallback(
     (wave: DroneWave) => {
       updateSettings({ droneWave: wave });
       if (activeDroneMidi !== null) {
-        startTunerDrone(activeDroneMidi, settingsRef.current.a4Hz, wave);
+        startTunerDrone(activeDroneMidi, settingsRef.current.a4Hz, wave, settingsRef.current.droneVolume);
       }
     },
     [activeDroneMidi, updateSettings],
   );
 
   const handleOctaveChange = useCallback(
-    (oct: 3 | 4 | 5) => {
+    (oct: DroneOctave) => {
       updateSettings({ droneOctave: oct });
       if (activeDroneMidi !== null) {
         const pc = ((activeDroneMidi % 12) + 12) % 12;
         const shiftedMidi = (oct + 1) * 12 + pc;
-        if (startTunerDrone(shiftedMidi, settingsRef.current.a4Hz, settingsRef.current.droneWave)) {
+        if (
+          startTunerDrone(
+            shiftedMidi,
+            settingsRef.current.a4Hz,
+            settingsRef.current.droneWave,
+            settingsRef.current.droneVolume,
+          )
+        ) {
           setActiveDroneMidi(shiftedMidi);
         }
       }
@@ -556,19 +774,23 @@ export function TunerView() {
         : "sharp";
 
   const droneLabel = activeDroneMidi !== null ? midiToNorwegianLabel(activeDroneMidi).full : null;
+  const droneWrittenLabel =
+    activeDroneMidi !== null && settings.transposition !== "C"
+      ? getWrittenDroneLabel(activeDroneMidi, settings.transposition)
+      : null;
   const droneHz = activeDroneMidi !== null ? midiToFrequency(activeDroneMidi, settings.a4Hz) : null;
 
   return (
     <div
       className={
         standMode
-          ? "fixed inset-0 z-30 flex h-full min-h-0 flex-col overflow-y-auto bg-bg px-4 py-3 text-fg"
+          ? "fixed inset-0 z-30 flex h-full min-h-0 flex-col gap-3 overflow-y-auto bg-bg px-4 py-3 text-fg"
           : "flex w-full flex-col gap-3 pb-4 text-fg"
       }
     >
       {/* Compact top control bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface px-3.5 py-2.5 shadow-[var(--shadow-card)]">
-        {/* Mic control + live input meter */}
+        {/* Mic control + live input meter (visible on all screen sizes) */}
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
@@ -589,9 +811,9 @@ export function TunerView() {
           </button>
 
           {/* Compact input level meter */}
-          <div className="hidden items-center gap-1.5 sm:flex" aria-hidden="true">
+          <div className="flex items-center gap-1.5" aria-hidden="true">
             <AudioWaveform className={isLiveSignal ? "size-4 text-ok" : "size-4 text-muted"} />
-            <div className="h-2 w-20 overflow-hidden rounded-full bg-line">
+            <div className="h-2 w-16 overflow-hidden rounded-full bg-line sm:w-20">
               <div
                 className="h-full rounded-full transition-[width] duration-75"
                 style={{
@@ -606,7 +828,11 @@ export function TunerView() {
         {/* Right controls: A4 calibration, Transposition, Fullscreen */}
         <div className="flex flex-wrap items-center gap-2">
           {/* A4 Calibration */}
-          <div className="inline-flex items-center gap-1 rounded-xl border border-line bg-header p-1" role="group" aria-label="Kammertone A4">
+          <div
+            className="inline-flex items-center gap-1 rounded-xl border border-line bg-header p-1"
+            role="group"
+            aria-label="Kammertone A4"
+          >
             <span className="px-1.5 text-[11px] font-bold tracking-wider text-muted uppercase">A4</span>
             {([440, 442] as const).map((hz) => {
               const active = settings.a4Hz === hz;
@@ -635,10 +861,7 @@ export function TunerView() {
             >
               <Minus className="size-3.5" aria-hidden="true" />
             </button>
-            <span
-              data-tuner-a4
-              className="min-w-12 text-center text-xs font-bold text-fg tabular-nums"
-            >
+            <span data-tuner-a4 className="min-w-12 text-center text-xs font-bold text-fg tabular-nums">
               {settings.a4Hz} Hz
             </span>
             <button
@@ -653,7 +876,11 @@ export function TunerView() {
           </div>
 
           {/* Transposition */}
-          <div className="inline-flex items-center gap-1 rounded-xl border border-line bg-header p-1" role="group" aria-label="Transponering">
+          <div
+            className="inline-flex items-center gap-1 rounded-xl border border-line bg-header p-1"
+            role="group"
+            aria-label="Transponering"
+          >
             {TRANSPOSITION_OPTIONS.map((opt) => {
               const active = settings.transposition === opt.id;
               return (
@@ -675,7 +902,7 @@ export function TunerView() {
             })}
           </div>
 
-          {/* Fullscreen / Notestativ-modus */}
+          {/* Fullscreen / Notestativ-modus (available on all viewports) */}
           <button
             type="button"
             onClick={() => setStandMode((s) => !s)}
@@ -684,8 +911,8 @@ export function TunerView() {
             title={standMode ? "Avslutt fullskjerm (Esc)" : "Notestativ-modus (fullskjerm)"}
             className={
               standMode
-                ? "metro-press hidden size-10 items-center justify-center rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] text-accent sm:inline-flex"
-                : "metro-press hidden size-10 items-center justify-center rounded-xl border border-line bg-header text-muted hover:text-fg sm:inline-flex"
+                ? "metro-press inline-flex size-10 items-center justify-center rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.12)] text-accent"
+                : "metro-press inline-flex size-10 items-center justify-center rounded-xl border border-line bg-header text-muted hover:text-fg"
             }
           >
             {standMode ? (
@@ -706,12 +933,26 @@ export function TunerView() {
         </div>
       ) : null}
 
-      {/* Main 13" 16:10 2-column studio grid */}
-      <div className="grid w-full flex-1 gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(340px,1fr)]">
+      {/* Main layout: True distance-readable single-column hero in Notestativ-modus, or 2-column 13" 16:10 studio grid */}
+      <div
+        className={
+          standMode
+            ? "flex w-full flex-1 flex-col gap-3"
+            : "grid w-full flex-1 gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(340px,1fr)]"
+        }
+      >
         {/* LEFT HERO: Chromatic Arc Gauge + Note Readout + Intonation Trace */}
         <section
           aria-label="Kromatisk tuner"
-          className="flex flex-col justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)] sm:p-5"
+          style={
+            steadyInTune
+              ? {
+                  borderColor: "rgb(var(--color-ok-rgb) / 0.65)",
+                  boxShadow: "0 0 24px rgb(var(--color-ok-rgb) / 0.18)",
+                }
+              : undefined
+          }
+          className="flex flex-1 flex-col justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)] transition-[border-color,box-shadow] duration-200 sm:p-5"
         >
           {/* Status pills row */}
           <div className="flex items-center justify-between gap-2">
@@ -732,11 +973,13 @@ export function TunerView() {
                   : "rounded-full border border-line bg-header px-3.5 py-1 text-xs font-semibold text-muted"
               }
             >
-              {statusKind === "in"
-                ? "I stemme"
-                : listening
-                  ? "Lytter…"
-                  : "Klar · trykk Start mikrofon"}
+              {steadyInTune
+                ? "Stabilt i stemme"
+                : statusKind === "in"
+                  ? "I stemme"
+                  : listening
+                    ? "Lytter…"
+                    : "Klar · trykk Start mikrofon"}
             </span>
 
             <span
@@ -754,7 +997,7 @@ export function TunerView() {
           <div className="flex flex-col items-center">
             <svg
               viewBox="0 0 420 215"
-              className="w-full max-w-[460px] select-none"
+              className={standMode ? "w-full max-w-[660px] select-none" : "w-full max-w-[460px] select-none"}
               role="img"
               aria-label={
                 reading
@@ -778,7 +1021,7 @@ export function TunerView() {
                 stroke="var(--color-ok)"
                 strokeWidth="12"
                 strokeLinecap="round"
-                opacity="0.7"
+                opacity={steadyInTune ? "1" : "0.7"}
               />
 
               {/* Graduated ticks */}
@@ -849,20 +1092,28 @@ export function TunerView() {
                   opacity: reading ? (isLiveSignal ? 1 : 0.6) : 0.45,
                 }}
               >
-                <span className="text-6xl leading-none sm:text-7xl">{reading ? reading.noteName : "–"}</span>
-                {reading ? <span className="text-2xl font-semibold sm:text-3xl">{reading.octave}</span> : null}
+                <span className={standMode ? "text-8xl leading-none sm:text-9xl" : "text-6xl leading-none sm:text-7xl"}>
+                  {reading ? reading.noteName : "–"}
+                </span>
+                {reading ? (
+                  <span className={standMode ? "text-3xl font-semibold sm:text-4xl" : "text-2xl font-semibold sm:text-3xl"}>
+                    {reading.octave}
+                  </span>
+                ) : null}
               </div>
 
               <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold tabular-nums sm:text-sm">
                 <span className="rounded-lg border border-line bg-header px-2.5 py-1 text-fg">
                   {reading ? `${reading.hz.toFixed(1)} Hz` : `A4 = ${settings.a4Hz} Hz`}
                 </span>
-                <span
-                  className="rounded-lg border border-line bg-header px-2.5 py-1"
-                  style={{ color: activeColor }}
-                >
+                <span className="rounded-lg border border-line bg-header px-2.5 py-1" style={{ color: activeColor }}>
                   {reading ? formatCents(reading.cents) : "±0 ¢"}
                 </span>
+                {avgCents !== null && isLiveSignal ? (
+                  <span className="rounded-lg border border-line bg-header px-2.5 py-1 text-muted">
+                    Snitt {formatCents(avgCents)}
+                  </span>
+                ) : null}
                 {reading && settings.transposition !== "C" ? (
                   <span className="rounded-lg border border-[rgb(var(--color-accent-rgb)/0.4)] bg-[rgb(var(--color-accent-rgb)/0.1)] px-2.5 py-1 text-accent">
                     Klinger {reading.concertLabel}
@@ -872,175 +1123,289 @@ export function TunerView() {
             </div>
           </div>
 
-          {/* 6-second Live Intonation Trace */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] font-medium text-muted">
-              <span className="font-bold tracking-wider text-accent uppercase">Intonasjonsgraf (6 sek)</span>
-              <span>Grønt felt = ±5 cent</span>
+          {/* 6-second Live Intonation Trace + Room Sensitivity selector */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-muted">
+              <div className="flex items-center gap-2">
+                <span className="font-bold tracking-wider text-accent uppercase">Intonasjonsgraf (6 sek)</span>
+                <span>Grønt felt = ±5 cent</span>
+              </div>
+
+              {/* Microphone Noise Gate / Sensitivity */}
+              <div
+                className="inline-flex items-center gap-1 rounded-lg border border-line bg-header p-0.5"
+                role="group"
+                aria-label="Mikrofonfølsomhet"
+              >
+                {SENSITIVITY_OPTIONS.map((opt) => {
+                  const active = settings.sensitivity === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      title={opt.description}
+                      aria-pressed={active}
+                      onClick={() => updateSettings({ sensitivity: opt.id as TunerSensitivity })}
+                      className={
+                        active
+                          ? "metro-press min-h-7 rounded-md border border-accent bg-[rgb(var(--color-accent-rgb)/0.14)] px-2 text-[11px] font-bold text-accent"
+                          : "metro-press min-h-7 rounded-md px-2 text-[11px] font-medium text-muted hover:text-fg"
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="h-24 w-full overflow-hidden rounded-xl border border-line bg-header sm:h-28">
+
+            <div
+              className={
+                standMode
+                  ? "h-32 w-full overflow-hidden rounded-xl border border-line bg-header sm:h-40"
+                  : "h-24 w-full overflow-hidden rounded-xl border border-line bg-header sm:h-28"
+              }
+            >
               <canvas ref={canvasRef} className="block h-full w-full" aria-label="Intonasjonsgraf over tid" />
             </div>
           </div>
         </section>
 
-        {/* RIGHT COLUMN: Chromatic Reference Drone Pad */}
-        <section
-          aria-label="Referansetone"
-          className="flex flex-col justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)] sm:p-5"
-        >
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h2 className="text-xs font-bold tracking-wider text-accent uppercase">Referansetone (Drone)</h2>
-                <p className="text-xs text-muted">
-                  {droneLabel && droneHz
-                    ? `Spiller ${droneLabel} · ${droneHz.toFixed(1)} Hz`
-                    : "Trykk en tone for å stemme på gehør"}
-                </p>
-              </div>
+        {/* Compact Stand-Mode Drone Strip OR Full Right-Column Chromatic Drone Pad */}
+        {standMode ? (
+          <section
+            aria-label="Referansetone hurtigvalg"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-surface px-4 py-2.5 shadow-[var(--shadow-card)]"
+          >
+            <div className="flex items-center gap-2">
+              <Volume2 className="size-4 text-accent" aria-hidden="true" />
+              <span className="text-xs font-bold tracking-wider text-accent uppercase">Referansetone</span>
+              {droneLabel && droneHz ? (
+                <span className="text-xs font-medium text-muted tabular-nums">
+                  {droneLabel}
+                  {droneWrittenLabel ? ` (skr. ${droneWrittenLabel})` : ""} · {droneHz.toFixed(1)} Hz
+                </span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {QUICK_DRONE_NOTES.map((item) => {
+                const active = activeDroneMidi === item.midi;
+                const writtenSub =
+                  settings.transposition !== "C" ? getWrittenDroneLabel(item.midi, settings.transposition) : null;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => handleToggleDrone(item.midi)}
+                    className={
+                      active
+                        ? "metro-press min-h-10 rounded-xl border border-ok bg-[rgb(var(--color-ok-rgb)/0.15)] px-3.5 text-xs font-bold text-ok"
+                        : "metro-press min-h-10 rounded-xl border border-line bg-header px-3.5 text-xs font-semibold text-fg hover:border-[rgb(var(--color-accent-rgb)/0.5)]"
+                    }
+                  >
+                    {item.label}
+                    {writtenSub ? <span className="ml-1 text-[10px] opacity-75">({writtenSub})</span> : null}
+                  </button>
+                );
+              })}
               {activeDroneMidi !== null ? (
                 <button
                   type="button"
                   onClick={handleStopDrone}
-                  className="metro-press inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[rgb(var(--color-no-rgb)/0.45)] bg-[rgb(var(--color-no-rgb)/0.12)] px-3 text-xs font-bold text-no"
+                  className="metro-press inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-[rgb(var(--color-no-rgb)/0.45)] bg-[rgb(var(--color-no-rgb)/0.12)] px-3 text-xs font-bold text-no"
                 >
                   <Square className="size-3 fill-current" aria-hidden="true" />
                   <span>Stopp lyd</span>
                 </button>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-lg border border-line bg-header px-2.5 py-1 text-[11px] font-semibold text-muted">
-                  <Volume2 className="size-3.5" aria-hidden="true" />
-                  <span>Klingende</span>
+              ) : null}
+            </div>
+          </section>
+        ) : (
+          <section
+            aria-label="Referansetone"
+            className="flex flex-col justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow-card)] sm:p-5"
+          >
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-xs font-bold tracking-wider text-accent uppercase">Referansetone (Drone)</h2>
+                  <p className="text-xs text-muted tabular-nums">
+                    {droneLabel && droneHz
+                      ? `Spiller ${droneLabel}${droneWrittenLabel ? ` (skr. ${droneWrittenLabel})` : ""} · ${droneHz.toFixed(1)} Hz`
+                      : "Trykk en tone for å stemme på gehør"}
+                  </p>
+                </div>
+                {activeDroneMidi !== null ? (
+                  <button
+                    type="button"
+                    onClick={handleStopDrone}
+                    className="metro-press inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[rgb(var(--color-no-rgb)/0.45)] bg-[rgb(var(--color-no-rgb)/0.12)] px-3 text-xs font-bold text-no"
+                  >
+                    <Square className="size-3 fill-current" aria-hidden="true" />
+                    <span>Stopp lyd</span>
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-line bg-header px-2.5 py-1 text-[11px] font-semibold text-muted">
+                    <Volume2 className="size-3.5" aria-hidden="true" />
+                    <span>Klingende</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Quick common tuning notes */}
+              <div className="space-y-1">
+                <span className="block text-[11px] font-medium text-muted">Hurtigvalg (korps & orkester)</span>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {QUICK_DRONE_NOTES.map((item) => {
+                    const active = activeDroneMidi === item.midi;
+                    const writtenSub =
+                      settings.transposition !== "C" ? getWrittenDroneLabel(item.midi, settings.transposition) : null;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => handleToggleDrone(item.midi)}
+                        className={
+                          active
+                            ? "metro-press flex min-h-10 flex-col items-center justify-center rounded-xl border border-ok bg-[rgb(var(--color-ok-rgb)/0.15)] px-1 py-1 text-xs font-bold text-ok"
+                            : "metro-press flex min-h-10 flex-col items-center justify-center rounded-xl border border-line bg-header px-1 py-1 text-xs font-semibold text-fg hover:border-[rgb(var(--color-accent-rgb)/0.5)]"
+                        }
+                      >
+                        <span>{item.label}</span>
+                        {writtenSub ? (
+                          <span className="text-[10px] font-medium opacity-75">skr. {writtenSub}</span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 12-note Chromatic Pad Grid (4x3) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-medium text-muted">
+                  <span>Kromatisk tastatur (oktav {settings.droneOctave})</span>
+                  <span className="tabular-nums">A4 = {settings.a4Hz} Hz</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {NOTE_NAMES_NB.map((name, pc) => {
+                    const midi = (settings.droneOctave + 1) * 12 + pc;
+                    const hz = midiToFrequency(midi, settings.a4Hz);
+                    const active = activeDroneMidi === midi;
+                    const writtenSub =
+                      settings.transposition !== "C" ? getWrittenDroneLabel(midi, settings.transposition) : null;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        data-drone-note={`${name}${settings.droneOctave}`}
+                        aria-pressed={active}
+                        onClick={() => handleToggleDrone(midi)}
+                        className={
+                          active
+                            ? "metro-press flex min-h-16 flex-col items-center justify-center rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.14)] px-2 py-2 text-accent shadow-xs"
+                            : "metro-press flex min-h-16 flex-col items-center justify-center rounded-xl border border-line bg-header px-2 py-2 text-fg hover:border-[rgb(var(--color-accent-rgb)/0.5)]"
+                        }
+                      >
+                        <span className="text-base font-bold leading-tight">
+                          {name}
+                          <span className="text-xs font-semibold opacity-75">{settings.droneOctave}</span>
+                        </span>
+                        <span className="mt-0.5 text-[11px] font-medium text-muted tabular-nums">
+                          {writtenSub ? `skr. ${writtenSub}` : `${hz.toFixed(0)} Hz`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Drone Controls: Octave (2-5), Timbre & Volume */}
+            <div className="space-y-2.5 border-t border-line pt-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <span className="block text-[11px] font-medium text-muted">Oktav</span>
+                  <div className="grid grid-cols-4 gap-1" role="group" aria-label="Drone-oktav">
+                    {([2, 3, 4, 5] as const).map((oct) => {
+                      const active = settings.droneOctave === oct;
+                      return (
+                        <button
+                          key={oct}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => handleOctaveChange(oct)}
+                          className={
+                            active
+                              ? "metro-press min-h-9 rounded-lg border border-accent bg-[rgb(var(--color-accent-rgb)/0.14)] text-xs font-bold text-accent"
+                              : "metro-press min-h-9 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
+                          }
+                        >
+                          {oct}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="block text-[11px] font-medium text-muted">Klang</span>
+                  <div className="grid grid-cols-2 gap-1" role="group" aria-label="Drone-klang">
+                    {(
+                      [
+                        ["triangle", "Varm"],
+                        ["sine", "Ren"],
+                      ] as const
+                    ).map(([wave, label]) => {
+                      const active = settings.droneWave === wave;
+                      return (
+                        <button
+                          key={wave}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => handleWaveChange(wave)}
+                          className={
+                            active
+                              ? "metro-press min-h-9 rounded-lg border border-accent bg-[rgb(var(--color-accent-rgb)/0.14)] text-xs font-bold text-accent"
+                              : "metro-press min-h-9 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
+                          }
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Compact Drone Volume Slider */}
+              <label className="flex items-center gap-2.5 text-[11px] font-medium text-muted">
+                <span className="shrink-0">Volum</span>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  step={5}
+                  value={Math.round(settings.droneVolume * 100)}
+                  onChange={(e) => updateSettings({ droneVolume: Number(e.target.value) / 100 })}
+                  aria-label="Drone-volum"
+                  className="h-2 w-full accent-[var(--color-accent)]"
+                />
+                <span className="w-9 shrink-0 text-right font-semibold text-fg tabular-nums">
+                  {Math.round(settings.droneVolume * 100)}%
                 </span>
-              )}
+              </label>
             </div>
 
-            {/* Quick common tuning notes */}
-            <div className="space-y-1">
-              <span className="block text-[11px] font-medium text-muted">Hurtigvalg (korps & orkester)</span>
-              <div className="grid grid-cols-4 gap-1.5">
-                {QUICK_DRONE_NOTES.map((item) => {
-                  const active = activeDroneMidi === item.midi;
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => handleToggleDrone(item.midi)}
-                      className={
-                        active
-                          ? "metro-press min-h-10 rounded-xl border border-ok bg-[rgb(var(--color-ok-rgb)/0.15)] text-xs font-bold text-ok"
-                          : "metro-press min-h-10 rounded-xl border border-line bg-header text-xs font-semibold text-fg hover:border-[rgb(var(--color-accent-rgb)/0.5)]"
-                      }
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 12-note Chromatic Pad Grid (4x3) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] font-medium text-muted">
-                <span>Kromatisk tastatur (oktav {settings.droneOctave})</span>
-                <span className="tabular-nums">A4 = {settings.a4Hz} Hz</span>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {NOTE_NAMES_NB.map((name, pc) => {
-                  const midi = (settings.droneOctave + 1) * 12 + pc;
-                  const hz = midiToFrequency(midi, settings.a4Hz);
-                  const active = activeDroneMidi === midi;
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      data-drone-note={`${name}${settings.droneOctave}`}
-                      aria-pressed={active}
-                      onClick={() => handleToggleDrone(midi)}
-                      className={
-                        active
-                          ? "metro-press flex min-h-16 flex-col items-center justify-center rounded-xl border border-accent bg-[rgb(var(--color-accent-rgb)/0.14)] px-2 py-2 text-accent shadow-xs"
-                          : "metro-press flex min-h-16 flex-col items-center justify-center rounded-xl border border-line bg-header px-2 py-2 text-fg hover:border-[rgb(var(--color-accent-rgb)/0.5)]"
-                      }
-                    >
-                      <span className="text-base font-bold leading-tight">
-                        {name}
-                        <span className="text-xs font-semibold opacity-75">{settings.droneOctave}</span>
-                      </span>
-                      <span className="mt-0.5 text-[11px] font-medium text-muted tabular-nums">
-                        {hz.toFixed(0)} Hz
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Drone Controls: Octave + Timbre */}
-          <div className="grid grid-cols-2 gap-2 border-t border-line pt-3">
-            <div className="space-y-1">
-              <span className="block text-[11px] font-medium text-muted">Oktav</span>
-              <div className="grid grid-cols-3 gap-1" role="group" aria-label="Drone-oktav">
-                {([3, 4, 5] as const).map((oct) => {
-                  const active = settings.droneOctave === oct;
-                  return (
-                    <button
-                      key={oct}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => handleOctaveChange(oct)}
-                      className={
-                        active
-                          ? "metro-press min-h-9 rounded-lg border border-accent bg-[rgb(var(--color-accent-rgb)/0.14)] text-xs font-bold text-accent"
-                          : "metro-press min-h-9 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
-                      }
-                    >
-                      {oct}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <span className="block text-[11px] font-medium text-muted">Klang</span>
-              <div className="grid grid-cols-2 gap-1" role="group" aria-label="Drone-klang">
-                {(
-                  [
-                    ["triangle", "Varm"],
-                    ["sine", "Ren"],
-                  ] as const
-                ).map(([wave, label]) => {
-                  const active = settings.droneWave === wave;
-                  return (
-                    <button
-                      key={wave}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => handleWaveChange(wave)}
-                      className={
-                        active
-                          ? "metro-press min-h-9 rounded-lg border border-accent bg-[rgb(var(--color-accent-rgb)/0.14)] text-xs font-bold text-accent"
-                          : "metro-press min-h-9 rounded-lg border border-line bg-header text-xs font-medium text-muted hover:text-fg"
-                      }
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {settings.a4Hz !== DEFAULT_A4_HZ ? (
-            <p className="text-center text-[11px] text-muted">
-              Standard kammertone er {DEFAULT_A4_HZ} Hz — nå stilt til {settings.a4Hz} Hz.
-            </p>
-          ) : null}
-        </section>
+            {settings.a4Hz !== DEFAULT_A4_HZ ? (
+              <p className="text-center text-[11px] text-muted">
+                Standard kammertone er {DEFAULT_A4_HZ} Hz — nå stilt til {settings.a4Hz} Hz.
+              </p>
+            ) : null}
+          </section>
+        )}
       </div>
     </div>
   );

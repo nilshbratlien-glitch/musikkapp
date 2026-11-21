@@ -1,5 +1,5 @@
 import { getProfile, type InstrumentProfile } from "./profile.ts";
-import { audio, output, unlock } from "./pulse.ts";
+import { audio, auxOutput, unlock } from "./pulse.ts";
 import { readToolStore, writeToolStore } from "./tools.ts";
 
 /** Norwegian chromatic pitch-class names (B = Bb, H = B natural). */
@@ -36,18 +36,36 @@ export const TRANSPOSITION_OPTIONS: ReadonlyArray<TranspositionOption> = [
 ];
 
 export type DroneWave = "sine" | "triangle";
+export type DroneOctave = 2 | 3 | 4 | 5;
+export type TunerSensitivity = "quiet" | "normal" | "loud";
+
+export interface SensitivityOption {
+  id: TunerSensitivity;
+  label: string;
+  description: string;
+  minRms: number;
+}
+
+export const SENSITIVITY_OPTIONS: ReadonlyArray<SensitivityOption> = [
+  { id: "quiet", label: "Stille", description: "Stille øverom / svak klang", minRms: 0.005 },
+  { id: "normal", label: "Normal", description: "Standard øving", minRms: 0.012 },
+  { id: "loud", label: "Korpssal", description: "Støyende rom / samspill", minRms: 0.026 },
+];
 
 export interface TunerSettings {
   a4Hz: number;
   transposition: TunerTransposition;
-  droneOctave: 3 | 4 | 5;
+  droneOctave: DroneOctave;
   droneWave: DroneWave;
+  droneVolume: number;
+  sensitivity: TunerSensitivity;
 }
 
 export const DEFAULT_A4_HZ = 442;
 export const MIN_A4_HZ = 435;
 export const MAX_A4_HZ = 448;
 export const IN_TUNE_CENTS = 5;
+export const DEFAULT_DRONE_VOLUME = 0.7;
 
 export function defaultTunerSettings(profile: InstrumentProfile = getProfile()): TunerSettings {
   return {
@@ -55,12 +73,23 @@ export function defaultTunerSettings(profile: InstrumentProfile = getProfile()):
     transposition: profile === "trumpet" ? "Bb" : "C",
     droneOctave: 4,
     droneWave: "triangle",
+    droneVolume: DEFAULT_DRONE_VOLUME,
+    sensitivity: "normal",
   };
 }
 
 export function clampA4(hz: number): number {
   if (!Number.isFinite(hz)) return DEFAULT_A4_HZ;
   return Math.max(MIN_A4_HZ, Math.min(MAX_A4_HZ, Math.round(hz)));
+}
+
+export function clampDroneVolume(volume: number): number {
+  if (!Number.isFinite(volume)) return DEFAULT_DRONE_VOLUME;
+  return Math.max(0.1, Math.min(1, Math.round(volume * 100) / 100));
+}
+
+export function getSensitivityMinRms(sensitivity: TunerSensitivity): number {
+  return SENSITIVITY_OPTIONS.find((s) => s.id === sensitivity)?.minRms ?? 0.012;
 }
 
 export function loadTunerSettings(profile: InstrumentProfile = getProfile()): TunerSettings {
@@ -71,13 +100,19 @@ export function loadTunerSettings(profile: InstrumentProfile = getProfile()): Tu
     raw.transposition === "C" || raw.transposition === "Bb" || raw.transposition === "Eb" || raw.transposition === "F"
       ? raw.transposition
       : fallback.transposition;
-  const droneOctave: 3 | 4 | 5 =
-    raw.droneOctave === 3 || raw.droneOctave === 4 || raw.droneOctave === 5
+  const droneOctave: DroneOctave =
+    raw.droneOctave === 2 || raw.droneOctave === 3 || raw.droneOctave === 4 || raw.droneOctave === 5
       ? raw.droneOctave
       : fallback.droneOctave;
   const droneWave: DroneWave =
     raw.droneWave === "sine" || raw.droneWave === "triangle" ? raw.droneWave : fallback.droneWave;
-  return { a4Hz, transposition, droneOctave, droneWave };
+  const droneVolume =
+    typeof raw.droneVolume === "number" ? clampDroneVolume(raw.droneVolume) : fallback.droneVolume;
+  const sensitivity: TunerSensitivity =
+    raw.sensitivity === "quiet" || raw.sensitivity === "normal" || raw.sensitivity === "loud"
+      ? raw.sensitivity
+      : fallback.sensitivity;
+  return { a4Hz, transposition, droneOctave, droneWave, droneVolume, sensitivity };
 }
 
 export function saveTunerSettings(settings: TunerSettings, profile: InstrumentProfile = getProfile()): void {
@@ -88,6 +123,8 @@ export function saveTunerSettings(settings: TunerSettings, profile: InstrumentPr
       transposition: settings.transposition,
       droneOctave: settings.droneOctave,
       droneWave: settings.droneWave,
+      droneVolume: clampDroneVolume(settings.droneVolume),
+      sensitivity: settings.sensitivity,
     },
     profile,
   );
@@ -103,6 +140,12 @@ export function midiToNorwegianLabel(midi: number): { name: string; octave: numb
   const octave = Math.floor(rounded / 12) - 1;
   const name = NOTE_NAMES_NB[pc]!;
   return { name, octave, full: `${name}${octave}` };
+}
+
+/** Returns the written Norwegian note label for a concert MIDI note under the active transposition. */
+export function getWrittenDroneLabel(concertMidi: number, transposition: TunerTransposition): string {
+  const transDef = TRANSPOSITION_OPTIONS.find((t) => t.id === transposition) ?? TRANSPOSITION_OPTIONS[0]!;
+  return midiToNorwegianLabel(concertMidi + transDef.writtenOffset).full;
 }
 
 export interface PitchReading {
@@ -133,7 +176,7 @@ export function freqToPitchReading(
   a4Hz: number = DEFAULT_A4_HZ,
   transposition: TunerTransposition = "C",
 ): PitchReading | null {
-  if (!Number.isFinite(hz) || hz < 27.5 || hz > 4200) return null;
+  if (!Number.isFinite(hz) || hz < 27.5 || hz > 4300) return null;
   const safeA4 = clampA4(a4Hz);
   const exactMidi = 69 + 12 * Math.log2(hz / safeA4);
   const concertMidi = Math.round(exactMidi);
@@ -166,16 +209,31 @@ export interface YinDetectionResult {
   rms: number;
 }
 
+export interface YinWorkspace {
+  diff: Float32Array;
+  cmnd: Float32Array;
+}
+
+export function createYinWorkspace(maxBufferSize = 4096): YinWorkspace {
+  const half = Math.floor(maxBufferSize / 2) + 2;
+  return {
+    diff: new Float32Array(half),
+    cmnd: new Float32Array(half),
+  };
+}
+
 export interface YinOptions {
   minHz?: number;
   maxHz?: number;
   minRms?: number;
   threshold?: number;
+  workspace?: YinWorkspace;
 }
 
 /**
- * YIN fundamental frequency estimator with Cumulative Mean Normalized Difference (CMND)
- * and parabolic lag interpolation for sub-cent chromatic tuner accuracy.
+ * YIN fundamental frequency estimator with Cumulative Mean Normalized Difference (CMND),
+ * octave-down protection, optional zero-allocation workspace, and parabolic lag interpolation
+ * for sub-cent chromatic tuner accuracy up to C8 (4200 Hz).
  */
 export function detectPitchYin(
   buffer: Float32Array,
@@ -185,8 +243,8 @@ export function detectPitchYin(
   const n = buffer.length;
   if (n < 512 || !Number.isFinite(sampleRate) || sampleRate < 8000) return null;
 
-  const minHz = opts.minHz ?? 32;
-  const maxHz = opts.maxHz ?? 2200;
+  const minHz = opts.minHz ?? 40;
+  const maxHz = opts.maxHz ?? 4300;
   const minRms = opts.minRms ?? 0.012;
   const threshold = opts.threshold ?? 0.15;
 
@@ -208,7 +266,12 @@ export function detectPitchYin(
   const maxTau = Math.min(half - 2, Math.ceil(sampleRate / minHz));
   if (maxTau <= minTau + 2) return null;
 
-  const diff = new Float32Array(maxTau + 2);
+  const needed = maxTau + 2;
+  const ws = opts.workspace;
+  const diff = ws && ws.diff.length >= needed ? ws.diff : new Float32Array(needed);
+  const cmnd = ws && ws.cmnd.length >= needed ? ws.cmnd : new Float32Array(needed);
+
+  diff[0] = 0;
   for (let tau = 1; tau <= maxTau + 1; tau++) {
     let sum = 0;
     for (let i = 0; i < half; i++) {
@@ -219,7 +282,6 @@ export function detectPitchYin(
   }
 
   // Cumulative mean normalized difference function (CMND)
-  const cmnd = new Float32Array(maxTau + 2);
   cmnd[0] = 1;
   let running = 0;
   for (let tau = 1; tau <= maxTau + 1; tau++) {
@@ -239,27 +301,50 @@ export function detectPitchYin(
     }
   }
 
-  // Fallback to global minimum if slightly above threshold (helpful for percussive mallet attacks)
+  // Fallback to best true local minimum if slightly above threshold (helpful for percussive mallet attacks),
+  // with octave-down protection favoring tau / 2 when nearly as deep.
   if (tauEst === -1) {
     let bestTau = -1;
     let bestVal = 0.24;
-    for (let tau = minTau; tau <= maxTau; tau++) {
+    const scanStart = Math.max(minTau, 2);
+    const scanEnd = maxTau - 1;
+    for (let tau = scanStart; tau <= scanEnd; tau++) {
       const v = cmnd[tau]!;
-      if (v < bestVal) {
+      if (v < bestVal && v <= cmnd[tau - 1]! && v <= cmnd[tau + 1]!) {
         bestVal = v;
         bestTau = tau;
       }
     }
     if (bestTau === -1) return null;
+
+    // Guard against octave-down lock (2·T having slightly lower CMND than T)
+    const halfCenter = Math.round(bestTau / 2);
+    if (halfCenter >= minTau + 1) {
+      let halfBestTau = -1;
+      let halfBestVal = Math.min(0.24, bestVal + 0.06);
+      const lo = Math.max(minTau, halfCenter - 2);
+      const hi = Math.min(scanEnd, halfCenter + 2);
+      for (let t = lo; t <= hi; t++) {
+        const v = cmnd[t]!;
+        if (v <= halfBestVal && v <= cmnd[t - 1]! && v <= cmnd[t + 1]!) {
+          halfBestVal = v;
+          halfBestTau = t;
+        }
+      }
+      if (halfBestTau !== -1) {
+        bestTau = halfBestTau;
+      }
+    }
+
     tauEst = bestTau;
   }
 
-  // Parabolic interpolation around tauEst for sub-sample lag precision
+  // Parabolic interpolation on raw diff[] (YIN Step 5) to avoid CMND slope bias at small lags (high register)
   let betterTau = tauEst;
   if (tauEst > 1 && tauEst < maxTau) {
-    const s0 = cmnd[tauEst - 1]!;
-    const s1 = cmnd[tauEst]!;
-    const s2 = cmnd[tauEst + 1]!;
+    const s0 = diff[tauEst - 1]!;
+    const s1 = diff[tauEst]!;
+    const s2 = diff[tauEst + 1]!;
     const denom = 2 * (2 * s1 - s2 - s0);
     if (Math.abs(denom) > 1e-12) {
       const shift = (s2 - s0) / denom;
@@ -277,35 +362,70 @@ export function detectPitchYin(
 }
 
 /**
- * Smooths rapid frame-to-frame pitch jitter while snapping instantly
- * whenever the player moves to a different note (> 80 cents jump).
+ * Smooths rapid frame-to-frame pitch jitter in log-frequency (cents) space
+ * while requiring `confirmFrames` consistent readings before snapping across
+ * a large jump (> `resetCents`), preventing single-frame octave glitches.
  */
 export class PitchSmoother {
   private hz: number | null = null;
+  private pendingHz: number | null = null;
+  private pendingCount = 0;
   private readonly alpha: number;
   private readonly resetCents: number;
+  private readonly confirmFrames: number;
 
-  constructor(alpha = 0.28, resetCents = 80) {
+  constructor(alpha = 0.28, resetCents = 80, confirmFrames = 1) {
     this.alpha = alpha;
     this.resetCents = resetCents;
+    this.confirmFrames = Math.max(1, Math.round(confirmFrames));
   }
 
   push(nextHz: number): number {
     if (this.hz === null) {
       this.hz = nextHz;
+      this.pendingHz = null;
+      this.pendingCount = 0;
       return nextHz;
     }
+
     const diffCents = Math.abs(1200 * Math.log2(nextHz / this.hz));
     if (diffCents > this.resetCents) {
-      this.hz = nextHz;
-      return nextHz;
+      if (this.confirmFrames <= 1) {
+        this.hz = nextHz;
+        this.pendingHz = null;
+        this.pendingCount = 0;
+        return nextHz;
+      }
+
+      if (this.pendingHz !== null) {
+        const pendingDiff = Math.abs(1200 * Math.log2(nextHz / this.pendingHz));
+        if (pendingDiff <= this.resetCents) {
+          this.pendingCount += 1;
+          this.pendingHz = this.pendingHz * 2 ** (0.5 * Math.log2(nextHz / this.pendingHz));
+          if (this.pendingCount >= this.confirmFrames) {
+            this.hz = this.pendingHz;
+            this.pendingHz = null;
+            this.pendingCount = 0;
+          }
+          return this.hz;
+        }
+      }
+
+      this.pendingHz = nextHz;
+      this.pendingCount = 1;
+      return this.hz;
     }
-    this.hz = this.hz + this.alpha * (nextHz - this.hz);
+
+    this.pendingHz = null;
+    this.pendingCount = 0;
+    this.hz = this.hz * 2 ** (this.alpha * Math.log2(nextHz / this.hz));
     return this.hz;
   }
 
   reset(): void {
     this.hz = null;
+    this.pendingHz = null;
+    this.pendingCount = 0;
   }
 }
 
@@ -315,9 +435,16 @@ interface ActiveDrone {
   filter: BiquadFilterNode | null;
   gain: GainNode;
   midi: number;
+  wave: DroneWave;
 }
 
 let activeDrone: ActiveDrone | null = null;
+
+function targetDroneGain(wave: DroneWave, volume: number): number {
+  const safeVol = clampDroneVolume(volume);
+  const base = wave === "triangle" ? 0.22 : 0.26;
+  return Math.max(0.0001, base * safeVol);
+}
 
 export function getActiveDroneMidi(): number | null {
   return activeDrone ? activeDrone.midi : null;
@@ -347,6 +474,7 @@ export function startTunerDrone(
   concertMidi: number,
   a4Hz: number = DEFAULT_A4_HZ,
   wave: DroneWave = "triangle",
+  volume: number = DEFAULT_DRONE_VOLUME,
 ): boolean {
   stopTunerDrone();
   try {
@@ -358,7 +486,7 @@ export function startTunerDrone(
   const ctx = unlock() ?? audio();
   if (!ctx) return false;
   try {
-    const dest = output() ?? ctx.destination;
+    const dest = auxOutput() ?? ctx.destination;
     const freq = midiToFrequency(concertMidi, a4Hz);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -379,11 +507,11 @@ export function startTunerDrone(
 
     const now = ctx.currentTime;
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(wave === "triangle" ? 0.16 : 0.2, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(targetDroneGain(wave, volume), now + 0.04);
     gain.connect(dest);
     osc.start(now);
 
-    const handle: ActiveDrone = { osc, filter, gain, midi: concertMidi };
+    const handle: ActiveDrone = { osc, filter, gain, midi: concertMidi, wave };
     activeDrone = handle;
     osc.onended = () => {
       if (activeDrone === handle) {
@@ -407,6 +535,20 @@ export function updateTunerDronePitch(concertMidi: number, a4Hz: number = DEFAUL
     if (activeDrone.filter) {
       activeDrone.filter.frequency.setTargetAtTime(Math.min(2800, freq * 3.8), ctx.currentTime, 0.015);
     }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function setTunerDroneVolume(volume: number): void {
+  if (!activeDrone) return;
+  try {
+    const ctx = activeDrone.gain.context;
+    activeDrone.gain.gain.setTargetAtTime(
+      targetDroneGain(activeDrone.wave, volume),
+      ctx.currentTime,
+      0.02,
+    );
   } catch {
     /* ignore */
   }
