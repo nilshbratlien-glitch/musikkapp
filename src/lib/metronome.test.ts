@@ -39,7 +39,7 @@ describe("snare-speed metronome", () => {
     assert.equal(last.state.barCount, 0);
 
     // Respects maxBpm cap
-    let capped: ClickState = { bpm: 118, beat: 0, barCount: 0 };
+    const capped: ClickState = { bpm: 118, beat: 0, barCount: 0 };
     let finalStep = onClick(capped, { sub: 4, bars: 1, inc: 5, maxBpm: 120 });
     for (let i = 1; i < 4; i++) {
       finalStep = onClick(finalStep.state, { sub: 4, bars: 1, inc: 5, maxBpm: 120 });

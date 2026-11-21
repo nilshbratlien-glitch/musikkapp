@@ -405,7 +405,11 @@ describe("Metronom during a 2-mallet block", () => {
     assert.match(await main.innerText(), /2-mallet · 3 slag/);
     assert.equal(await pressed("3/4"), "true", "the 3-beat chip is selected");
     assert.equal(await pressed("4/4"), "false", "never 3 slag and 4/4 at once");
-    assert.equal(await page.locator('main [aria-pressed="true"]').count(), 2, "one meter and one subdivision chip");
+    assert.equal(
+      await page.locator('[aria-label="Taktart"] [aria-pressed="true"], [aria-label="Underdeling"] [aria-pressed="true"]').count(),
+      2,
+      "one meter and one subdivision chip",
+    );
     assert.equal(await pressed("Slag"), "true");
     assert.match(await header().getAttribute("aria-label"), /^Pause 2-mallet, \d+:\d\d igjen$/);
     assert.equal(await header().getAttribute("aria-pressed"), "false");
