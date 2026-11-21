@@ -2481,6 +2481,35 @@ describe("Tablet 16:10 GUX & GUI suite", () => {
     const tappedBpm = Number(bpmText?.trim());
     assert.ok(tappedBpm >= 90 && tappedBpm <= 160, `Tap tempo updated BPM (${tappedBpm})`);
 
+    // Odd meters (5/4, 7/8), interactive beat accent toggle, gap trainer, click sound & stand mode
+    const meterGroup = page.getByRole("group", { name: "Taktart" });
+    await meterGroup.getByRole("button", { name: "5/4", exact: true }).click();
+    assert.equal(
+      await meterGroup.getByRole("button", { name: "5/4", exact: true }).getAttribute("aria-pressed"),
+      "true",
+    );
+    await page.getByRole("button", { name: "Slag 2: Vanlig", exact: true }).click();
+    await page.getByRole("button", { name: "Slag 2: Aksent", exact: true }).waitFor({ state: "visible" });
+
+    const gapGroup = page.getByRole("group", { name: "Stille takter" });
+    await gapGroup.getByRole("button", { name: "3 + 1", exact: true }).click();
+    assert.equal(
+      await gapGroup.getByRole("button", { name: "3 + 1", exact: true }).getAttribute("aria-pressed"),
+      "true",
+    );
+    await gapGroup.getByRole("button", { name: "Av", exact: true }).click();
+
+    const soundGroup = page.getByRole("group", { name: "Klikkelyd" });
+    await soundGroup.getByRole("button", { name: "Rimshot", exact: true }).click();
+    assert.equal(
+      await soundGroup.getByRole("button", { name: "Rimshot", exact: true }).getAttribute("aria-pressed"),
+      "true",
+    );
+
+    await page.getByRole("button", { name: "Notestativ-modus (fullskjerm)", exact: true }).click();
+    await page.getByRole("button", { name: "Avslutt notestativ-modus", exact: true }).click();
+    await meterGroup.getByRole("button", { name: "4/4", exact: true }).click();
+
     // 3. Tuner A4 calibration (442 default -> 440), transposition, and chromatic drone pad
     await tab("/tuner");
     assert.equal((await page.locator("[data-tuner-a4]").textContent())?.trim(), "442 Hz");

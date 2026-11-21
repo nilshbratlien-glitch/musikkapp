@@ -65,6 +65,50 @@ describe("pulse core", () => {
     assert.equal(clicksBetween(contexts[0]!.currentTime - 3.2, contexts[0]!.currentTime + 1), 3);
   });
 
+  it("supports all 4 click timbres (1 oscillator each), muted beats, gap trainer silent bars, and auxOutput persistence", () => {
+    for (const sound of ["woodblock", "rimshot", "soft", "beep"] as const) {
+      started.length = 0;
+      pulse.setClickSound(sound);
+      pulse.start({ owner: "metronom", bpm: 120, beats: 4, count: 4 });
+      advance(2200);
+      assert.equal(started.length, 4, `${sound} spawns exactly 1 oscillator per click`);
+      pulse.stop();
+    }
+
+    // Muted beats skip oscillator creation while beat counter still advances
+    started.length = 0;
+    pulse.start({
+      owner: "metronom",
+      bpm: 120,
+      beats: 4,
+      count: 4,
+      beatAccents: ["accent", "mute", "normal", "mute"],
+    });
+    advance(2200);
+    assert.equal(started.length, 2, "only the 2 unmuted beats produce clicks");
+    pulse.stop();
+
+    // Gap trainer: 1 play bar + 1 mute bar in 2/4 at 120 BPM (count = 4 beats = 2 bars)
+    started.length = 0;
+    pulse.start({
+      owner: "metronom",
+      bpm: 120,
+      beats: 2,
+      count: 4,
+      gap: { playBars: 1, muteBars: 1 },
+    });
+    advance(2200);
+    assert.equal(started.length, 2, "only bar 1 clicks while bar 2 is silenced by gap trainer");
+    assert.equal(pulse.getState().gapMuted, true, "state reports gapMuted on the silent bar");
+
+    // auxOutput survives pulse.stop() cut()
+    const aux = pulse.auxOutput();
+    assert.ok(aux);
+    pulse.stop();
+    assert.equal(audible(aux as never), true, "auxOutput stays connected when metronome stops");
+    assert.equal(pulse.getState().gapMuted, false, "stop resets gapMuted");
+  });
+
   describe("hidden and shown again", () => {
     const ctx = () => contexts[0]! as unknown as { state: string; resumes: number };
 
